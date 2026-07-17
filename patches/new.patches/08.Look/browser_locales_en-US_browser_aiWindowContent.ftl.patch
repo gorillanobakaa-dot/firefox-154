@@ -1,0 +1,11 @@
+--- a/browser/locales/en-US/browser/aiWindowContent.ftl
++++ b/browser/locales/en-US/browser/aiWindowContent.ftl
+@@ -2,6 +2,8 @@
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ 
++-smart-window-brand-name = Gorilla AI
++
+ smartwindow-messages-document-title = { -smart-window-brand-name } chat messages
+ 
+ ## Context chips in the chat content

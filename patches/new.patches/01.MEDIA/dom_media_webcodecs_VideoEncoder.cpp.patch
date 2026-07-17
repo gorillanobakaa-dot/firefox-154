@@ -1,0 +1,26 @@
+--- a/dom/media/webcodecs/VideoEncoder.cpp
++++ b/dom/media/webcodecs/VideoEncoder.cpp
+@@ -21,6 +21,7 @@
+ #include "mozilla/dom/VideoFrame.h"
+ #include "mozilla/dom/VideoFrameBinding.h"
+ #include "mozilla/dom/WebCodecsUtils.h"
++#include "mozilla/StaticPrefs_media.h"
+ #include "nsIGlobalObject.h"
+ #include "nsPrintfCString.h"
+ #include "nsRFPService.h"
+@@ -425,6 +426,15 @@
+     return false;
+   }
+ 
++  // GORILLA PATCH: Early validation check to block VP8/VP9/AV1 codec configurations
++  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++    if (!IsSupportedVideoCodec(aConfig.mCodec)) {
++      aErrorMessage.AssignLiteral("Unsupported codec under hardware-only mode");
++      LOGE("{}", aErrorMessage.get());
++      return false;
++    }
++  }
++
+   // 2.
+   if (aConfig.mWidth == 0 || aConfig.mHeight == 0) {
+     aErrorMessage.AppendPrintf("Invalid VideoEncoderConfig: %s equal to 0",

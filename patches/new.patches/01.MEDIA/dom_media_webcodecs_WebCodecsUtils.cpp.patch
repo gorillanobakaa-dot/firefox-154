@@ -1,0 +1,13 @@
+--- a/dom/media/webcodecs/WebCodecsUtils.cpp
++++ b/dom/media/webcodecs/WebCodecsUtils.cpp
+@@ -608,6 +608,10 @@
+ 
+ bool IsSupportedVideoCodec(const nsAString& aCodec) {
+   LOG("IsSupportedVideoCodec: {}", NS_ConvertUTF16toUTF8(aCodec).get());
++  // GORILLA PATCH: Enforce hardware-only media capabilities gating for WebCodecs
++  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++    return IsH264CodecString(aCodec);
++  }
+   // The only codec string accepted for vp8 is "vp8"
+   if (!IsVP9CodecString(aCodec) && !IsH264CodecString(aCodec) &&
+       !IsAV1CodecString(aCodec) && !aCodec.EqualsLiteral("vp8")) {

@@ -1,0 +1,45 @@
+--- a/netwerk/protocol/http/nsHttpTransaction.cpp
++++ b/netwerk/protocol/http/nsHttpTransaction.cpp
+@@ -2,6 +2,12 @@
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
++// GORILLA UNLEASHED: Surgical Lobotomy (Blindness)
++// Sever all outbound telemetry data streams at the network layer.
++#undef MOZ_TELEMETRY_REPORTING
++#define MOZ_TELEMETRY_REPORTING 0
++#define GLEAN_DISABLED 1
++
+ // HttpLog.h should generally be included first
+ #include "nsHttpTransaction.h"
+ 
+@@ -73,6 +79,11 @@
+ 
+ using namespace mozilla::net;
+ 
++// GORILLA v2: Upload chunking strategy constant.
++// For large uploads (> 10MB) under BBR, limit each ReadSegments call to 256KB
++// so the pacing clock can drain the buffer between writes, maintaining low RTT.
++static const uint32_t kGorillaUploadChunkSize = 256 * 1024;
++
+ namespace mozilla::net {
+ 
+ //-----------------------------------------------------------------------------
+@@ -834,8 +845,16 @@
+ 
+   mDeferredSendProgress = false;
+   mReader = reader;
++  // GORILLA v2: Upload chunking strategy for BBR.
++  // For large uploads (mRequestSize > 10MB) limit each ReadSegments call to
++  // kGorillaUploadChunkSize (256KB) so the BBR pacing clock drains the buffer
++  // more effectively between writes, maintaining low RTT and max throughput.
++  uint32_t readCount = count;
++  if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize) {
++    readCount = kGorillaUploadChunkSize;
++  }
+   nsresult rv =
+-      mRequestStream->ReadSegments(ReadRequestSegment, this, count, countRead);
++      mRequestStream->ReadSegments(ReadRequestSegment, this, readCount, countRead);
+   mReader = nullptr;
+ 
+   if (m0RTTInProgress && (mEarlyDataDisposition == EARLY_NONE) &&

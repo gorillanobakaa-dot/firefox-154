@@ -1,0 +1,95 @@
+--- a/dom/media/webrtc/libwebrtcglue/WebrtcVideoCodecFactory.cpp
++++ b/dom/media/webrtc/libwebrtcglue/WebrtcVideoCodecFactory.cpp
+@@ -47,6 +47,9 @@
+     case webrtc::VideoCodecType::kVideoCodecVP8:
+     case webrtc::VideoCodecType::kVideoCodecVP9:
+     case webrtc::VideoCodecType::kVideoCodecAV1:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return {};
++      }
+       return {media::DecodeSupport::SoftwareDecode};
+     case webrtc::VideoCodecType::kVideoCodecGeneric:
+     case webrtc::VideoCodecType::kVideoCodecH265:
+@@ -65,7 +68,9 @@
+     case CodecType::VP8:
+     case CodecType::VP9:
+     case CodecType::AV1:
+-      libwebrtcSupport += media::EncodeSupport::SoftwareEncode;
++      if (!StaticPrefs::media_gorilla_hardware_only_mode()) {
++        libwebrtcSupport += media::EncodeSupport::SoftwareEncode;
++      }
+       break;
+     case CodecType::H264:
+       libwebrtcSupport += WebrtcGmpEncoderSupports(aConfig);
+@@ -117,14 +122,23 @@
+ 
+     // Use libvpx decoders as fallbacks.
+     case webrtc::VideoCodecType::kVideoCodecVP8:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       if (!decoder) {
+         decoder = webrtc::CreateVp8Decoder(aEnv);
+       }
+       break;
+     case webrtc::VideoCodecType::kVideoCodecVP9:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       decoder = webrtc::VP9Decoder::Create();
+       break;
+     case webrtc::VideoCodecType::kVideoCodecAV1:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       decoder = webrtc::CreateDav1dDecoder();
+       break;
+     default:
+@@ -145,6 +159,9 @@
+     case webrtc::VideoCodecType::kVideoCodecH265:
+       MOZ_CRASH("Unimplemented codec");
+     case webrtc::VideoCodecType::kVideoCodecAV1:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       if (StaticPrefs::media_webrtc_simulcast_av1_enabled()) {
+         return std::make_unique<webrtc::SimulcastEncoderAdapter>(
+             aEnv, mInternalFactory.get(), nullptr, aFormat);
+@@ -157,9 +174,15 @@
+       }
+       break;
+     case webrtc::VideoCodecType::kVideoCodecVP8:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       return std::make_unique<webrtc::SimulcastEncoderAdapter>(
+           aEnv, mInternalFactory.get(), nullptr, aFormat);
+     case webrtc::VideoCodecType::kVideoCodecVP9:
++      if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++        return nullptr;
++      }
+       if (StaticPrefs::media_webrtc_simulcast_vp9_enabled()) {
+         return std::make_unique<webrtc::SimulcastEncoderAdapter>(
+             aEnv, mInternalFactory.get(), nullptr, aFormat);
+@@ -210,12 +233,21 @@
+       }
+       // libvpx fallbacks.
+       case webrtc::VideoCodecType::kVideoCodecVP8:
++        if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++          return nullptr;
++        }
+         encoder = webrtc::CreateVp8Encoder(aEnv);
+         break;
+       case webrtc::VideoCodecType::kVideoCodecVP9:
++        if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++          return nullptr;
++        }
+         encoder = webrtc::CreateVp9Encoder(aEnv);
+         break;
+       case webrtc::VideoCodecType::kVideoCodecAV1:
++        if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++          return nullptr;
++        }
+         encoder = webrtc::CreateLibaomAv1Encoder(aEnv);
+         break;
+       default:

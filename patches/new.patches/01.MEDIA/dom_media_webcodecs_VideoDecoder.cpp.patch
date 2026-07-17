@@ -1,0 +1,26 @@
+--- a/dom/media/webcodecs/VideoDecoder.cpp
++++ b/dom/media/webcodecs/VideoDecoder.cpp
+@@ -26,6 +26,7 @@
+ #include "mozilla/dom/VideoDecoderBinding.h"
+ #include "mozilla/dom/VideoFrameBinding.h"
+ #include "mozilla/dom/WebCodecsUtils.h"
++#include "mozilla/StaticPrefs_media.h"
+ #include "nsPrintfCString.h"
+ 
+ #ifdef XP_MACOSX
+@@ -718,6 +719,15 @@
+     return false;
+   }
+ 
++  // GORILLA PATCH: Early validation check to block VP8/VP9/AV1 codec configurations
++  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++    if (!IsSupportedVideoCodec(aConfig.mCodec)) {
++      aErrorMessage.AssignLiteral("Unsupported codec under hardware-only mode");
++      LOGE("{}", aErrorMessage.get());
++      return false;
++    }
++  }
++
+   if (aConfig.mCodedWidth.WasPassed() != aConfig.mCodedHeight.WasPassed()) {
+     aErrorMessage.AppendPrintf(
+         "Missing coded %s",

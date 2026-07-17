@@ -1,0 +1,223 @@
+/* 🦍 GORILLA UNLEASHED - MASTER REDIRECTOR (ASIC-BOUND EDITION) */
+/* Zero-CPU Theme Architecture for Intel HD 4000 */
+
+:root {
+  --gorilla-master-icon: url("chrome://branding/content/about-logo.svg");
+}
+
+/* Override standard illustration classes and elements */
+.illustration, .info-icon, .error-icon, .panel-illustration, .category-icon, moz-promo img, #extensions-empty-illustration {
+  content: var(--gorilla-master-icon) !important;
+  background-image: var(--gorilla-master-icon) !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  -moz-context-properties: none !important;
+  filter: none !important;
+}
+
+/* ==========================================================================
+   GORILLA UNLEASHED: QUECTOSECOND ANIMATION ANNIHILATION
+   ========================================================================== */
+*, *::before, *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* ==========================================================================
+   GORILLA UNLEASHED: COLOR-VALUE CONVERGENCE (PURE BLACK / CYAN)
+   ========================================================================== */
+:root, #main-window, #browser-window, window {
+    /* Base Blacks */
+    --lwt-accent-color: #000000 !important;
+    --lwt-frame: #000000 !important;
+    --tabpanel-background-color: #000000 !important;
+    --color-gray-05: #000000 !important;
+    --color-gray-10: #000000 !important;
+    --color-gray-20: #000000 !important;
+    --color-gray-30: #000000 !important;
+    --color-gray-40: #000000 !important;
+    --color-gray-50: #000000 !important;
+    --color-gray-60: #000000 !important;
+    --color-gray-70: #000000 !important;
+    --color-gray-80: #000000 !important;
+    --color-gray-90: #000000 !important;
+    --panel-background: #000000 !important;
+    --panel-background-color: #000000 !important;
+    --arrowpanel-background: #000000 !important;
+    --toolbar-bgcolor: #000000 !important;
+    --chrome-content-separator-color: #000000 !important;
+    --toolbar-field-background-color: #000000 !important;
+    --lwt-toolbar-field-background-color: #000000 !important;
+    --urlbar-box-bgcolor: #000000 !important;
+    --urlbar-box-background-color: #000000 !important;
+    --urlbar-background-background-color: #000000 !important;
+    --urlbar-background-background-color-focused: #000000 !important;
+    --urlbar-box-background-color-focus: #000000 !important;
+    --urlbar-box-background-color-hover: #000000 !important;
+    --urlbar-box-background-color-active: #000000 !important;
+    --input-bgcolor: #000000 !important;
+    --newtab-background-color: #000000 !important;
+    --newtab-background-color-secondary: #000000 !important;
+    
+    /* Text Visibility (Pure Cyan and Stark White) */
+    --lwt-tab-text: #FFFFFF !important;
+    --panel-text-color: #00FFFF !important;
+    --toolbar-field-color: #00FFFF !important;
+    --lwt-toolbar-field-color: #00FFFF !important;
+    --input-color: #00FFFF !important;
+    --newtab-text-primary-color: #00FFFF !important;
+
+    /* Global Dark Mode Force */
+    color-scheme: dark !important;
+}
+
+/* ==========================================================================
+   GORILLA UNLEASHED: INTEL HD 4000 GPU OFFLOADING
+   Strictly banning CPU layout reflows. All interactions must use Opacity, Transform, or Outline.
+   ========================================================================== */
+
+/* Pre-promote interactive UI elements to the GPU Compositor Layer (DISABLED to prevent WRSceneBuilder thrashing) */
+/* .tabbrowser-tab, .toolbarbutton-1, .urlbar-input-box {
+    will-change: transform, opacity !important;
+} */
+
+/* --- ACTIVE TAB: PINK (#FFC0CB) / TEXT: BLACK (#000000) --- */
+.tabbrowser-tab[selected] .tab-background {
+    background-color: #FFC0CB !important;
+    border: none !important;       /* CPU safe: 0 reflows */
+    outline: none !important;
+    box-shadow: none !important;   /* Kill expensive GPU compositing */
+}
+.tabbrowser-tab[selected] .tab-label {
+    color: #000000 !important;
+    font-weight: normal !important;
+}
+.tabbrowser-tab[selected] .tab-close-button {
+    color: #000080 !important;     /* Navy blue from logs */
+    fill: #000080 !important;
+    font-weight: bold !important;
+}
+
+/* --- INACTIVE TAB: VISIBLE TEXT ON BLACK BACKGROUND --- */
+.tabbrowser-tab:not([selected]) .tab-label {
+    color: #00FFFF !important;
+}
+
+/* --- INACTIVE TAB HOVER: GPU ONLY --- */
+/* No borders, no padding changes. Just pure outline and GPU opacity */
+.tabbrowser-tab:not([selected]):hover .tab-background {
+    background-color: transparent !important;
+    outline: 1px solid #00FFFF !important; /* Pure Cyan outline, 0 CPU reflow */
+    outline-offset: -1px !important;
+    opacity: 0.8 !important;               /* Handled natively by HD4000 ROP */
+}
+
+/* --- URL BAR OVERRIDES --- */
+.urlbar-input::placeholder, .searchbar-textbox::placeholder {
+  opacity: 1 !important;           /* GPU alpha blend pierce */
+  color: #00FFFF !important;
+}
+
+#urlbar[focused="true"] > #urlbar-background {
+    outline: 2px solid #00FFFF !important; /* Pure Cyan focus ring */
+    outline-offset: -2px !important;
+    border: none !important;       /* Stop CPU from resizing the box */
+    box-shadow: none !important;   /* Stop heavy compositing */
+}
+
+/* --- MENUS AND DROPDOWNS --- */
+#categories > .category, #categories > radio, .menu-item, .toolbarbutton {
+    appearance: none !important;
+    -moz-default-appearance: none !important;
+    background-color: #000000 !important;
+    border: none !important;
+    outline: none !important;
+}
+
+/* Menu items hover: Native GPU outline instead of background swap */
+.menu-item:hover, .toolbarbutton:hover {
+    outline: 1px solid #00FFFF !important;
+    outline-offset: -1px !important;
+    background-color: #000000 !important; /* Keep background black to prevent repaint */
+}
+
+
+/* ==========================================================================
+   GORILLA UNLEASHED: EXPLICIT THROBBER & REPAINT KILL-SWITCH
+   ========================================================================== */
+.tab-throbber, .tab-loading-burst, .tab-icon-pending, .tab-icon-image, 
+progress, .progress-bar, #tabbrowser-tabpanels {
+  animation: none !important;
+  transition: none !important;
+  background-image: none !important;
+}
+
+/* Hard-kill the caret in pure CSS if possible (DISABLED: Restored typing cursor for usability) */
+/* * {
+  caret-color: transparent !important;
+} */
+
+/* ==========================================================================
+   GORILLA UNLEASHED: POPUP ARTIFACT OVERRIDES
+   Clamp runaway autocomplete login/favicon icons 
+   ========================================================================== */
+.ac-site-icon, 
+panel[type="autocomplete-richlistbox"] image, 
+panel[type="autocomplete-richlistbox"] img {
+  max-width: 16px !important;
+  max-height: 16px !important;
+  object-fit: contain !important;
+}
+
+autocomplete-row-item { --icon-width: 16px !important; --icon-height: 16px !important; }
+
+/* ==========================================================================
+   GORILLA UNLEASHED: WINDOW CONTROLS VISIBILITY (CSD BLACK-ON-BLACK FIX)
+   Titlebar buttons (close/min/max) are SVG icons that inherit from the
+   theme color. Force them cyan so they show against the black titlebar.
+   ========================================================================== */
+.titlebar-button > .toolbarbutton-icon {
+    color: #00FFFF !important;
+    fill: #00FFFF !important;
+    -moz-context-properties: fill, fill-opacity, stroke !important;
+}
+.titlebar-close:hover > .toolbarbutton-icon {
+    color: #FF3750 !important;
+    fill: #FF3750 !important;
+}
+
+/* ==========================================================================
+   GORILLA UNLEASHED: NEW TAB BUTTON VISIBILITY
+   The "+" new tab button is black-on-black when all colors are forced #000.
+   ========================================================================== */
+#tabs-newtab-button,
+#vertical-tabs-newtab-button,
+#TabsToolbar #new-tab-button {
+    color: #00FFFF !important;
+    fill: #00FFFF !important;
+}
+#tabs-newtab-button > .toolbarbutton-icon,
+#vertical-tabs-newtab-button > .toolbarbutton-icon,
+#new-tab-button > .toolbarbutton-icon {
+    color: #00FFFF !important;
+    fill: #00FFFF !important;
+    -moz-context-properties: fill, fill-opacity !important;
+}
+#tabs-newtab-button:hover,
+#vertical-tabs-newtab-button:hover,
+#new-tab-button:hover {
+    outline: 1px solid #00FFFF !important;
+    outline-offset: -1px !important;
+}
+
+/* Inactive tab close buttons also need visibility */
+.tabbrowser-tab:not([selected]) .tab-close-button {
+    color: #00FFFF !important;
+    fill: #00FFFF !important;
+}
+
+/* Find bar — styled directly in toolkit/themes/shared/findbar.css */

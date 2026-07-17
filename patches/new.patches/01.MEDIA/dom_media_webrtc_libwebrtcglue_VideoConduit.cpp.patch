@@ -1,0 +1,21 @@
+--- a/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
++++ b/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
+@@ -3,6 +3,7 @@
+  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "VideoConduit.h"
++#include "mozilla/StaticPrefs_media.h"
+ 
+ #include <algorithm>
+ #include <cmath>
+@@ -2142,7 +2143,9 @@
+   return gfx::gfxVars::IsInitialized() && gfx::gfxVars::HasWebrtcH264Hw();
+ }
+ 
+-bool WebrtcVideoConduit::HasAv1() { return true; }
++bool WebrtcVideoConduit::HasAv1() {
++  return !StaticPrefs::media_gorilla_hardware_only_mode();
++}
+ 
+ Maybe<int> WebrtcVideoConduit::ActiveSendPayloadType() const {
+   MOZ_ASSERT(mCallThread->IsOnCurrentThread());

@@ -1,0 +1,14 @@
+--- a/netwerk/protocol/http/HttpChannelParent.cpp
++++ b/netwerk/protocol/http/HttpChannelParent.cpp
+@@ -2,6 +2,11 @@
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
++// GORILLA v2 UNLEASHED: Surgical Lobotomy (Blindness) — Extended Coverage Audit
++#undef MOZ_TELEMETRY_REPORTING
++#define MOZ_TELEMETRY_REPORTING 0
++#define GLEAN_DISABLED 1
++
+ // HttpLog.h should generally be included first
+ #include "ErrorList.h"
+ #include "HttpLog.h"
