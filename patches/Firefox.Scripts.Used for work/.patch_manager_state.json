@@ -1,0 +1,1040 @@
+{
+  "actions": [
+    {
+      "action": "init",
+      "detail": "source=/tmp/opencode/patch_mgr_test, tag=test-upstream",
+      "ts": 1783861483.340515
+    },
+    {
+      "action": "init",
+      "detail": "source=/home/gorilla/firefox-main, tag=firefox-154-upstream",
+      "ts": 1783974735.4115334
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/AudioContext.cpp, committed=True",
+      "ts": 1783974852.2190707
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/AudioDestinationNode.cpp, committed=True",
+      "ts": 1783974855.5187404
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/AudioStream.cpp, committed=True",
+      "ts": 1783974927.4085233
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/AudioStream.h, committed=True",
+      "ts": 1783974933.5951164
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/CubebUtils.cpp, committed=True",
+      "ts": 1783974934.9841032
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/DecoderTraits.cpp, committed=True",
+      "ts": 1783974936.3447242
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/DefaultCodecPreferences.cpp, committed=True",
+      "ts": 1783974937.673599
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/DynamicsCompressorNode.cpp, committed=True",
+      "ts": 1783974939.0351148
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/FFmpegVideoDecoder.cpp, committed=True",
+      "ts": 1783974940.424493
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/FFmpegVideoDecoder.h, committed=True",
+      "ts": 1783974941.8043008
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/gfxPlatformGtk.cpp, committed=True",
+      "ts": 1783974943.1893358
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/MediaCapabilities.cpp, committed=True",
+      "ts": 1783974944.5685728
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/MediaSource.cpp, committed=True",
+      "ts": 1783974945.9315422
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/moz.build, committed=True",
+      "ts": 1783974947.3157911
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/PDMFactory.cpp, committed=True",
+      "ts": 1783974948.6775124
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/RemoteVideoDecoder.cpp, committed=True",
+      "ts": 1783974953.780237
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/VideoConduit.cpp, committed=True",
+      "ts": 1783974955.1759882
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/VideoDecoder.cpp, committed=True",
+      "ts": 1783974956.5431182
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/VideoEncoder.cpp, committed=True",
+      "ts": 1783974957.9039543
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/WebCodecsUtils.cpp, committed=True",
+      "ts": 1783974959.3161623
+    },
+    {
+      "action": "port",
+      "detail": "01.MEDIA/WebrtcVideoCodecFactory.cpp, committed=True",
+      "ts": 1783974960.7145598
+    },
+    {
+      "action": "status",
+      "detail": "",
+      "ts": 1783974964.2349198
+    },
+    {
+      "action": "port",
+      "detail": "02.GPU/GfxDriverInfo.cpp, committed=True",
+      "ts": 1783974967.9811263
+    },
+    {
+      "action": "port",
+      "detail": "02.GPU/GfxInfo.cpp, committed=True",
+      "ts": 1783974969.5252354
+    },
+    {
+      "action": "port",
+      "detail": "02.GPU/GfxInfoBase.cpp, committed=True",
+      "ts": 1783974971.0845377
+    },
+    {
+      "action": "port",
+      "detail": "02.GPU/gfxPlatform.cpp, committed=True",
+      "ts": 1783974972.5783896
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/Http3Session.cpp, committed=True",
+      "ts": 1783975599.317703
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/HttpChannelParent.cpp, committed=True",
+      "ts": 1783975600.7077346
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/HttpConnectionUDP.cpp, committed=True",
+      "ts": 1783975602.0801663
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/nsHostResolver.cpp, committed=True",
+      "ts": 1783975603.445703
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/nsHttpConnectionMgr.cpp, committed=True",
+      "ts": 1783975604.8244898
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/nsHttpTransaction.cpp, committed=True",
+      "ts": 1783975606.1951635
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/nsSocketTransport2.cpp, committed=True",
+      "ts": 1783975607.582287
+    },
+    {
+      "action": "port",
+      "detail": "03.NETWORKING/nsUDPSocket.cpp, committed=True",
+      "ts": 1783975608.9409842
+    },
+    {
+      "action": "port",
+      "detail": "04.PERFORMANCE/CCGCScheduler.cpp, committed=True",
+      "ts": 1783975650.6848576
+    },
+    {
+      "action": "port",
+      "detail": "04.PERFORMANCE/Maybe.h, committed=True",
+      "ts": 1783975652.0641026
+    },
+    {
+      "action": "port",
+      "detail": "04.PERFORMANCE/MaybeStorageBase.h, committed=True",
+      "ts": 1783975653.4445202
+    },
+    {
+      "action": "port",
+      "detail": "05.PREFS/all.js, committed=True",
+      "ts": 1783975950.6922352
+    },
+    {
+      "action": "port",
+      "detail": "05.PREFS/firefox.js, committed=True",
+      "ts": 1783975952.0922785
+    },
+    {
+      "action": "port",
+      "detail": "05.PREFS/StaticPrefList.yaml, committed=True",
+      "ts": 1783975955.0760112
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/AddonManager.sys.mjs, committed=True",
+      "ts": 1783976352.5304186
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/AddonRepository.sys.mjs, committed=True",
+      "ts": 1783976353.8892636
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/appearance.mjs, committed=True",
+      "ts": 1783976355.2679548
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/Base.jsx, committed=True",
+      "ts": 1783976356.6455302
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/browserLanguages.js, committed=True",
+      "ts": 1783976358.0322158
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/DiscoveryStreamBase.jsx, committed=True",
+      "ts": 1783976359.4004343
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/ExperimentAPI.sys.mjs, committed=True",
+      "ts": 1783976360.8234348
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/lib.rs, committed=True",
+      "ts": 1783976362.2172642
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/LightweightThemeManager.sys.mjs, committed=True",
+      "ts": 1783976363.5402777
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/nsContextMenu.sys.mjs, committed=True",
+      "ts": 1783976364.938703
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/QuickSuggest.sys.mjs, committed=True",
+      "ts": 1783976366.3215482
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/search-config-v2.json, committed=True",
+      "ts": 1783976367.7119198
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/semantic-categories.mjs, committed=True",
+      "ts": 1783976369.054686
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/tokens-table.mjs, committed=True",
+      "ts": 1783976370.4246566
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/TopSites.jsx, committed=True",
+      "ts": 1783976371.774511
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/TranslationsParent.sys.mjs, committed=True",
+      "ts": 1783976373.1421587
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/UrlbarProviderQuickSuggest.sys.mjs, committed=True",
+      "ts": 1783976374.4963455
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/UrlbarProviderSearchSuggestions.sys.mjs, committed=True",
+      "ts": 1783976375.8824215
+    },
+    {
+      "action": "port",
+      "detail": "07.TOOLKIT/XPIInstall.sys.mjs, committed=True",
+      "ts": 1783976377.2624645
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/aboutaddons.css, committed=True",
+      "ts": 1783976496.5901477
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/aboutconfig.css, committed=True",
+      "ts": 1783976497.9329076
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/aboutDialog.css, committed=True",
+      "ts": 1783976499.3165934
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/aboutPrivateBrowsing.css, committed=True",
+      "ts": 1783976500.6753623
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/activity-stream.css, committed=True",
+      "ts": 1783976502.0347316
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/browser-shared.css, committed=True",
+      "ts": 1783976503.4980583
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/common-shared.css, committed=True",
+      "ts": 1783976504.9732573
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/content-aboutDialog.css, committed=True",
+      "ts": 1783976506.2953777
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/contentSearchHandoffUI.css, committed=True",
+      "ts": 1783976507.6628492
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/global-shared.css, committed=True",
+      "ts": 1783976509.0772846
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/installing_page.css, committed=True",
+      "ts": 1783976510.4031365
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/nova-activity-stream.css, committed=True",
+      "ts": 1783976511.828501
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/nova-tokens-figma-colors.json, committed=True",
+      "ts": 1783976513.211425
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/nova-tokens-figma-primitives.json, committed=True",
+      "ts": 1783976514.572265
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/nova-tokens-figma-theme.json, committed=True",
+      "ts": 1783976515.9394565
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/preferences.css, committed=True",
+      "ts": 1783976517.3569353
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/tokens-brand.css, committed=True",
+      "ts": 1783976518.8992083
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/tokens-figma-colors.json, committed=True",
+      "ts": 1783976520.2650473
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/tokens-platform.css, committed=True",
+      "ts": 1783976521.7476447
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/tokens-shared.css, committed=True",
+      "ts": 1783976523.0866911
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/unified-extensions.css, committed=True",
+      "ts": 1783976524.4450972
+    },
+    {
+      "action": "port",
+      "detail": "08.Look/urlbar-searchbar.css, committed=True",
+      "ts": 1783976525.7802875
+    },
+    {
+      "action": "port",
+      "detail": "09.REMOTE/Marionette.sys.mjs, committed=True",
+      "ts": 1783976606.522669
+    },
+    {
+      "action": "port",
+      "detail": "09.REMOTE/RemoteAgent.sys.mjs, committed=True",
+      "ts": 1783976607.8676915
+    },
+    {
+      "action": "build",
+      "detail": "success=False, errors=0",
+      "ts": 1783979777.4721754
+    },
+    {
+      "action": "status",
+      "detail": "",
+      "ts": 1784318408.4311965
+    },
+    {
+      "action": "status",
+      "detail": "",
+      "ts": 1784715902.8855193
+    },
+    {
+      "action": "status",
+      "detail": "",
+      "ts": 1784726098.0829232
+    }
+  ],
+  "builds": [
+    {
+      "errors": [],
+      "log": "/home/gorilla/Documents/FIrefox.154.Work/patches/FIrefox154.work.scripts/build_logs/build_20260713_225617.log",
+      "success": false,
+      "ts": "2026-07-13 22:56:17"
+    }
+  ],
+  "ported_files": {
+    "01.MEDIA/AudioContext.cpp": {
+      "dest": "dom/media/webaudio/AudioContext.cpp",
+      "old_sha256": "54f962b3a78604457dc7f41d8b3c0d38d9b8d75d948175fc27213dcd2564eab0",
+      "pristine_sha256": "eca5bc53f5f4841854a38640754903bef5eeb98395393123f073db7bea50b922",
+      "status": "committed",
+      "ts": 1783974851.47908
+    },
+    "01.MEDIA/AudioDestinationNode.cpp": {
+      "dest": "dom/media/webaudio/AudioDestinationNode.cpp",
+      "old_sha256": "7acd5a6ea474d657c6c658988b84cf85afa6e13fae1164900bf60b0e93da4913",
+      "pristine_sha256": "2e6b0f60f3dacee4de88ee81b2962daeb9e47578cf6b653e4d40a7337272023d",
+      "status": "committed",
+      "ts": 1783974854.7810986
+    },
+    "01.MEDIA/AudioStream.cpp": {
+      "dest": "dom/media/AudioStream.cpp",
+      "old_sha256": "e28330bf9ab55cdd20dd12de4e0cf2bea5f2a5cd27bd9e4896de0a6a51f54fbb",
+      "pristine_sha256": "71da258d4a7c71d28fb28371b3efb3ebf7c6551d820070e01296d9120ba54ac7",
+      "status": "committed",
+      "ts": 1783974926.7490826
+    },
+    "01.MEDIA/AudioStream.h": {
+      "dest": "dom/media/AudioStream.h",
+      "old_sha256": "5bf4d5c280b26d101d156127e2f8ce468342a27d6be3bb42a0cf22e459678839",
+      "pristine_sha256": "934364b1f056bc9818b3162ed32238f2e9af439b62ed53f0a4ebc7b5c65ba0dc",
+      "status": "committed",
+      "ts": 1783974932.909417
+    },
+    "01.MEDIA/CubebUtils.cpp": {
+      "dest": "dom/media/CubebUtils.cpp",
+      "old_sha256": "6d9f10d96b656734b6d40c937384ce386e2f05c12bc0f6a98e8c493e9e2f6ac6",
+      "pristine_sha256": "f8b25eb587d3bb34b02600ff87a5b290973f4f49d4ea88c278b5cd07c29fed4f",
+      "status": "committed",
+      "ts": 1783974934.3019197
+    },
+    "01.MEDIA/DecoderTraits.cpp": {
+      "dest": "dom/media/DecoderTraits.cpp",
+      "old_sha256": "10a1b52405363ad7c0d11f89df095904aa3202b2087dc4cad23b88daeabaae79",
+      "pristine_sha256": "442bec2253a36aa2353b60d4d57c1f4ee595841d3dc7b2ead3e1894ec513521f",
+      "status": "committed",
+      "ts": 1783974935.6742501
+    },
+    "01.MEDIA/DefaultCodecPreferences.cpp": {
+      "dest": "dom/media/webrtc/jsapi/DefaultCodecPreferences.cpp",
+      "old_sha256": "cb9bbb6d4fad36b9ec6889ab66a1d6d91465c9ce95d599ba38ba16c8de3d6e2c",
+      "pristine_sha256": "eb33739ba85fed011ae7444a5b16a6f3d23288ab6e451588db8c4235d54e7861",
+      "status": "committed",
+      "ts": 1783974937.0178258
+    },
+    "01.MEDIA/DynamicsCompressorNode.cpp": {
+      "dest": "dom/media/webaudio/DynamicsCompressorNode.cpp",
+      "old_sha256": "1e779eb0fd85007d2079a5a146858243dd16c9d5518283141a98965a11e8d5b2",
+      "pristine_sha256": "48fbe2f170c686942cbfd4c88c1f0397f60e2605741899a06c29adc6f796bb2e",
+      "status": "committed",
+      "ts": 1783974938.3543363
+    },
+    "01.MEDIA/FFmpegVideoDecoder.cpp": {
+      "dest": "dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp",
+      "old_sha256": "48558df67a6ca649dbb74b3a2fd724a6d5aff37385319748bb40f959a0c18780",
+      "pristine_sha256": "4f8d59c116462d03e476dad3b71af99666def135a3645cec18c3a8b05e8487e9",
+      "status": "committed",
+      "ts": 1783974939.7309778
+    },
+    "01.MEDIA/FFmpegVideoDecoder.h": {
+      "dest": "dom/media/platforms/ffmpeg/FFmpegVideoDecoder.h",
+      "old_sha256": "fbf5d0f36d96f59611d1f9c927ae40f376e374b3d13da85e83eabad354474271",
+      "pristine_sha256": "b16638726e3c0fececaa9ae2e34281921e77c73c61e81f19782985a34b9312ca",
+      "status": "committed",
+      "ts": 1783974941.122863
+    },
+    "01.MEDIA/MediaCapabilities.cpp": {
+      "dest": "dom/media/mediacapabilities/MediaCapabilities.cpp",
+      "old_sha256": "c7c0a1bce14295710938540a0a76ff0e0bc3de11027e71e94343eb31c007a677",
+      "pristine_sha256": "a7db170551eeeead20903dd8caf65f9076322aebf6c0997fa2a07b8d3f956eb9",
+      "status": "committed",
+      "ts": 1783974943.8857625
+    },
+    "01.MEDIA/MediaSource.cpp": {
+      "dest": "dom/media/mediasource/MediaSource.cpp",
+      "old_sha256": "c3d5303ab04f9f3675b22686a82f1015f4b3c8cfa8b50dd39f27be8a826999a3",
+      "pristine_sha256": "3a5e0393c7945d09fbea3a4a61aa66a816c79a4086e4cc046aa2d21c5b7e8d48",
+      "status": "committed",
+      "ts": 1783974945.2637827
+    },
+    "01.MEDIA/PDMFactory.cpp": {
+      "dest": "dom/media/platforms/PDMFactory.cpp",
+      "old_sha256": "3f772f24d66624f7807b938cd7069bbfc1658e2b618f501b486f9de7b5afc530",
+      "pristine_sha256": "8700d8a98c8eb49884e109f2da7ccb4ec60db1d561a13ea29987f6f92ef91393",
+      "status": "committed",
+      "ts": 1783974947.9958978
+    },
+    "01.MEDIA/RemoteVideoDecoder.cpp": {
+      "dest": "dom/media/ipc/RemoteVideoDecoder.cpp",
+      "old_sha256": "87ff967e71c0604189b58c64cc9d9b4f5c18f3797a2daef4214b1a7b90e8c55e",
+      "pristine_sha256": "b5105c9bca84a412ed49ed3b56339aeef84ddfa9ff9f9241f016b216a90bfd3b",
+      "status": "committed",
+      "ts": 1783974953.091017
+    },
+    "01.MEDIA/VideoConduit.cpp": {
+      "dest": "dom/media/webrtc/libwebrtcglue/VideoConduit.cpp",
+      "old_sha256": "0fefa70b6948c3be1758e38aaa56c60a2aea18781de72602cd37f8c3d6ca90c8",
+      "pristine_sha256": "a6d6fd17ad4fd7d2847bd349e20977d8b8341b4cb56041495122939c5019071e",
+      "status": "committed",
+      "ts": 1783974954.4782736
+    },
+    "01.MEDIA/VideoDecoder.cpp": {
+      "dest": "dom/media/webcodecs/VideoDecoder.cpp",
+      "old_sha256": "05b3b0dca0937121bf4d82a1a28a7d3a0fc9238607b042334f5d2d9aba932e14",
+      "pristine_sha256": "008f4a2f0c813325517359661e7ca0aa294dfbb4958f6509c349a0a28c8de336",
+      "status": "committed",
+      "ts": 1783974955.8426673
+    },
+    "01.MEDIA/VideoEncoder.cpp": {
+      "dest": "dom/media/webcodecs/VideoEncoder.cpp",
+      "old_sha256": "d7cbcfe9b10021b6362550b099fa4b40a63108963fb315b4979d1755661e8be6",
+      "pristine_sha256": "3968a69ac105b924d04a127d76912eaa9a0f2cde624b3ea83fee06bf40cbf244",
+      "status": "committed",
+      "ts": 1783974957.2215912
+    },
+    "01.MEDIA/WebCodecsUtils.cpp": {
+      "dest": "dom/media/webcodecs/WebCodecsUtils.cpp",
+      "old_sha256": "0a689eea1f5d1b981379d567717c0f241d273340866abc2507d897366b148d98",
+      "pristine_sha256": "2896d7a2580e3406c6fe458d0f93f8ecfcf111b0d39a7fd12ec754108c0bd25b",
+      "status": "committed",
+      "ts": 1783974958.6121361
+    },
+    "01.MEDIA/WebrtcVideoCodecFactory.cpp": {
+      "dest": "dom/media/webrtc/libwebrtcglue/WebrtcVideoCodecFactory.cpp",
+      "old_sha256": "305556cc0abda86882f5d7f20c12eec8ccad3085457e109e75dc3249284efd0c",
+      "pristine_sha256": "013b06cbc81d0c608fb667ebc128d2ba45158b51415dd8ff509ba2ed99383bdb",
+      "status": "committed",
+      "ts": 1783974960.0253415
+    },
+    "01.MEDIA/gfxPlatformGtk.cpp": {
+      "dest": "gfx/thebes/gfxPlatformGtk.cpp",
+      "old_sha256": "ebdcd5b9a750bdbef1389038a07c6a392e706c59bba6afdf3a9a3e90018169ef",
+      "pristine_sha256": "ca945218957b5f87839968dbe64e01cd21c74c58df7664a0d2ebbce4db21c707",
+      "status": "committed",
+      "ts": 1783974942.5076237
+    },
+    "01.MEDIA/moz.build": {
+      "dest": "dom/media/moz.build",
+      "old_sha256": "09ff8a857de9fbd58d716cd2fa94143c16ef57e6569a000ffe152f6d8064e9bb",
+      "pristine_sha256": "550606dfc2cc5e8ec22656721388ab031b6e65d9e00e0c9377332cb15f396ae1",
+      "status": "committed",
+      "ts": 1783974946.622037
+    },
+    "02.GPU/GfxDriverInfo.cpp": {
+      "dest": "widget/GfxDriverInfo.cpp",
+      "old_sha256": "c78cf9d4d3644e86febf6221703d854fdc50ec9e57ff1e256479a615e8f46ab7",
+      "pristine_sha256": "18e583c065742e7b531308e6eb15b100e6e3ec13ad06f09edfdfd47450d3eca3",
+      "status": "committed",
+      "ts": 1783974967.2505279
+    },
+    "02.GPU/GfxInfo.cpp": {
+      "dest": "widget/gtk/GfxInfo.cpp",
+      "old_sha256": "cd2c0b9fe1e0bfded5e10b8b16cbe06af4898ea59a3061e9f95b224974260a64",
+      "pristine_sha256": "b5e808d2e295e657e792587c339a417c2c138316d989e3aa2e0f6ed9f2d6a6f6",
+      "status": "committed",
+      "ts": 1783974968.7756972
+    },
+    "02.GPU/GfxInfoBase.cpp": {
+      "dest": "widget/GfxInfoBase.cpp",
+      "old_sha256": "2a34016c84974fc5fdbb2b400214fdbdc8dd41fe6c8f79feaa8e9752e8d7b7e3",
+      "pristine_sha256": "79cf6e13a018b1015e7ceaed0eea484b1e81c3c322f19aa7129214bc76db2833",
+      "status": "committed",
+      "ts": 1783974970.3422246
+    },
+    "02.GPU/gfxPlatform.cpp": {
+      "dest": "gfx/thebes/gfxPlatform.cpp",
+      "old_sha256": "cfec6059d702f84b9bc1111b5db706d241b664ea7fb36277a49fdebabf7cdb63",
+      "pristine_sha256": "0e41b72dc206226b78106b599875c153ccedfd49a88fd017e5c75ed221cf9d30",
+      "status": "committed",
+      "ts": 1783974971.8458939
+    },
+    "03.NETWORKING/Http3Session.cpp": {
+      "dest": "netwerk/protocol/http/Http3Session.cpp",
+      "old_sha256": "41cf44128c18a321dfad57330bacc6ddd2a88aef7109e7682aa7dad4201a5aae",
+      "pristine_sha256": "8fed170479598ff96dd7893f983332baa71d876b74a45a31583f8643aaf7fb41",
+      "status": "committed",
+      "ts": 1783975598.6404986
+    },
+    "03.NETWORKING/HttpChannelParent.cpp": {
+      "dest": "netwerk/protocol/http/HttpChannelParent.cpp",
+      "old_sha256": "70d5a1297f95e89b30c8aa0c459d6c5b6236cf85cdae6ed76d9b1cadd93a01f1",
+      "pristine_sha256": "d97b83cb7fcfc46eab8ad6de8606a925d8030ae5e0e93c97d2d1f00291861919",
+      "status": "committed",
+      "ts": 1783975600.0217664
+    },
+    "03.NETWORKING/HttpConnectionUDP.cpp": {
+      "dest": "netwerk/protocol/http/HttpConnectionUDP.cpp",
+      "old_sha256": "02611cc0a5c9c97b1abc4db4c6f85afef1fcce1832f12f8538a7c5678e1009ce",
+      "pristine_sha256": "5713a40a7c7905c2aba1a8764d93cfcf0fb07dea44da6825703eda5309b42000",
+      "status": "committed",
+      "ts": 1783975601.404078
+    },
+    "03.NETWORKING/nsHostResolver.cpp": {
+      "dest": "netwerk/dns/nsHostResolver.cpp",
+      "old_sha256": "96ac4ba4943b7f54ed1f62e169ba742477acadd6f15391a4ce0b065bc44684b6",
+      "pristine_sha256": "d57787d447f20a2acdd94b876f88f06c3c6800582be0227d061f3c385debcc8f",
+      "status": "committed",
+      "ts": 1783975602.7834153
+    },
+    "03.NETWORKING/nsHttpConnectionMgr.cpp": {
+      "dest": "netwerk/protocol/http/nsHttpConnectionMgr.cpp",
+      "old_sha256": "16db10c7f7e453d81d572b0acc426e43e76de3d19ec8ab260adee2432ee2552b",
+      "pristine_sha256": "d9e60d07815d8b2bce18121c5f52b5c4fbda0a41e6d76e608ff62b9d2287f2db",
+      "status": "committed",
+      "ts": 1783975604.1452284
+    },
+    "03.NETWORKING/nsHttpTransaction.cpp": {
+      "dest": "netwerk/protocol/http/nsHttpTransaction.cpp",
+      "old_sha256": "c481ed9f41c67e4b4cc8be698ce8be923c938d5319e6988b7e0bd7e0b7fee380",
+      "pristine_sha256": "7eec0f4a4fae029c979b10a828670f019f69dc36d614559ce98f6e3e76fd8b5b",
+      "status": "committed",
+      "ts": 1783975605.5235198
+    },
+    "03.NETWORKING/nsSocketTransport2.cpp": {
+      "dest": "netwerk/base/nsSocketTransport2.cpp",
+      "old_sha256": "b1a22e4b2d1f94e7c4920a3c1dba92e217c78ba31f05f81c6bd95a562971e148",
+      "pristine_sha256": "fb1dc7ed8c97ae9eecfb19fda46d8c0817a1101a10440b65fd68d48f8378b542",
+      "status": "committed",
+      "ts": 1783975606.8944101
+    },
+    "03.NETWORKING/nsUDPSocket.cpp": {
+      "dest": "netwerk/base/nsUDPSocket.cpp",
+      "old_sha256": "ca3185698a25fcb31bcec431b882d0ed54a136262478319846811fc7c2791bab",
+      "pristine_sha256": "5fa17a836c7b4269a397b03827937f222314386b26c5a89faaffd9eb83ded91e",
+      "status": "committed",
+      "ts": 1783975608.2796826
+    },
+    "04.PERFORMANCE/CCGCScheduler.cpp": {
+      "dest": "dom/base/CCGCScheduler.cpp",
+      "old_sha256": "253e2ea54e6137ca4d2a4aaaabf9a1ddc2ef9c2a3a879889a90fb3cce7c0c837",
+      "pristine_sha256": "60d7e33736c425decffb2c6050488066956f47b5567167710309359f61df3eb0",
+      "status": "committed",
+      "ts": 1783975650.003772
+    },
+    "04.PERFORMANCE/Maybe.h": {
+      "dest": "mfbt/Maybe.h",
+      "old_sha256": "4ab74748fec40fe2ba19d86947636aa8b1887893429a090bd38fc5fbcd06a323",
+      "pristine_sha256": "b3eee4e90bbf917d573ca76973e7b83fe58b407e224c0ec94112d8d5a31e1b07",
+      "status": "committed",
+      "ts": 1783975651.3962688
+    },
+    "04.PERFORMANCE/MaybeStorageBase.h": {
+      "dest": "mfbt/MaybeStorageBase.h",
+      "old_sha256": "7f3b6ed4b07e605996774e3bfc35392ca1ebbec49396eda2d70586d0572578d3",
+      "pristine_sha256": "d5502260718abacb2877f330266d9b1561d6d50583a629a34043c3563affb03d",
+      "status": "committed",
+      "ts": 1783975652.7639112
+    },
+    "05.PREFS/StaticPrefList.yaml": {
+      "dest": "modules/libpref/init/StaticPrefList.yaml",
+      "old_sha256": "044eb90bebe23f2f68cf0fe415ee5aa512451da800d9fc27b51719fb5da0b77d",
+      "pristine_sha256": "733e7550903ddf694853b5bce8fa50dbe9616a53108ce6c2de3ed028989d0dc8",
+      "status": "committed",
+      "ts": 1783975954.3835182
+    },
+    "05.PREFS/all.js": {
+      "dest": "modules/libpref/init/all.js",
+      "old_sha256": "59bd01c8fecbd24e6a73eed73b77d32a35bd0a6677b07d0c04e254a3d00beb4e",
+      "pristine_sha256": "9ee6193b60b88da400bc294bb2f71ee5458128fa941059304035492ad5d48a0d",
+      "status": "committed",
+      "ts": 1783975950.0322855
+    },
+    "05.PREFS/firefox.js": {
+      "dest": "browser/app/profile/firefox.js",
+      "old_sha256": "3ef4a91f6e7d4f0a1faa3c813ee7db404f591bc54204cd7d9503c35e343bdf29",
+      "pristine_sha256": "646643605622ced48b0765f90370ddf16d012a884a4e49fe26dcce7e0f32c8c3",
+      "status": "committed",
+      "ts": 1783975951.4093928
+    },
+    "05.PREFS/mozconfig": {
+      "dest": "mozconfig",
+      "old_sha256": "e372c9903685507e0582591a72a496ac6c15e479a79ef090f5c294870f051b9c",
+      "pristine_sha256": "e50029abb009875c08522254064cac872e56c724a4c39ae177381ea5558c2c35",
+      "status": "staged",
+      "ts": 1783975952.416195
+    },
+    "07.TOOLKIT/AddonManager.sys.mjs": {
+      "dest": "toolkit/mozapps/extensions/AddonManager.sys.mjs",
+      "old_sha256": "74f8189c49e591d61e91275a4492be2f9fcfd957b3c8aa348eb863c5508ff9ac",
+      "pristine_sha256": "b0693d36b3b954fa456b5d8c3161623277955d1ea8ef0f1a9fec88870b42b3d6",
+      "status": "committed",
+      "ts": 1783976351.842537
+    },
+    "07.TOOLKIT/AddonRepository.sys.mjs": {
+      "dest": "toolkit/mozapps/extensions/internal/AddonRepository.sys.mjs",
+      "old_sha256": "7c705af1eb435b7ee974761b52cefafe315c4e49165d21ec22e362f232d72aa0",
+      "pristine_sha256": "3109d26f4b79089cf41c89fe304af01c467e545c51f4a65a372194080d01a406",
+      "status": "committed",
+      "ts": 1783976353.2034318
+    },
+    "07.TOOLKIT/Base.jsx": {
+      "dest": "browser/extensions/newtab/content-src/components/Base/Base.jsx",
+      "old_sha256": "59b61c557fe32128e7a392df006fcff6fcb84722b43b5aa328491e0f33415ba0",
+      "pristine_sha256": "b28232381144e89350f166f4e4f5b919b7c1d3a7987f0e9b81244f99af2834b2",
+      "status": "committed",
+      "ts": 1783976355.961512
+    },
+    "07.TOOLKIT/DiscoveryStreamBase.jsx": {
+      "dest": "browser/extensions/newtab/content-src/components/DiscoveryStreamBase/DiscoveryStreamBase.jsx",
+      "old_sha256": "a826ed32db1a26ed36dd42dcc391aa4e3a532a2fdbade4ffd21b86406bfc88e2",
+      "pristine_sha256": "ec9ae9725797c13ac5039e04a6655afe87673c5a4bb1931635d479ff497bdd34",
+      "status": "committed",
+      "ts": 1783976358.7214603
+    },
+    "07.TOOLKIT/ExperimentAPI.sys.mjs": {
+      "dest": "toolkit/components/nimbus/ExperimentAPI.sys.mjs",
+      "old_sha256": "fd4dd76bd31bf0801c9c5fca414b69268bc3a6793f2a029b0106fb8d04edc06c",
+      "pristine_sha256": "15eb7e87ff421d9d14e0639c22234e2c50c6a838809e499bae51652062e61971",
+      "status": "committed",
+      "ts": 1783976360.1253994
+    },
+    "07.TOOLKIT/LightweightThemeManager.sys.mjs": {
+      "dest": "toolkit/mozapps/extensions/LightweightThemeManager.sys.mjs",
+      "old_sha256": "957d675bf7747316e3fec15ecfc9341aa9104822ec7e61b27d9a22b65eeda74c",
+      "pristine_sha256": "062f7f4247cc51189aeedc04f7d1b9cc9658751cb15fe4dc12b8132c632d1d76",
+      "status": "committed",
+      "ts": 1783976362.919106
+    },
+    "07.TOOLKIT/QuickSuggest.sys.mjs": {
+      "dest": "browser/components/urlbar/QuickSuggest.sys.mjs",
+      "old_sha256": "2c57ff2ff566969e08fcdcca6fc32574636405b396c47bd0e5c64c50b5643fd6",
+      "pristine_sha256": "04d0163aa09102fb74ec5b5027c2cac93aceca931109b1c7f1cb070936f62f4f",
+      "status": "committed",
+      "ts": 1783976365.632668
+    },
+    "07.TOOLKIT/TopSites.jsx": {
+      "dest": "browser/extensions/newtab/content-src/components/TopSites/TopSites.jsx",
+      "old_sha256": "4ef9b1ec873cefb35e23a28f7a4081286379bb76fe337b79d6a036bae2d5257b",
+      "pristine_sha256": "cdcc9849b9ddd8c02ddd69ec68aede58a105295145a7bb2938f3fd6235b8f7e9",
+      "status": "committed",
+      "ts": 1783976371.1037672
+    },
+    "07.TOOLKIT/TranslationsParent.sys.mjs": {
+      "dest": "toolkit/components/translations/actors/TranslationsParent.sys.mjs",
+      "old_sha256": "e755c39719fda49f6c75db482bd637027270c066ff4d31886569e300bc4f8603",
+      "pristine_sha256": "7efa31ed3137d8b5dc3a7bc4e2b1f345d1a9aae5bced0975d5479725cca37ef8",
+      "status": "committed",
+      "ts": 1783976372.4694636
+    },
+    "07.TOOLKIT/UrlbarProviderQuickSuggest.sys.mjs": {
+      "dest": "browser/components/urlbar/UrlbarProviderQuickSuggest.sys.mjs",
+      "old_sha256": "b4d7f8b1a9b3b56045b165aa2c74392e7d15bdb0e10228fd202f495647e9327f",
+      "pristine_sha256": "4fbf75b5189d605b9da6da6d0b8d2ad4da8281917ef49392dab7f93bb4c64dc8",
+      "status": "committed",
+      "ts": 1783976373.8139684
+    },
+    "07.TOOLKIT/UrlbarProviderSearchSuggestions.sys.mjs": {
+      "dest": "browser/components/urlbar/UrlbarProviderSearchSuggestions.sys.mjs",
+      "old_sha256": "cead6c16d12f7b068aac981ab0405257b5bb6937b9bccea041733538bd26ab90",
+      "pristine_sha256": "503306c2630f061f87a28b4ab3a886ce1a7446ec495c88f323bdb2eb357fce11",
+      "status": "committed",
+      "ts": 1783976375.1889274
+    },
+    "07.TOOLKIT/XPIInstall.sys.mjs": {
+      "dest": "toolkit/mozapps/extensions/internal/XPIInstall.sys.mjs",
+      "old_sha256": "0d47aabdfa302e618a3626f5c760a08c3bfdfb6065f5541190e4fb26424fd1b6",
+      "pristine_sha256": "e002d26ed8e4c9e77bca2efddca2b8c6b99d0a9eed6468d93979faf7ab24e3e4",
+      "status": "committed",
+      "ts": 1783976376.5847502
+    },
+    "07.TOOLKIT/appearance.mjs": {
+      "dest": "browser/components/preferences/config/appearance.mjs",
+      "old_sha256": "7d81d6e554f37521db3db43e33b6eb43aeab391b9c5858f4498690baafe08db1",
+      "pristine_sha256": "417ee502137bfcbc0d423450033ba7225f34a375f319c88076f7bdf70070267f",
+      "status": "committed",
+      "ts": 1783976354.5758076
+    },
+    "07.TOOLKIT/browserLanguages.js": {
+      "dest": "browser/components/preferences/dialogs/browserLanguages.js",
+      "old_sha256": "58a6f6da05b69b114addb33230aa264aa75b49ac9ad2c453e592f69d9a7bec5d",
+      "pristine_sha256": "087cca57ff5c48bfbca7a642b5bc8948c814e6cb822bd2d77ce17ed76c88fa06",
+      "status": "committed",
+      "ts": 1783976357.3380284
+    },
+    "07.TOOLKIT/lib.rs": {
+      "dest": "third_party/application-services/components/merino/src/lib.rs",
+      "old_sha256": "44512a2bd1630c667521b32cf9c6ced2dad11de9a65ef9db8ea7159f005fc434",
+      "pristine_sha256": "770eb8c7d365c0c13ca00f3dac1fe3e9e50d9bb819eb42fd68096c75f6161053",
+      "status": "committed",
+      "ts": 1783976361.511143
+    },
+    "07.TOOLKIT/nsContextMenu.sys.mjs": {
+      "dest": "browser/base/content/nsContextMenu.sys.mjs",
+      "old_sha256": "553aa2a64060c81f364116627d437a93b7fb37de582ec602ab5b38889bf3ed0d",
+      "pristine_sha256": "9099172b2354729e17ef534a2fe337060619b5dfc34fb9a1de37f01ae8bfc8fb",
+      "status": "committed",
+      "ts": 1783976364.2564352
+    },
+    "07.TOOLKIT/search-config-v2.json": {
+      "dest": "services/settings/dumps/main/search-config-v2.json",
+      "old_sha256": "a88432f42da2e89181ebd20eeaa38b3300e2c976130b2d39b66d39f1edab0b31",
+      "pristine_sha256": "4543f5877619272ac7f304f3a360f4e4d4db4c5c954584e57d972ead892a5e43",
+      "status": "committed",
+      "ts": 1783976367.024667
+    },
+    "07.TOOLKIT/semantic-categories.mjs": {
+      "dest": "toolkit/themes/shared/design-system/dist/semantic-categories.mjs",
+      "old_sha256": "68aeaf7cf42dcc3a8d14d445865a022ccbeb73ea2a4f377472f2101332fd1e39",
+      "pristine_sha256": "1d505462a8db80634053bda602bff15e8b7022a1ce2d12e9f0aefbce93237644",
+      "status": "committed",
+      "ts": 1783976368.3851466
+    },
+    "07.TOOLKIT/tokens-table.mjs": {
+      "dest": "toolkit/themes/shared/design-system/dist/tokens-table.mjs",
+      "old_sha256": "81ff2fa9f13925e3ab57e63453fb6a050a18b3531be3b7e14a27e8f997a8ec7d",
+      "pristine_sha256": "a39eaf2ae5493e01d47c6c3946e5b3ae1e4bdd446f91d37989df040cbc91afdb",
+      "status": "committed",
+      "ts": 1783976369.7614224
+    },
+    "08.Look/aboutDialog.css": {
+      "dest": "browser/branding/aurora/content/aboutDialog.css",
+      "old_sha256": "b5910be637ceb3bc9156d25b8d822af0729cf9b4b2599056ef57d8d65dc49600",
+      "pristine_sha256": "45fd517ece9421e8456bf9a6278dd16212dc037982ed30dacfed08c1227ce793",
+      "status": "committed",
+      "ts": 1783976498.6232574
+    },
+    "08.Look/aboutPrivateBrowsing.css": {
+      "dest": "browser/themes/shared/privatebrowsing/aboutPrivateBrowsing.css",
+      "old_sha256": "afb73ee7e86760fd5289dd6d334054c01cd8654f64d7aafbcdd3e15b180d4da8",
+      "pristine_sha256": "c11086757aaa6ef973ae45e7c547192388159c066350ec0a5ddd2cb07376a507",
+      "status": "committed",
+      "ts": 1783976500.01315
+    },
+    "08.Look/aboutaddons.css": {
+      "dest": "toolkit/mozapps/extensions/content/aboutaddons.css",
+      "old_sha256": "4c08ddbf64b84f291e08e74b9108b09b84de8ab2f5b21cec9125fa5e4feeff06",
+      "pristine_sha256": "9617406731fc18e577ab2c990ed6fb0c65b4420c9bd5420d1d423fbc10d6bd7f",
+      "status": "committed",
+      "ts": 1783976495.9065223
+    },
+    "08.Look/aboutconfig.css": {
+      "dest": "toolkit/components/aboutconfig/content/aboutconfig.css",
+      "old_sha256": "12d36c7afbd068263156389d0ad271693ce85077c68bda1c3e6fb1fb82705edb",
+      "pristine_sha256": "c5818651e29967234848c9a15466069eb843acc32aa97754bab62180f135a0cb",
+      "status": "committed",
+      "ts": 1783976497.2779932
+    },
+    "08.Look/activity-stream.css": {
+      "dest": "browser/extensions/newtab/css/activity-stream.css",
+      "old_sha256": "093261207b8586037699da6c2544867ffa24087f2f30d9fa50d351dbf20cff16",
+      "pristine_sha256": "378ac88d61d148095a32b9ef786eb4f55c91563e98eec1e3d2e539709897865f",
+      "status": "committed",
+      "ts": 1783976501.3504715
+    },
+    "08.Look/browser-shared.css": {
+      "dest": "browser/themes/shared/browser-shared.css",
+      "old_sha256": "abfd2da240800b5d032f5374aa4e4a42e3cafdfbeaece5b1776e1d3da464b136",
+      "pristine_sha256": "6cdeae47a498c61b5afa17aaf38d23ec2f335d0fda952809eaacbe3a498fd42d",
+      "status": "committed",
+      "ts": 1783976502.8322134
+    },
+    "08.Look/common-shared.css": {
+      "dest": "toolkit/themes/shared/in-content/common-shared.css",
+      "old_sha256": "83406743725b85fe9857847750c72addbe3729902fa6b0dd60b1876cbdb527e6",
+      "pristine_sha256": "92488278b53b43c66825ead5bcca0064abf378ea97cb2ecac0b7373e24c586c6",
+      "status": "committed",
+      "ts": 1783976504.3235137
+    },
+    "08.Look/content-aboutDialog.css": {
+      "dest": "browser/branding/gorilla/content/aboutDialog.css",
+      "old_sha256": "b5910be637ceb3bc9156d25b8d822af0729cf9b4b2599056ef57d8d65dc49600",
+      "pristine_sha256": "6500eeeebb18855a63d0c070142c40927df7bc42242db7f06d2b26760b0dd07c",
+      "status": "committed",
+      "ts": 1783976505.6415465
+    },
+    "08.Look/contentSearchHandoffUI.css": {
+      "dest": "browser/components/search/content/contentSearchHandoffUI.css",
+      "old_sha256": "ad76acdb712123a4d3e3686770913cdf347f2437dd50f90ab2346dd9b95d4b77",
+      "pristine_sha256": "27aafcb4d2300383078939c1434a23f9f0105f2960ff481e20e11ecd2c38943b",
+      "status": "committed",
+      "ts": 1783976506.9967403
+    },
+    "08.Look/global-shared.css": {
+      "dest": "toolkit/themes/shared/global-shared.css",
+      "old_sha256": "b5941848f79c2318d9b8acac028caef7f67b7cef5c7bfa033db9c2b44f701a59",
+      "pristine_sha256": "b41c119250c8f0382557c71fbb99eee5bc88e2e1e6aa1624332766035d8a4847",
+      "status": "committed",
+      "ts": 1783976508.3946133
+    },
+    "08.Look/installing_page.css": {
+      "dest": "browser/branding/aurora/stubinstaller/installing_page.css",
+      "old_sha256": "2d595ab0404d7b924bda6fc8af9d1e12316b6a67e4e1d9ceca14ef8efd411f6c",
+      "pristine_sha256": "372a69266c820c766f8b47d257d8cc079e1b695bbac751dbfd5234e096d33f44",
+      "status": "committed",
+      "ts": 1783976509.7330463
+    },
+    "08.Look/nova-activity-stream.css": {
+      "dest": "browser/extensions/newtab/css/nova/activity-stream.css",
+      "old_sha256": "093261207b8586037699da6c2544867ffa24087f2f30d9fa50d351dbf20cff16",
+      "pristine_sha256": "2b54e1af09bff619e0c4940e812813f1f61c743ffb266d161a6663561fb30efe",
+      "status": "committed",
+      "ts": 1783976511.1704512
+    },
+    "08.Look/nova-tokens-figma-colors.json": {
+      "dest": "toolkit/themes/shared/design-system/dist/nova/tokens-figma-colors.json",
+      "old_sha256": "d33972eb568c5693974dcff38149ee6687c01184a3227f337a471cb4ab2e0229",
+      "pristine_sha256": "85c8c457fffe39a113ad75c25d56dccef98e076ed212147f5a5571468cb02d8f",
+      "status": "committed",
+      "ts": 1783976512.5232291
+    },
+    "08.Look/nova-tokens-figma-primitives.json": {
+      "dest": "toolkit/themes/shared/design-system/dist/nova/tokens-figma-primitives.json",
+      "old_sha256": "5209aa7de4696c999c763200b077c3e3a6a98e0ca0ab4c6b83be38c077f1484b",
+      "pristine_sha256": "67ec9f1be67440b914450a48ebf56d52dec53645b8a801b1bb53c4183013dd87",
+      "status": "committed",
+      "ts": 1783976513.909792
+    },
+    "08.Look/nova-tokens-figma-theme.json": {
+      "dest": "toolkit/themes/shared/design-system/dist/nova/tokens-figma-theme.json",
+      "old_sha256": "2fbb37d57aa10a48f693311a763e73ce53d6a17908afa8d9346f6734a8a37326",
+      "pristine_sha256": "12ab7de83ee313d7fa500142175ad64207fcb25179c82dbd63364aff9d91af70",
+      "status": "committed",
+      "ts": 1783976515.2699757
+    },
+    "08.Look/preferences.css": {
+      "dest": "browser/themes/shared/preferences/preferences.css",
+      "old_sha256": "ad7bc3476deea9f619a25de064f923236b5da64f9b777a1880e584543dc4bed7",
+      "pristine_sha256": "598e7533bbede77b95b3529c95e76962646e37291b13c1e960acf8323d7b80ad",
+      "status": "committed",
+      "ts": 1783976516.6779287
+    },
+    "08.Look/tokens-brand.css": {
+      "dest": "toolkit/themes/shared/design-system/dist/tokens-brand.css",
+      "old_sha256": "457975af6109b2699c901ac9018be5445884075d7f99f4b2b64dde1c3a266426",
+      "pristine_sha256": "5bf413eac1d7520beab3628a5cdbd3b090b7db5bf7f3baf3b789a80d9b1859f5",
+      "status": "committed",
+      "ts": 1783976518.2405396
+    },
+    "08.Look/tokens-figma-colors.json": {
+      "dest": "toolkit/themes/shared/design-system/dist/tokens-figma-colors.json",
+      "old_sha256": "d33972eb568c5693974dcff38149ee6687c01184a3227f337a471cb4ab2e0229",
+      "pristine_sha256": "85c8c457fffe39a113ad75c25d56dccef98e076ed212147f5a5571468cb02d8f",
+      "status": "committed",
+      "ts": 1783976519.6007857
+    },
+    "08.Look/tokens-platform.css": {
+      "dest": "toolkit/themes/shared/design-system/dist/tokens-platform.css",
+      "old_sha256": "db5581e2721c74050987e080e8ef6775559981413ed6ff900b6806b7d8e15802",
+      "pristine_sha256": "56feea1078e1a1fcdcc80b1fb3cad6cf5b64f4340dd1bf962ef5be327cb650a6",
+      "status": "committed",
+      "ts": 1783976521.0734348
+    },
+    "08.Look/tokens-shared.css": {
+      "dest": "toolkit/themes/shared/design-system/dist/tokens-shared.css",
+      "old_sha256": "5b37320ef25f6ac69247b6127f2c579582bb05b27d78d78c9a704d5f2cbb9cfa",
+      "pristine_sha256": "581d40e6458d4dc74a3382eaed946e9fa1a1fb8f3c9bf9556c5a54294956d900",
+      "status": "committed",
+      "ts": 1783976522.416453
+    },
+    "08.Look/unified-extensions.css": {
+      "dest": "browser/themes/shared/addons/unified-extensions.css",
+      "old_sha256": "119764506e4dd16a6664819279feb50ced803dc6e4c224ba64e1f900653a97ac",
+      "pristine_sha256": "82ff931d81a75ef7cf5e9c8a30f463ce884361c45c1db54e340c8624a665971d",
+      "status": "committed",
+      "ts": 1783976523.7449296
+    },
+    "08.Look/urlbar-searchbar.css": {
+      "dest": "browser/themes/shared/urlbar-searchbar.css",
+      "old_sha256": "bb18c3086ca8ccba43711654827a2019ea6f1901a13518caa8a687f8b5fcee58",
+      "pristine_sha256": "1a3ad24c72556416ba464c26af1038a0261279129c265dc366fb8e7c64cd0cdd",
+      "status": "committed",
+      "ts": 1783976525.1299202
+    },
+    "09.REMOTE/Marionette.sys.mjs": {
+      "dest": "remote/components/Marionette.sys.mjs",
+      "old_sha256": "696fd81222c63f9b31a96d2f7a6e5b1fa49037a8688388d6811670dddf6f921f",
+      "pristine_sha256": "4737c0e9d0816e9ab3dbd108be4f2ae19972a39347d39c131d4dcb1c7c8b1666",
+      "status": "committed",
+      "ts": 1783976605.8541706
+    },
+    "09.REMOTE/RemoteAgent.sys.mjs": {
+      "dest": "remote/components/RemoteAgent.sys.mjs",
+      "old_sha256": "e1e6590e59d66cb2d2eae7e5373df1c0b18efea7f9a0a7736048d3c94e93ddd3",
+      "pristine_sha256": "f076eeb3569f6bfbd35a6f1d3594c01e099122d63155eceb07126221ca3b8cd3",
+      "status": "committed",
+      "ts": 1783976607.1988983
+    }
+  }
+}

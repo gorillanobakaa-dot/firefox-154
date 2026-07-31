@@ -1,0 +1,13 @@
+<concept>
+    <title>Unleashed UI Customization Architecture</title>
+    <category>UI Customization</category>
+    <description>The architectural map for the custom Unleashed Firefox theme.</description>
+    <details>
+        The Unleashed theme relies on Firefox's modern component architecture and global cascading via a `patches/` folder that mirrors `mozilla-central`.
+        - Branding: Handled via Project Fluent (`brand.ftl`) to globally replace "Firefox" with "Unleashed".
+        - Global Theme &amp; Colors: Modified via `tokens-shared.css`, `browser-shared.css`, and `global-shared.css`. Changing root CSS variables here updates the entire UI.
+        - Menu Layouts: Padding and borders adjusted in `menupanel.css` and `panelUI-shared.css`.
+        - Rapid Deployment: Instead of running a 2-hour `mach build`, `live_patch_injector.py` injects patches directly into `/usr/lib/unleashed/` and clears the startupCache.
+        - Known Bugs: The "Phantom Tab Pin Box" bug is fixed by applying `display: none !important;` to `#pinned-drop-indicator-text` and `#pinned-drop-indicator` in `tabs.css`.
+    </details>
+</concept>

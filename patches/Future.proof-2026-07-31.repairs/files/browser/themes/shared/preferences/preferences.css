@@ -1,0 +1,124 @@
+/*
+ * @gorilla-unleashed-153 ─ MODIFIED
+ * ────────────────────────────────────────────────────────────
+ * Timestamp : 20260530_233206
+ * Change    : Disable global Gorilla watermark on Preferences page
+ * Notes     : Added #content { background-image: none !important; } override to preferences.css.
+ * Category  : ui_tweaks
+ * Full Docs : assets/ui_tweaks/UI_TWEAKS_DOCUMENTATION.md
+ * ────────────────────────────────────────────────────────────
+ */
+/* - This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this file,
+   - You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@namespace html "http://www.w3.org/1999/xhtml";
+
+/* 🦍 GORILLA UNLEASHED - THE MASTER PREFERENCES THEME */
+
+/* :root background override removed - using native design system */
+
+/* Removed aggressive background overrides that broke selection highlights *//* LINK SIDEBAR ICONS: Replace tiny monochrome SVGs with high-res colored Gorilla */
+.category-icon {
+  content: url("chrome://branding/content/about-logo.png") !important;
+  width: 42px !important; /* Scaled up from 32px */
+  height: 42px !important;
+  -moz-context-properties: none !important;
+  filter: none !important;
+  margin-inline-end: 12px !important;
+}
+
+/* LINK PROMO ILLUSTRATION: Replace kit-concerned with dominant high-res Gorilla */
+moz-promo img {
+  content: url("chrome://branding/content/about-logo.png") !important;
+  width: 480px !important; /* Increased for maximum impact */
+  height: auto !important;
+  display: block !important;
+  margin: 20px auto !important;
+}
+
+moz-promo {
+  /* GORILLA OVERRIDE 2026-07-31: contain the 480px promo image. On the FF154
+     redesigned privacy pane the promo banner is slim and the big image bled
+     UNDER later cards (user screenshot 20:07). overflow:hidden clips inside
+     the card instead of overlapping; home pane unaffected (its card grows to
+     fit content). Z-index deliberately untouched — z-index minimalism rule
+     (CSS_UI_TWEAKS_MEGA_LESSON: VRAM economy on iGPU). */
+  overflow: hidden !important;
+  background-color: #121214 !important;
+  border: 1px solid #2b2b2e !important;
+  border-radius: 20px !important;
+  padding: 40px !important;
+  margin-top: 30px !important;
+}
+
+/* Link all Label and Link colors for high contrast */
+label, description, .text-link, .help-button, h1, h2 {
+  color: #f9f9fb !important;
+}
+
+.text-link {
+  color: #35b3ee !important;
+}
+
+/* Global Background Force */
+#root, body {
+  background-color: #000000 !important;
+}
+
+#category-ai-features,
+#category-experimental {
+  display: none !important;
+}
+
+/* EXCISING DATA COLLECTION & TELEMETRY UI */
+setting-group[groupid="dataCollection"],
+groupbox[data-srd-groupid="dataCollection"],
+#dataCollectionCategory,
+#submitHealthReportBox,
+#enableNimbusRollouts,
+#submitUsagePingBox,
+#automaticallySubmitCrashesBox,
+#addonRecommendationEnabled,
+#optOutStudiesEnabled {
+  display: none !important;
+}
+
+/* TABS & BROWSING SIDEBAR GORILLA DECORATION */
+@media (min-width: 1300px) {
+  #categories[currentview="paneTabsBrowsing"] ~ .main-content::after {
+    content: "" !important;
+    display: block !important;
+    position: fixed !important;
+    right: 40px !important;
+    top: 180px !important;
+    width: 500px !important;
+    height: 500px !important;
+    background-image: url("chrome://branding/content/about-logo.png") !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    pointer-events: none !important;
+    z-index: 10 !important;
+    opacity: 0.85 !important;
+  }
+}
+
+/* Disable global Gorilla watermark specifically on the Preferences page */
+#content {
+  background-image: none !important;
+}
+
+/* Monolingual lock: Hide language picker and add button in Website Language preferences */
+#websiteLanguagePickerWrapper,
+#websiteLanguagePicker,
+#websiteLanguageAddLanguage {
+  display: none !important;
+}
+
+/* Disable removing preferred website languages */
+button[action="remove"],
+moz-button[action="remove"] {
+  display: none !important;
+}
+

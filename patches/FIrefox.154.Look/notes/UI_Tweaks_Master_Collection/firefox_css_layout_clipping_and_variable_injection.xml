@@ -1,0 +1,37 @@
+<concept>
+  <name>Firefox CSS Layout Clipping, Color Mutation, and Native Variable Injection</name>
+  <description>Resolving complex XUL flexbox failures, stack layout rendering glitches, color blending mutations, and profile lock failures during custom theme development.</description>
+  <category>UI/UX Design, CSS, XUL Architecture</category>
+  
+  &lt;lesson&gt;
+    <title>The Color Mutation Trap (Outline vs Border Stacking)</title>
+    <content>If a color in the Firefox UI is rendering completely incorrectly (e.g., LightPink instead of Aquamarine), it is highly likely due to property stacking. A rogue `outline: 2px solid #FFC0CB` rule high in the CSS hierarchy will NOT be overwritten by a `border: 1px solid #7FFFD4` rule later in the cascade. Instead, because they are separate geometric properties, Firefox renders both simultaneously. The resulting pixel blend will look like an entirely different, mutated color. Always search for and destroy overlapping `outline` and `box-shadow` rules when defining new `border` colors.</content>
+  &lt;/lesson&gt;
+
+  &lt;lesson&gt;
+    <title>XUL Layout Clipping: The Parentheses "( )" Effect</title>
+    <content>When applying a physical `border` to `.tab-background`, the border mathematically increases the element's width and height. If the parent container (`#TabsToolbar`) has a strict `max-height: 36px` constraint, the border expansion will exceed the container bounds, causing the top and bottom edges of the rectangle to clip completely off-screen. This results in the tab looking like a set of parentheses `( )` instead of a box `[ ]`. This is permanently solved by enforcing `box-sizing: border-box !important;` on the tab background, ensuring all borders draw *inward* without affecting the element footprint.</content>
+  &lt;/lesson&gt;
+
+  &lt;lesson&gt;
+    <title>Native Variable Injection vs Hardcoded Bounds</title>
+    <content>Do not hardcode `max-height` or `min-height` on individual `.tabbrowser-tab` elements. It disrupts XUL flexbox calculations and triggers "floating" or "sunken" layout collapses. Instead, inject the native Firefox variable directly into the `:root` pseudo-class: `--tab-min-height: 30px !important;`. The parent `#tabbrowser-tabs` and `.tabbrowser-arrowscrollbox` containers should inherit this variable, allowing the native layout engine to compute constraints seamlessly.</content>
+  &lt;/lesson&gt;
+
+  &lt;lesson&gt;
+    <title>Fixing the "Sunken Floor" Alignment</title>
+    <content>Firefox natively uses `align-items: flex-end` on tabs to connect them flush to the navigation bar. If you shrink a tab (30px) inside a larger container (36px), the flex-end alignment pulls it entirely to the bottom, creating a "sunken" look where the bottom clips into the nav-bar. To mathematically center the tab (guaranteeing exactly 3px of padding above and below), you must enforce `margin-top: auto !important;` and `margin-bottom: auto !important;` on the `.tabbrowser-tab` to override flex-end, and strip inner margins with `margin-block: 0px !important;` on the `.tab-background`.</content>
+  &lt;/lesson&gt;
+
+  &lt;lesson&gt;
+    <title>Invisible Flex Spacers</title>
+    <content>When lobotomizing or excising standard icons around the URL bar, the native `toolbarspring` spacers become massive, ugly gray blocks. To remove their visual footprint while keeping their mathematical structural centering active, apply `max-width: none !important;` and `flex-grow: 1 !important;` to `#urlbar-container`, and explicitly set `toolbarspring { background-color: #000000 !important; }` to perfectly match the window background, making the spacer invisible.</content>
+  &lt;/lesson&gt;
+
+  &lt;lesson&gt;
+    <title>The Zombie Profile Lock (.parentlock)</title>
+    <content>If `mach run` exits immediately with code 0 in roughly ~2 seconds without throwing a compiler error, it means the profile database is locked. This happens frequently after issuing `pkill firefox` to destroy a hanging process. Before running `mach run` again, you must clear the lock via: `rm -f obj-x86_64-pc-linux-gnu/tmp/profile-default/.parentlock`.</content>
+  &lt;/lesson&gt;
+
+  <tags>css, xul, flexbox, ui, theme, lock, parentlock, mach, layout</tags>
+</concept>

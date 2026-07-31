@@ -1,0 +1,38 @@
+<concept>
+  &lt;id&gt;theme-zero-cpu-optimization&lt;/id&gt;
+  <category>UI / Theming / Performance</category>
+  <title>Zero-CPU Theme Optimization: Paint vs. Composite</title>
+  <description>Lessons learned on achieving true zero-CPU runtime cost for UI themes, specifically for Firefox and XUL environments running on constrained hardware like Intel HD 4000.</description>
+  &lt;lessons_learned&gt;
+    &lt;lesson&gt;
+      <title>Avoid CPU Paint Operations for Visual Feedback</title>
+      &lt;detail&gt;Changing properties like `outline`, `border`, `color`, or `background-color` triggers the CPU Paint stage (rasterizing elements to texture tiles). Instead, pre-bake outlines and borders using static CSS, and rely purely on `opacity` toggling to reveal or hide them.&lt;/detail&gt;
+    &lt;/lesson&gt;
+    &lt;lesson&gt;
+      <title>GPU Compositing via Opacity and Transform</title>
+      &lt;detail&gt;The only properties that can be fully offloaded to the GPU Compositor thread without waking the CPU are `opacity` and `transform`. The GPU's ROP (Raster Operations Pipeline) handles alpha blending natively.&lt;/detail&gt;
+    &lt;/lesson&gt;
+    &lt;lesson&gt;
+      <title>Hardware-Specific GPU Promotion (Intel HD 4000)</title>
+      &lt;detail&gt;To force fixed-function hardware (like Gen 7 Intel graphics) to promote a container to its own compositor layer, apply `transform: translate3d(0, 0, 0)` to the container and `will-change: opacity` to the interactive element BEFORE the interaction happens.&lt;/detail&gt;
+    &lt;/lesson&gt;
+    &lt;lesson&gt;
+      <title>Containment to Prevent Style Ripples</title>
+      &lt;detail&gt;Applying `contain: layout style` to major containers (like `#navigator-toolbox`) isolates style invalidations to that specific subtree, preventing calculations from cascading unnecessarily without breaking XUL flexbox contexts (unlike `contain: paint` which breaks layout).&lt;/detail&gt;
+    &lt;/lesson&gt;
+    &lt;lesson&gt;
+      <title>Minimize Z-Index Complexity</title>
+      &lt;detail&gt;Using aggressively high `z-index` values (like 2147483647) forces unnecessary new stacking contexts and compositor layers, wasting shared VRAM on integrated graphics. Use the absolute minimum `z-index` (e.g., `z-index: 2`) required to ensure clickability above other elements, specifically for elements like a hidden menubar.&lt;/detail&gt;
+    &lt;/lesson&gt;
+    &lt;lesson&gt;
+      <title>Fixing XUL Menubar and Ghost Text Buttons</title>
+      &lt;detail&gt;For unclickable text buttons injected over native XUL buttons: do not rely on pseudo-elements. Instead, set the native button to `display: -moz-box !important`, `min-width: 48px`, and `min-height: 24px` to ensure the click target perfectly overlaps the injected text. Avoid `position: relative` on menubars which causes flexbox collapse.&lt;/detail&gt;
+    &lt;/lesson&gt;
+  &lt;/lessons_learned&gt;
+  &lt;related_scripts&gt;
+    <script path="/home/gorilla/Documents/FIrefox.154.Work/patches/shared/master-redirect.css" purpose="Zero-CPU Optimized Master Redirector Theme"/>
+  &lt;/related_scripts&gt;
+  &lt;documentation_references&gt;
+    &lt;reference path="/home/gorilla/Documents/remove vertical tabs/suggestions to fix the theme.txt" purpose="Original architectural analysis of CPU vs GPU pipeline mistakes."/&gt;
+  &lt;/documentation_references&gt;
+</concept>

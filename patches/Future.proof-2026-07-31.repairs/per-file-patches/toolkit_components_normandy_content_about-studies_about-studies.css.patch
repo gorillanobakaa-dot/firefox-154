@@ -1,0 +1,16 @@
+--- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/components/normandy/content/about-studies/about-studies.css	2026-07-10 17:32:00.000000000 +0100
++++ /home/gorilla/firefox-main/toolkit/components/normandy/content/about-studies/about-studies.css	2026-07-31 21:30:26.360691865 +0100
+@@ -174,3 +174,13 @@
+ .opt-in-box.opt-in-error {
+   color: var(--text-color-error);
+ }
++
++/* GORILLA OVERRIDE 2026-07-31: page text rendered black-on-black under the
++   forced-black theme (user screenshot 21:19 — text only visible when
++   selected). This page's own rules sit outside the in-content token flow;
++   force readable colors directly. */
++body, .info-box-content, .study-description, .study-name, .study-status,
++.study-header, p, h1, h2, span, div {
++  color: #00FFFF !important;
++}
++a, .learn-more-link { color: #35b3ee !important; }

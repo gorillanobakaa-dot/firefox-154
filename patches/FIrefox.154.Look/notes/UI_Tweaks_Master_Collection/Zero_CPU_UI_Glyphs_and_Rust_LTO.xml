@@ -1,0 +1,40 @@
+<concept>
+  <title>Zero-CPU UI Glyphs &amp; Rust LTO Build Resolution</title>
+  <category>Browser Optimization &amp; Toolchain</category>
+  <description>Surgical zero-CPU UI overrides, workspace mapping gap fixes, and solving the Rust LTO compiler conflict on legacy Ivy Bridge hardware.</description>
+  <details>
+    **1. Staging Directory Mapping Gap Resolution:**
+    Many asset overrides (such as `firefox.js` and `master-redirect.css`) in the Git staging repository were never copied to `mozilla-central` by `setup_orchestrator.py` because the orchestrator checks `patches/browser/...` while the Git staging repository stores them inside `patches/assets/browser/...`. This caused the active compilation tree to use vanilla configurations.
+    *The Fix:* Restored the active workspace `patches/` structure by merging files from `patches/assets/` and `patches/browser/` in the Git Staging folder, and back-copying missing custom branding files and `CSS/` configuration files from the compiled `mozilla-central` source tree. Running `setup_orchestrator.py patch` now successfully patches 227 files/directories without warnings.
+
+    **2. Zero-CPU UI Glyph Customizations:**
+    To eliminate layout reflow and vector parsing/painting cycles, SVGs and website favicons were purged and replaced with static, zero-cost Unicode glyphs in `master-redirect.css`:
+    * Back Button: `&lt;` (font-size: 16px)
+    * Forward Button: `&gt;` (font-size: 16px)
+    * Reload Button: `↻` (font-size: 16px)
+    * Stop Button: `■` (U+25A0 BLACK SQUARE, set to 12px for visual harmony)
+    * Home Button: `⌂` (U+2302 HOUSE, replacing the character "H" for intuitive semantics)
+    * Tab Close Button: Monospace centered `×` inside a static 16x16px container (replacing `.tab-close-button` SVG).
+    * Favicon Purge: Hidden `.tab-icon-image`, `.tab-sharing-icon-overlay`, and `.tab-icon-overlay` using `display: none !important`.
+
+    **3. Global will-change Suppression:**
+    To prevent WebRender from over-promoting elements to independent graphics layers (which thrashes VRAM and induces WebRender scene builder stalls on older Intel HD 4000 GPUs), a global rule was added:
+    `* { will-change: auto !important; }`
+
+    **4. Rust LTO Toolchain Conflict Resolution:**
+    During compilation, Rust threw a fatal error: `options -C embed-bitcode=no and -C lto are incompatible` on `serde_core`.
+    *Root Cause:* Custom `RUSTFLAGS` in `mozconfig` manually specified `-C lto=thin`. When combined with Cargo's profile defaults (which sometimes pass `embed-bitcode=no` for build scripts or specific dependencies), it caused a compiler conflict.
+    *Solution:* Removed `-C lto=thin` from `RUSTFLAGS` in `mozconfig` and let Firefox's build system manage LTO flags dynamically via `ac_add_options --enable-lto=thin`.
+
+    **5. Baking default preferences into firefox.js:**
+    To ensure optimizations are active out-of-the-box (without manual profile `user.js` copies), the following settings were appended to the default `browser/app/profile/firefox.js`:
+    * `general.smoothScroll` = `false`
+    * `dom.timeout.throttling_delay` = `30000`
+    * `dom.min_background_timeout_value` = `10000`
+    * `dom.timer.minimum_firing_delay_tolerance_ms` = `1`
+    * `dom.timeout.background_throttling_max_budget` = `0`
+    * `dom.wakelock.enabled` = `false`
+    * `gfx.webrender.highlight-painted-layers` = `false`
+    * `layout.animation.prerender.enabled` = `false`
+  </details>
+</concept>
