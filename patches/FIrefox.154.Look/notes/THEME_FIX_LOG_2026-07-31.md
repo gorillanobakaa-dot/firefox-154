@@ -786,3 +786,35 @@ inventory→repairs MANIFEST + MAP_IBM; lessons→chroma firefox_154):
    aboutDialog already synced.)
 No stale "CANNOT reach toolkit" wording remains anywhere outside this log's
 own quotations (swept Mega.Lessons + the collection).
+
+## 27. 2026-07-31 (night's end) — GRAND RECONCILIATION: every copy, every tier, GitHub
+
+User-directed full recursive reconciliation. Results (all computed):
+
+1. **154.Deep.Branded.Locales** (the dormant locale masters): 235 files
+   censused vs repaired tree → 41 divergent SYNCED from tree;
+   "Gorilla Gorilla" count in the masters: 9 files → **0**.
+2. **All new.patches .patch files hunk-verified**: 0 content-stale (273
+   apparent diffs were format-only noise vs my crude first census — the
+   truly stale ones were already regenerated §19–§23). 6 third_party
+   patches unverifiable by filename reconstruction (underscores in real
+   path names); their tree state is snapshot-verified.
+3. **NEW_FILES deploy copies**: master-redirect.css was 187-line stale →
+   synced to 315-line Look master (§26); others verified synced.
+4. **Safety.Vault.Theme**: master-redirect.css also 187-line stale → synced.
+5. **Icon script** (Safety.Vault.Theme/ICON.WAYLAND.SCRIPTS/
+   wayland_dual_icon_bug_fixer.sh): PROFILE_PATH → ~/.mozilla/ff154-main,
+   -no-remote dropped from Exec templates, dated comment. **§13 item 3
+   CLOSED** — the icons-fix can no longer resurrect the profile-missing
+   dialog. (deb_template .desktop targets the system install; correct as-is.)
+6. **SafetyVault.Firefox: DELIBERATELY UNTOUCHED** — it is the VANILLA
+   baseline; its purity is what made today's recovery possible. It must
+   never carry our patches. (Declined the user's listing of it for update,
+   with this rationale; recorded in the archive too.)
+7. **Master_Gorilla_Unleashed_Archive.md**: Great Restoration chapter
+   appended. PATCH.READINESS.txt: reconciliation note + restore order.
+8. **GitHub**: commit `02d54a6` "Great Restoration: excise Gemini-era damage
+   from all masters" (523 files) pushed to
+   github.com/gorillanobakaa-dot/firefox.154 master — the poisoned public
+   copies are replaced; the repo now carries the repaired masters, the
+   repairs snapshot, and this ledger.
