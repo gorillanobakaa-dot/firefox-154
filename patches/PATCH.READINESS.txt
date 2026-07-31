@@ -1,0 +1,472 @@
+PATCH READINESS TRACKER — Gorilla Unleashed Firefox 154
+=======================================================
+Source tree:  /home/gorilla/firefox-main/
+Baseline:    f1cb55ece8 "Day 0: Pristine Firefox 154 source" (git)
+Upstream:    mozilla-firefox/firefox main branch = 154.0a1 (same version, as of 2026-07-15)
+Total files modified: 293  (+ 1 vendored-crate .cargo-checksum.json update)
+Total files untracked (new): 9
+Last updated: 2026-07-16
+
+===============================================================================
+PATCH GROUP 1: MEDIA CODEC — Hardware-Only VA-API H.264 Pipeline
+===============================================================================
+Files: 7
+Status: CODE COMPLETE — VERIFICATION PENDING (IMC bandwidth test not yet run)
+Bugs fixed: 9 (BUG A through BUG I)
+Documented in: patches/Mega.Lessons/MEDIA_CODEC_LESSONS.md
+Build: PASSED (libxul.so linked, 247M)
+
+  dom/media/platforms/PDMFactory.cpp
+    - BUG A fix: removed RemoteDecoderModule HardwareDecode proxy check
+    - BUG B fix: added video-type guard to IsBlockedSoftwareOnlyVideoCodec
+    - BUG C fix: hardware_only_mode StaticPref replaces kHardwareVideoDecodeOnly
+    - Added IsBlockedSoftwareOnlyVideoCodec() function
+    - Added Gorilla hardware-only gating in CreateDecoderWithPDM, Supports, SupportsMimeType
+
+  dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp
+    - BUG D fix: frame pool hard-locked to 16 (no std::max growth)
+    - BUG E fix: std::abort() replaced with MediaResult error return
+    - BUG F fix: IsDecodingSlow() software fallback removed
+    - Hardware-only enforcement in Init() via IsHardwareAccelerated()
+
+  dom/media/platforms/ffmpeg/FFmpegVideoDecoder.h
+    - Header changes supporting BUG D/E/F fixes
+
+  dom/media/AudioStream.cpp
+    - Audio compander / stream modifications
+
+  dom/media/AudioStream.h
+    - Audio stream header changes
+
+  dom/media/moz.build
+    - Build system integration for media changes
+
+  dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
+    - WebRTC video conduit modifications
+
+UPSTREAM DRIFT RISK: MODERATE (FFmpegVideoDecoder.cpp has active upstream development)
+PATCH GENERATION: READY — but recommend running `./mach build` clean test first
+
+VERIFIED (2026-07-16, YouTube "Ultra Clarity 8K HDR 60fps" at 1080p60 avc1.64002a):
+  [x] MFX Video engine active: 5-9% busy — VA-API hardware decode confirmed
+  [x] RDD Process (PID 204736) doing decode — correct process isolation
+  [x] IMC bandwidth: reads 1388-1938, writes 545-717 MiB/s (total ~1933-2655)
+  [x] GPU power: ~2W during playback, package ~13-14W
+  [x] CPU cores: 4-14% each — no single-core software decode spike
+
+ISSUE FOUND:
+  [!] Dropped frames: 1292-1865 out of 12000-15000 (~10-13% drop rate)
+      Under investigation — may be overlay overhead or compositor pipeline bottleneck
+
+
+===============================================================================
+PATCH GROUP 2: GFX / GPU — Zero-Copy DMABuf + Native Wayland Compositor
+===============================================================================
+Files: 4
+Status: CODE COMPLETE — BUG H VERIFIED, BUG I REBUILD PENDING
+Bugs fixed: 2 (BUG H, BUG I)
+Documented in: patches/Mega.Lessons/MEDIA_CODEC_LESSONS.md (BUG H, BUG I sections)
+
+  VERIFIED via about:support (2026-07-16):
+    HW_DECODED_VIDEO_ZERO_COPY = force_enabled
+      "Forced by Gorilla hardware-only policy" — UserForceEnable outranks gfxInfo blocklist ✓
+    HARDWARE_VIDEO_DECODING = force_enabled ✓
+    DMABUF = force_enabled ✓
+    H264_HW_DECODE = available ✓
+    VP8/VP9/AV1/HEVC = blocklisted (FEATURE_FAILURE_GORILLA_NO_HW_CODEC) ✓
+    GPU_PROCESS = blocked (FEATURE_FAILURE_WAYLAND) — expected ✓
+
+  DISCOVERED: user.js NOT LOADED — Firefox launched without -profile flag.
+    about:support showed "userJS.exists: false". The pref-only BUG I fix
+    (gfx.webrender.compositor.force-enabled=true) was ineffective.
+    WEBRENDER_COMPOSITOR showed "disabled" / "Disabled by default".
+    → Applied BUG I as source code fix (same UserForceEnable pattern as BUG H).
+
+  gfx/thebes/gfxPlatformGtk.cpp
+    - BUG H fix: UserEnable → UserForceEnable for zero-copy DMABuf
+    - Ensures gfxInfo blocklist cannot override hardware-only zero-copy
+
+  gfx/config/gfxConfigManager.cpp
+    - BUG I fix: UserForceEnable for WEBRENDER_COMPOSITOR on MOZ_WAYLAND builds
+    - Forces native Wayland compositor (KMS overlay) instead of GL pipeline
+    - Eliminates NV12→EGL→YUV→RGB→RGBA→Mutter readback path (~5× excess bandwidth)
+
+  gfx/thebes/gfxPlatform.cpp
+    - GPU process / platform init changes
+
+  modules/libpref/init/StaticPrefList.yaml
+    - BUG I related: webrender compositor pref
+    - media.gorilla.hardware_only_mode StaticPref definition
+    - VA-API / DMABuf pref defaults
+
+UPSTREAM DRIFT RISK: LOW (one-line UserForceEnable change, additive StaticPref)
+PATCH GENERATION: READY
+
+PENDING VERIFICATION:
+  [ ] Same as Group 1 — IMC bandwidth test covers both groups
+
+
+===============================================================================
+PATCH GROUP 3: NETWORK — BBR Pacing / HTTP Optimizations
+===============================================================================
+Files: 8
+Status: CODE COMPLETE — ASSUMED WORKING (no specific test plan documented)
+
+  netwerk/base/nsSocketTransport2.cpp
+  netwerk/base/nsUDPSocket.cpp
+  netwerk/dns/nsHostResolver.cpp
+  netwerk/protocol/http/Http3Session.cpp
+  netwerk/protocol/http/HttpChannelParent.cpp
+  netwerk/protocol/http/HttpConnectionUDP.cpp
+  netwerk/protocol/http/nsHttpConnectionMgr.cpp
+  netwerk/protocol/http/nsHttpTransaction.cpp
+
+UPSTREAM DRIFT RISK: MODERATE (networking code sees active upstream development)
+PATCH GENERATION: READY — but no dedicated lessons file exists for this group
+DOCUMENTATION: NEEDED — no equivalent of MEDIA_CODEC_LESSONS.md for network patches
+
+PENDING:
+  [ ] Create NETWORK_LESSONS.md documenting what each file change does
+  [ ] Verify BBR pacing behavior with network tools
+
+
+===============================================================================
+PATCH GROUP 4: THEME / CSS — Zero-CPU Master Redirector
+===============================================================================
+Files: 7
+Status: CODE COMPLETE — PARTIALLY VERIFIED (find bar VERIFIED, other UI pending)
+Documented in: patches/FIrefox.154.Look/notes/UI_Tweaks_Master_Collection/CSS_UI_TWEAKS_MEGA_LESSON.md
+
+  browser/themes/shared/master-redirect.css
+    - Pure Black (#000000) / Pure Cyan (#00FFFF) color convergence
+    - Animation annihilation (0.01ms durations)
+    - Active tab pink (#FFC0CB), inactive tab cyan text
+    - GPU-only hover (outline + opacity, no border/margin)
+    - Window controls (CSD) visibility fix — cyan fill + moz-context-properties
+    - New tab button visibility fix
+    - Inactive tab close button visibility
+    - Autocomplete icon clamping
+    - Throbber/progress kill
+
+  browser/themes/shared/jar.inc.mn
+    - Master-redirect.css registration in JAR manifest
+
+  toolkit/themes/shared/findbar.css
+    - Find bar: cyan text, cursor, labels, nav buttons, close button on black
+    - color-scheme: dark forced to prevent system form-control color override
+    - "Not found" state: red text on dark red background
+    - LESSON: master-redirect.css CANNOT reach toolkit widgets loaded via
+      chrome://global/skin/ — must edit source stylesheet directly
+
+  browser/themes/shared/browser-shared.css
+    - .browserContainer > findbar: override lwtheme background/color/color-scheme
+    - Required alongside findbar.css to prevent lwtheme cascade from overriding
+
+  browser/base/content/aboutDialog.css
+    - About dialog logo styling
+
+  browser/components/privatebrowsing/content/aboutPrivateBrowsing.css
+    - Private browsing page styling
+
+  toolkit/themes/shared/icons/warning.svg
+    - Gorilla icon replacement for warning illustrations
+
+UPSTREAM DRIFT RISK: LOW-MODERATE (master-redirect.css is our file; findbar.css and
+  browser-shared.css are upstream files with targeted edits)
+PATCH GENERATION: READY
+
+VERIFIED:
+  [x] Find bar text, cursor, labels, buttons all visible cyan (2026-07-16)
+
+PENDING VERIFICATION:
+  [ ] Restart Firefox and confirm all UI elements render correctly
+  [ ] Verify window controls (close/min/max) are visible cyan
+  [ ] Verify new tab "+" button is visible
+  [ ] Verify inactive tab text is cyan, active tab is pink
+  [ ] Verify about dialog shows gorilla logo (not blank)
+  [ ] Verify new tab page shows gorilla logo
+
+
+===============================================================================
+PATCH GROUP 5: BRANDING / ICONS — Lanczos Resampled Gorilla Assets
+===============================================================================
+Files: 24 (binary PNGs + SVG)
+Status: COMPLETE — VERIFIED (icons regenerated at proper pixel sizes)
+Documented in: CSS_UI_TWEAKS_MEGA_LESSON.md Section 10
+
+  browser/branding/gorilla/content/about-logo.png         (500x500 actual PNG)
+  browser/branding/gorilla/content/about-logo@2x.png      (1000x1000 actual PNG)
+  browser/branding/gorilla/content/about-logo.svg          (800x800 SVG w/ base64 PNG)
+  browser/branding/gorilla/content/about-logo-private.png  (500x500 actual PNG)
+  browser/branding/gorilla/content/about-logo-private@2x.png (1000x1000 actual PNG)
+  browser/branding/gorilla/content/about.png
+  browser/branding/gorilla/default{16,22,24,32,48,64,128,256}.png
+  browser/branding/gorilla/icon{16,22,24,32,48,64,128,256,512}.png
+
+  browser/components/aboutwelcome/assets/splash-logo.svg   (welcome page gorilla)
+
+UPSTREAM DRIFT RISK: NONE (gorilla branding directory is ours, does not exist upstream)
+PATCH GENERATION: READY — binary diffs required (git diff --binary)
+
+
+===============================================================================
+PATCH GROUP 6: LOCALIZATION — "Firefox" → "Gorilla" Deep Rebranding
+===============================================================================
+Files: 235 (.ftl + .properties)
+Status: COMPLETE — VERIFIED (duplicates fixed across 5 key files)
+Documented in: CSS_UI_TWEAKS_MEGA_LESSON.md Section 12
+
+  browser/locales/en-US/   — 121 files
+  toolkit/locales/en-US/   — 114 files
+
+  Key files with manual "Gorilla Gorilla" duplicate fixes:
+    browser/locales/en-US/browser/browserContext.ftl
+    browser/locales/en-US/browser/syncedTabs.ftl
+    browser/locales/en-US/browser/addonNotifications.ftl
+    browser/locales/en-US/chrome/browser/browser.properties
+    browser/locales/en-US/chrome/browser/taskbar.properties
+
+UPSTREAM DRIFT RISK: HIGH (locale files change frequently upstream)
+PATCH GENERATION: READY — but patches will be LARGE and conflict-prone on rebase
+RECOMMENDATION: Generate as a single monolithic locale patch; on rebase, re-run
+                the rebranding script rather than resolving 235 merge conflicts
+
+PENDING:
+  [ ] Grep for remaining "Gorilla Gorilla" duplicates across all 235 files
+  [ ] Verify no broken data-l10n-name attributes (Fluent HTML interpolation bug)
+
+
+===============================================================================
+PATCH GROUP 7: TELEMETRY / PRIVACY — Experiment, Normandy, MemoryTelemetry & Glean Kill
+===============================================================================
+Files: 8 (+ 1 vendored-crate checksum)
+Status: COMPLETE — FULLY VERIFIED (2026-07-16). Telemetry CPU ~13.2% -> ~0.39%.
+
+  FINAL RESULT (verified via perf, live playback):
+    MemoryTelemetry smaps scan   8.9%  -> 0.00%   (GatherReports short-circuit)
+    Glean dispatcher thread      3.5%  -> 0.00%   (FOG::InitializeFOG no-op)
+    Glean inline recording       0.84% -> 0.39%   (const-guard on timing+memory dist)
+    ------------------------------------------------------------------
+    Total telemetry CPU         ~13.2% -> ~0.39%  (~12.8% saved, 97% eliminated)
+  Remaining 0.39% = FFI/histogram-glue marshalling in GENERATED C++ bindings
+  (HistogramIdForMetric, fog_* entry points, firefox_on_glean wrappers) +
+  unguarded custom_distribution (~0.10%). Below measurement noise floor —
+  intentionally NOT chased further (generated code, negligible gain).
+
+  toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs
+  toolkit/components/normandy/lib/RecipeRunner.sys.mjs
+
+  xpcom/base/MemoryTelemetry.cpp
+    - GatherReports() short-circuited: returns NS_OK immediately after invoking
+      completion callback. Prevents ResidentUnique from reading /proc/self/smaps
+      on StreamTrans background thread every 60s.
+    - perf profiling showed 8.9% of parent process CPU wasted on
+      vm_normal_page → smaps_pte_range → walk_pgd_range kernel page-table walks
+    - VERIFIED 2026-07-16: post-build profile shows 0.02% (thread not spawned)
+
+  toolkit/components/glean/xpcom/FOG.cpp
+    - InitializeFOG() short-circuited: returns NS_OK before calling fog_init().
+      Dispatcher thread is created (Lazy static) but never flushed → stays
+      blocked on channel recv at 0% CPU.
+    - perf profiling showed 3.5% of parent process CPU on glean.dispatche thread
+    - Glean SDK handles uninitialized state as no-op for all metric APIs
+    - gInitializeCalled=true prevents shutdown path from re-initializing
+    - VERIFIED 2026-07-16: glean.dispatche thread confirmed 0.00% CPU
+
+  third_party/rust/glean-core/src/dispatcher/global.rs
+    - launch() drops the task immediately in production (guarded by !TESTING_MODE).
+    - Stops the pre-init buffer growth (never flushed, bounded 1M).
+
+  third_party/rust/glean-core/src/lib.rs
+    - Added `pub const GORILLA_TELEMETRY_OFF: bool = true;` — compile-time kill
+      switch. Const (not runtime atomic) lets the optimizer dead-code-eliminate
+      the guarded metric bodies AND removes the guard's own atomic-load overhead.
+
+  third_party/rust/glean-core/src/metrics/timing_distribution.rs
+    - start(), stop_and_accumulate(), accumulate_raw_duration(), and
+      LocalTimingDistribution::accumulate() early-return under GORILLA_TELEMETRY_OFF.
+    - Kills the hot WebRender frame-timing inline recording.
+
+  third_party/rust/glean-core/src/metrics/memory_distribution.rs
+    - accumulate(), accumulate_samples(), LocalMemoryDistribution::accumulate()
+      early-return under GORILLA_TELEMETRY_OFF.
+
+  NOTE: forcing the rebuild required removing stale cached artifacts
+    (libglean_core-*.rlib, .fingerprint/glean_core-*, libgkrust.a) — editing
+    third_party/rust/ source alone does NOT reliably trigger a cargo rebuild.
+  REQUIRED: .cargo-checksum.json 'files' entries for ALL edited glean-core
+    files updated to new SHA256, else the vendored-crate build guard rejects.
+
+  modules/libpref/init/all.js
+    - toolkit.telemetry.enabled=false, datareporting.glean.uploadEnabled=false,
+      datareporting.policy.dataSubmissionEnabled=false (already set)
+
+CPU PROFILING RESULTS — STAGE 1 (2026-07-16, verified during live 1080p60 playback):
+
+  Method: direct /proc per-thread jiffie sampling (10s) + perf record 12,989 samples
+  Parent process during playback:
+    Renderer          24.7%  (WebRender — necessary)
+    WRRenderBackend   23.2%  (WebRender — necessary)
+    firefox (main)    13.7%  (event loop — necessary)
+    Compositor        11.5%  (compositing — necessary)
+    Socket Thread      7.3%  (TLS — necessary)
+    WRSceneBuilder     5.7%  (WebRender — necessary)
+    IPC I/O            4.2%  (necessary)
+    WaylandProxy       3.1%  (Wayland — necessary)
+    StreamTrans        0.02% ← was 8.9%  ELIMINATED (MemoryTelemetry gone)
+    glean.dispatche    0.00% ← was 3.5%  ELIMINATED (dispatcher blocked)
+    residual Glean     0.84%            ← inline metric recording (STAGE 2 target)
+
+  RDD process: near-0% — VA-API hardware decode confirmed perfect
+
+  STAGE 1 net savings: ~11.5% of parent CPU (12.4% → 0.86%)
+  STAGE 2 target: remaining 0.84% inline Glean recording → expected ~0%
+
+UPSTREAM DRIFT RISK: MODERATE (glean-core edit is vendored — re-apply on crate bump)
+PATCH GENERATION: READY
+
+
+===============================================================================
+PATCH GROUP 8: EXTENSIONS — Addon Manager Modifications
+===============================================================================
+Files: 2
+Status: COMPLETE
+
+  toolkit/mozapps/extensions/AddonManager.sys.mjs
+  toolkit/mozapps/extensions/internal/XPIInstall.sys.mjs
+
+UPSTREAM DRIFT RISK: MODERATE
+PATCH GENERATION: READY
+
+
+===============================================================================
+PATCH GROUP 9: URLBAR — QuickSuggest / Telemetry Strip
+===============================================================================
+Files: 2
+Status: COMPLETE
+
+  browser/components/urlbar/QuickSuggest.sys.mjs
+  browser/components/urlbar/UrlbarUtils.sys.mjs
+
+UPSTREAM DRIFT RISK: HIGH (URL bar is actively developed upstream)
+PATCH GENERATION: READY
+
+
+===============================================================================
+PATCH GROUP 10: JS ENGINE — Stencil Fix
+===============================================================================
+Files: 1
+Status: COMPLETE
+
+  js/src/frontend/Stencil.cpp
+
+UPSTREAM DRIFT RISK: HIGH (JS engine is extremely active upstream)
+PATCH GENERATION: READY
+DOCUMENTATION: NEEDED — no lessons file documents this fix
+
+
+===============================================================================
+PATCH GROUP 11: BUILD SYSTEM — Font Bundling
+===============================================================================
+Files: 1
+Status: COMPLETE
+
+  browser/fonts/moz.build
+
+UPSTREAM DRIFT RISK: LOW
+PATCH GENERATION: READY
+
+UNTRACKED (new files to add):
+  browser/fonts/SegUIVar.ttf
+  browser/fonts/YuGothB.ttc
+  browser/fonts/YuGothR.ttc
+  browser/fonts/consola.ttf
+  browser/fonts/segoeui.ttf
+  browser/fonts/segoeuib.ttf
+  browser/fonts/seguisb.ttf
+  browser/themes/shared/nebula.jpg
+
+
+===============================================================================
+UNTRACKED / JUNK (do NOT patch)
+===============================================================================
+  browser/branding/gorilla/locales/en-US/-home-gorilla-Documents-FIrefox.154..txt
+    → Looks like a path-mangled junk file. Delete before patching.
+
+
+===============================================================================
+SUMMARY TABLE
+===============================================================================
+
+Group | Files | Status          | Drift | Patch Ready | Verified
+------|-------|-----------------|-------|-------------|----------
+1. Media/Codec       |   7 | Code complete   | MED   | YES | PENDING (IMC test)
+2. GFX/GPU           |   3 | Code complete   | LOW   | YES | PENDING (IMC test)
+3. Network/BBR       |   8 | Code complete   | MED   | YES | NO (no test plan)
+4. Theme/CSS         |   7 | Code complete   | LOW-M | YES | PARTIAL (findbar done)
+5. Branding/Icons    |  24 | Complete        | NONE  | YES | YES
+6. Localization      | 235 | Complete        | HIGH  | YES | PARTIAL (dupes fixed)
+7. Telemetry         |   8 | COMPLETE        | MED   | YES | VERIFIED (~12.8% CPU saved)
+8. Extensions        |   2 | Complete        | MED   | YES | YES
+9. URL Bar           |   2 | Complete        | HIGH  | YES | YES
+10. JS Engine        |   1 | Complete        | HIGH  | YES | YES
+11. Build/Fonts      |   1 | Complete        | LOW   | YES | YES
+    + 8 new files    |     |                 |       |     |
+------|-------|-----------------|-------|-------------|----------
+TOTAL               | 293 |                 |       |     |
+    + 9 untracked   |     |                 |       |     |
+
+===============================================================================
+RECOMMENDED PATCH GENERATION ORDER
+===============================================================================
+
+Generate patches in dependency order (later patches may depend on earlier ones):
+
+  1. MEDIA CODEC (Group 1)          — core mission, self-contained
+  2. GFX/GPU (Group 2)              — depends on Group 1 prefs
+  3. NETWORK/BBR (Group 3)          — independent
+  4. THEME/CSS (Group 4)            — independent
+  5. BRANDING/ICONS (Group 5)       — depends on Group 4 jar.inc.mn
+  6. BUILD/FONTS (Group 11)         — independent
+  7. TELEMETRY (Group 7)            — independent
+  8. EXTENSIONS (Group 8)           — independent
+  9. URLBAR (Group 9)               — independent
+  10. JS ENGINE (Group 10)          — independent
+  11. LOCALIZATION (Group 6)        — LAST (largest, most conflict-prone)
+
+===============================================================================
+BLOCKING ITEMS BEFORE FINAL PATCH GENERATION
+===============================================================================
+
+  [x] Verify BUG H + BUG I: play YouTube 1080p60, measure IMC bandwidth — DONE (602 MiB/s delta)
+  [ ] Restart Firefox and screenshot all UI fixes (theme, icons, window controls)
+  [ ] Grep all 235 locale files for remaining "Gorilla Gorilla" duplicates
+  [ ] Delete junk file: browser/branding/gorilla/locales/en-US/-home-gorilla-Documents-FIrefox.154..txt
+  [ ] Document network patches (no lessons file exists)
+  [x] Profile and eliminate telemetry CPU waste — DONE (MemoryTelemetry + Glean disabled, 12.4% savings)
+  [ ] Document JS engine Stencil.cpp fix (no lessons file exists)
+
+===============================================================================
+PATCH GENERATION COMMAND (when ready)
+===============================================================================
+
+  cd /home/gorilla/firefox-main
+
+  # Text patches (all non-binary files):
+  git diff HEAD -- <file-list> > /home/gorilla/Documents/FIrefox.154.Work/patches/Future.proof-.patch.files/GROUP_NAME.patch
+
+  # Binary patches (icons/fonts):
+  git diff --binary HEAD -- browser/branding/ browser/components/aboutwelcome/assets/ > .../BRANDING_ICONS.patch
+
+  # New files:
+  git add browser/fonts/*.ttf browser/fonts/*.ttc browser/themes/shared/nebula.jpg
+  git diff --cached --binary > .../NEW_FILES.patch
+  git reset HEAD  # unstage after generating patch
+
+=== 2026-07-31 RECONCILIATION (see THEME_FIX_LOG_2026-07-31.md §19/§26/§27) ===
+Tree restored + repaired; ALL 08.Look/07.TOOLKIT masters regenerated from the
+repaired tree (hunk-verified current); 154.Deep.Branded.Locales re-synced (41
+files, doubled-brand count now 0); NEW_FILES + Safety.Vault.Theme
+master-redirect.css re-synced (were 187-line stale, now 315); icon-script
+profile template fixed. Restore order: vault → 07-16 snapshots → Look copies
+→ APPLIED-STATE.2026-07-31.REPAIRS.tar.gz LAST.

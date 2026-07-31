@@ -1,0 +1,12 @@
+--- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/content/aboutTelemetry.css	2026-07-10 17:32:00.000000000 +0100
++++ /home/gorilla/firefox-main/toolkit/content/aboutTelemetry.css	2026-07-31 21:30:26.384208963 +0100
+@@ -341,3 +341,9 @@
+ .clearfix {
+   clear: both;
+ }
++
++/* GORILLA OVERRIDE 2026-07-31: centered watermark (author spec: "that gorilla
++   was supposed to be in the center"). */
++body {
++  background: #000000 url("chrome://branding/content/about-logo.svg") no-repeat center bottom 60px / 500px !important; /* author 21:22: lower it, ~60px off the bottom */
++}

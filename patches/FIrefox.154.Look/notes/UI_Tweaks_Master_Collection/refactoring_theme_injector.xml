@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<concept>
+  <name>Refactoring the Theme Injector (Zero-CPU Upgrade)</name>
+  <date>2026-06-20</date>
+  <tags>firefox, css, performance, gpu, intel-hd-4000, theme, optimization, zero-cpu, hardware-acceleration, theme_injector</tags>
+  
+  <summary>
+    The existing `theme_injector.py` script was found to contain outdated CSS payloads that violate the Zero-CPU doctrine. 
+    It relies heavily on layout-thrashing properties (`border`, `box-shadow` on hover, and heavy background images).
+    This concept outlines the plan to rewrite the injector script's payload to conform to our Intel HD 4000 hardware acceleration constraints.
+  </summary>
+
+  &lt;findings&gt;
+    &lt;finding name="CPU-Killing CSS Found"&gt;
+      The old CSS in `theme_injector.py` was forcing the CPU to recalculate the box model (reflows) on every hover/click interaction.
+      Examples include using `border` instead of `outline`, and `box-shadow` which is expensive to blend.
+    &lt;/finding&gt;
+    &lt;finding name="Background Compositing Overhead"&gt;
+      The `nebula.jpg` background applied to `#navigator-toolbox` was causing massive compositing overhead on the UI thread.
+    &lt;/finding&gt;
+  &lt;/findings&gt;
+
+  &lt;the_plan&gt;
+    &lt;step id="1" name="Rewrite Injector Script"&gt;
+      Replace the `css_content` block in `theme_injector.py`. Swap all `border` properties for `outline` (which lives purely on the GPU).
+      Remove heavy background compositing on the toolbar.
+    &lt;/step&gt;
+    &lt;step id="2" name="Implement Hardware Acceleration Rules"&gt;
+      Explicitly add `will-change: transform` and `contain: strict` to interactive elements like tabs and the URL bar to pre-promote them to GPU compositor layers.
+      Ensure all animations strictly use `transform` and `opacity`.
+    &lt;/step&gt;
+    &lt;step id="3" name="Execute and Bake"&gt;
+      Run the updated injector script to overwrite the core fallback theme files in the source tree.
+      Run a final `./mach build` to bake the highly-optimized, GPU-accelerated theme directly into the `libxul.so` binary.
+    &lt;/step&gt;
+  &lt;/the_plan&gt;
+
+</concept>

@@ -1,0 +1,17 @@
+--- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/components/translations/content/about-translations.css	2026-07-10 17:32:00.000000000 +0100
++++ /home/gorilla/firefox-main/toolkit/components/translations/content/about-translations.css	2026-07-31 21:03:30.269840683 +0100
+@@ -63,8 +63,12 @@
+ }
+ 
+ #about-translations-logo {
+-  width: var(--icon-size-large);
+-  height: var(--icon-size-large);
++  /* GORILLA 2026-07-31: lesson Fixing_the_about_translations_Logo_Sizing */
++  width: 200px !important;
++  height: 200px !important;
++  min-width: 200px !important;
++  max-width: 200px !important;
++  display: block !important;
+ }
+ 
+ #about-translations-h1 {

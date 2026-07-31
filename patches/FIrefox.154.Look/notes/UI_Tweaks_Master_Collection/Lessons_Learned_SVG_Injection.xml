@@ -1,0 +1,16 @@
+<concept name="Lessons_Learned_SVG_Injection">
+  <human_rationale>
+    Technical script or configuration code from 0.noise.Lessons.Learned.SVG.Injection.md.
+  </human_rationale>
+  <execution_logic>
+# Lessons Learned: High-Resolution SVG Injection
+
+- Date: 2026-05-29
+- Challenge: Scaling 256x256 base64 PNGs via CSS `background-size` causes interpolation blur. Embedding 8MB ultra-high-res base64 payloads bloats the DOM/UI thread.
+- Resolution: Dynamic downsampling via Python PIL. Use Lanczos resampling to scale the canonical master asset to the exact intrinsic dimensions of the SVG wrapper.
+- Execution: `generate_crisp_svgs.py` reads `canonical_about_logo.png`, shrinks it to 800x800, encodes to base64, and wraps it in `&lt;svg&gt; &lt;image width="800" height="800" .../&gt; &lt;/svg&gt;`.
+- CSS Overrides: Adjust layout CSS to `background-size: contain` and specific dimensions to prevent standard CSS cropping of the 800x800 intrinsic SVG.
+- Rule: Do not rely on browser CSS scaling for base64 raster embeddings in SVGs. Downsample the canonical asset before base64 encoding.
+
+  </execution_logic>
+</concept>

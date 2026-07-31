@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<concept>
+  <name>Zero-CPU Theme Architecture (Intel HD 4000)</name>
+  <date>2026-06-20</date>
+  <tags>firefox, css, performance, gpu, intel-hd-4000, theme, optimization, zero-cpu, hardware-acceleration</tags>
+  
+  <summary>
+    Strategy for building a Firefox UI theme that consumes 0 CPU cycles during animations. 
+    By leveraging specific CSS properties (`transform`, `opacity`), we can offload all animation 
+    work to the Intel HD 4000's fixed-function GPU hardware (ASIC), keeping the CPU strictly 
+    dedicated to rendering web content.
+  </summary>
+
+  &lt;hardware_profile&gt;
+    &lt;gpu&gt;Intel HD 4000 (Ivy Bridge, Gen 7)&lt;/gpu&gt;
+    &lt;components&gt;
+      &lt;component&gt;16 Execution Units (EUs) — programmable shader cores&lt;/component&gt;
+      &lt;component&gt;Fixed-Function Transform Unit — matrix math (transforms)&lt;/component&gt;
+      &lt;component&gt;ROP (Raster Operations Pipeline) — alpha blending (opacity)&lt;/component&gt;
+      &lt;component&gt;TMU (Texture Mapping Unit) — texture/image sampling&lt;/component&gt;
+    &lt;/components&gt;
+  &lt;/hardware_profile&gt;
+
+  &lt;rendering_pipeline&gt;
+    &lt;step id="1" name="Style Calc"&gt;CPU (Main Thread) - CSS selector matching&lt;/step&gt;
+    &lt;step id="2" name="Layout"&gt;CPU (Main Thread) - Box model, positioning&lt;/step&gt;
+    &lt;step id="3" name="Paint"&gt;CPU (Main Thread) - Rasterize elements into texture tiles&lt;/step&gt;
+    &lt;step id="4" name="Composite"&gt;GPU (Compositor Thread) - Assembles pre-baked textures&lt;/step&gt;
+    &lt;target&gt;Our theme must live entirely in Step 4 to achieve zero-CPU overhead.&lt;/target&gt;
+  &lt;/rendering_pipeline&gt;
+
+  &lt;css_rules&gt;
+    &lt;approved_properties type="GPU Native"&gt;
+      <property name="transform: translate()">Pure matrix multiply (Fixed-Function Unit)</property>
+      <property name="transform: scale()">Pure matrix multiply (Fixed-Function Unit)</property>
+      <property name="opacity">Hardware blend (ROP Alpha Blend Unit)</property>
+      <property name="filter: brightness/contrast">Simple per-pixel math (Execution Units)</property>
+    &lt;/approved_properties&gt;
+    
+    &lt;forbidden_properties type="CPU Reflow Triggers"&gt;
+      <property name="width, height">Triggers full layout recalculation</property>
+      <property name="margin, padding">Cascades box model changes through DOM</property>
+      <property name="border">Box model change</property>
+      <property name="top, left, bottom, right">Positional reflow</property>
+      <property name="transition: all">Forces monitoring of layout properties</property>
+      <property name="backdrop-filter: blur()">Heavy compositing pass (GPU, but expensive)</property>
+    &lt;/forbidden_properties&gt;
+  &lt;/css_rules&gt;
+
+  &lt;golden_rules&gt;
+    <rule id="1">Only animate `transform` and `opacity` properties.</rule>
+    <rule id="2">Use `will-change: transform;` on interactive elements to pre-promote them to dedicated GPU compositor layers.</rule>
+    <rule id="3">Use `contain: strict;` to isolate paint regions and prevent repaints from rippling outward.</rule>
+  &lt;/golden_rules&gt;
+
+</concept>

@@ -1,0 +1,88 @@
+category	patch_file	concept	ff154_location	status	notes
+01.MEDIA	AudioContext.cpp	48000Hz sample rate pin; 10ms latency under HW mode	dom/media/webaudio/AudioContext.cpp lines 146,572	APPLIED	Verified 2026-07-15 (minor upstream nightly delta vs SafetyVault — not contamination)
+01.MEDIA	AudioDestinationNode.cpp	Soft-limiter block at destination output under HW mode	dom/media/webaudio/AudioDestinationNode.cpp line 214	APPLIED	Verified 2026-07-15
+01.MEDIA	AudioStream.cpp	AudioPsychoacousticEnhancer DSP class + integration (SW vol lock, DataCallback DSP block, ShutDown cleanup)	dom/media/AudioStream.cpp	APPLIED	Restored from SafetyVault; old-era LOG macros reverted; gorilla DSP re-applied cleanly — 2026-07-15
+01.MEDIA	AudioStream.h	Forward decl AudioPsychoacousticEnhancer; add mPsychoEnhancer/mVolume/mUseSoftwareVolume members	dom/media/AudioStream.h	APPLIED	2026-07-15
+01.MEDIA	CubebUtils.cpp	Pin PreferredSampleRate to 48000Hz under HW mode	dom/media/CubebUtils.cpp line 504	APPLIED	Verified 2026-07-15
+01.MEDIA	DecoderTraits.cpp	Block av01/vp8/vp9/hev1/hvc1/webm/ogg/mkv at CanHandleMediaType() gate	dom/media/DecoderTraits.cpp	APPLIED	Already correctly patched in Day 0 commit — verified 2026-07-15
+01.MEDIA	DefaultCodecPreferences.cpp	Remove VP8/VP9/AV1 from WebRTC codec offer list; H.264 only	dom/media/webrtc/jsapi/DefaultCodecPreferences.cpp lines 127-140	APPLIED	Verified 2026-07-15
+01.MEDIA	DynamicsCompressorNode.cpp	Pass-through bypass when HW mode active (prevent re-compression of audio DSP signal)	dom/media/webaudio/DynamicsCompressorNode.cpp line 88	APPLIED	Verified 2026-07-15
+01.MEDIA	FFmpegVideoDecoder.cpp	3 changes: VA-API scope guard fix; H.264 HW-only rejection; pool size=16 (x4 paths)	dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp lines 607,996,2045,2143,2276,2407	APPLIED	Restored from SafetyVault vanilla base then applied gorilla hunks only — 2026-07-15
+01.MEDIA	FFmpegVideoDecoder.h	No gorilla changes needed	dom/media/platforms/ffmpeg/FFmpegVideoDecoder.h	APPLIED	Restored to SafetyVault vanilla — header had no gorilla-specific changes
+01.MEDIA	gfxPlatformGtk.cpp	GPU process re-disabled on Wayland (no wl_egl_window in GPU proc); VA-API via RDD	gfx/thebes/gfxPlatformGtk.cpp line 328	FIXED	Black window root cause fixed 2026-07-15
+01.MEDIA	MediaCapabilities.cpp	Non-H264 video → CodecSupport::Unsupported (decode+encode paths)	dom/media/mediacapabilities/MediaCapabilities.cpp lines 370,405	APPLIED	Verified 2026-07-15
+01.MEDIA	MediaSource.cpp	IsVP9Forced() always returns false under HW mode	dom/media/mediasource/MediaSource.cpp line 68	APPLIED	Verified 2026-07-15
+01.MEDIA	moz.build	Add -march=native CXXFLAGS for Ivy Bridge	dom/media/moz.build	APPLIED	Restored from SafetyVault (old-era stripped rlbox include); re-applied gorilla only — 2026-07-15
+01.MEDIA	PDMFactory.cpp	Comment out AgnosticDecoderModule include; add IsBlockedSoftwareOnlyVideoCodec(); gate all codec creation paths; REMOVED premature HardwareDecode proxy check (RemoteDecoderModule always returns SoftwareDecode — bug 1754239)	dom/media/platforms/PDMFactory.cpp lines 11,78,474,504,518	APPLIED	Day 0 commit + 2026-07-15c proxy-check removal (ERROR 12b in errors log) — rebuild via sccache will be fast
+01.MEDIA	RemoteMediaDataDecoder_upstream.cpp	SKIP — reference only, never deployed per dossier §7		SKIP — never deployed
+01.MEDIA	RemoteVideoDecoder.cpp	BT709 color defaults; mKnowsCompositor-gated strict frame drop (no shmem fallback)	dom/media/ipc/RemoteVideoDecoder.cpp lines 259,283	APPLIED	Verified 2026-07-15
+01.MEDIA	VideoConduit.cpp	HasAv1() returns false under HW mode	dom/media/webrtc/libwebrtcglue/VideoConduit.cpp line 2146	APPLIED	Restored from SafetyVault (old-era stripped upstream stats logic); re-applied gorilla only — 2026-07-15
+01.MEDIA	VideoDecoder.cpp	Early Validate() rejects non-H264 under HW mode	dom/media/webcodecs/VideoDecoder.cpp line 720	APPLIED	Verified 2026-07-15
+01.MEDIA	VideoEncoder.cpp	Early Validate() rejects non-H264 under HW mode	dom/media/webcodecs/VideoEncoder.cpp line 427	APPLIED	Verified 2026-07-15
+01.MEDIA	WebCodecsUtils.cpp	IsSupportedVideoCodec() returns H264-only under HW mode	dom/media/webcodecs/WebCodecsUtils.cpp line 611	APPLIED	Verified 2026-07-15
+01.MEDIA	WebrtcVideoCodecFactory.cpp	Gate all VP8/VP9/AV1 decoder+encoder creation with HW-only check (9 guard blocks)	dom/media/webrtc/libwebrtcglue/WebrtcVideoCodecFactory.cpp	APPLIED	Verified 2026-07-15
+01.MEDIA	reference_buildfiles/libaom_moz.build	SKIP — reference only, shows what libaom build looks like; no source patch needed		SKIP — reference only
+01.MEDIA	reference_buildfiles/libvpx_moz.build	SKIP — reference only, shows what libvpx build looks like; no source patch needed		SKIP — reference only
+02.GPU	GfxDriverInfo.cpp	Comment out Ivy Bridge + Sandy Bridge device IDs from blocklist	widget/GfxDriverInfo.cpp lines 208-269	APPLIED	Verified 2026-07-15
+02.GPU	GfxInfoBase.cpp	Short-circuit blocklist for Intel/AMD/NVIDIA (force FEATURE_STATUS_OK)	widget/GfxInfoBase.cpp line 1120	APPLIED	Verified 2026-07-15
+02.GPU	GfxInfo.cpp	Per-codec honest override: H264=OK, VP8/VP9/AV1/HEVC=BLOCKED	widget/gtk/GfxInfo.cpp line 1466	APPLIED	Verified 2026-07-15
+02.GPU	gfxPlatform.cpp	Dead-code sticky HW-decode-failed kill-switch (x2: dec+enc paths)	gfx/thebes/gfxPlatform.cpp lines 3063,3115	APPLIED	Restored from SafetyVault (old-era stripped XP_MACOSX + Metal); re-applied gorilla only — 2026-07-15
+03.NETWORKING	Http3Session.cpp	PENDING		PENDING
+03.NETWORKING	HttpChannelParent.cpp	PENDING		PENDING
+03.NETWORKING	HttpConnectionUDP.cpp	PENDING		PENDING
+03.NETWORKING	nsHostResolver.cpp	PENDING		PENDING
+03.NETWORKING	nsHttpConnectionMgr.cpp	PENDING		PENDING
+03.NETWORKING	nsHttpTransaction.cpp	PENDING		PENDING
+03.NETWORKING	nsSocketTransport2.cpp	PENDING		PENDING
+03.NETWORKING	nsUDPSocket.cpp	PENDING		PENDING
+04.PERFORMANCE	CCGCScheduler.cpp	PENDING		PENDING
+04.PERFORMANCE	Maybe.h	PENDING		PENDING
+04.PERFORMANCE	MaybeStorageBase.h	PENDING		PENDING
+04.PERFORMANCE	Stencil.cpp	PENDING		PENDING
+05.PREFS	all.js	PENDING		PENDING
+05.PREFS	firefox.js	PENDING		PENDING
+05.PREFS	language.properties	PENDING		PENDING
+05.PREFS	mozconfig	PENDING		PENDING — check separately, not a source file
+05.PREFS	StaticPrefList.yaml	Add media.gorilla.hardware_only_mode=true; set media.av1.enabled=false; set mediadatadecoder_vpx_enabled=false	modules/libpref/init/StaticPrefList.yaml lines 12681, 13241, 13586	APPLIED	All 3 prefs already present and correct — verified 2026-07-15
+06.QUOTA	ActorsParent.cpp	PENDING		PENDING
+06.QUOTA	FirstInitializationAttemptsImpl.h	PENDING		PENDING
+06.QUOTA	QuotaCommon.cpp	PENDING		PENDING
+07.TOOLKIT	AddonManager.sys.mjs	PENDING		PENDING
+07.TOOLKIT	AddonRepository.sys.mjs	PENDING		PENDING
+07.TOOLKIT	appearance.mjs	PENDING		PENDING
+07.TOOLKIT	Base.jsx	PENDING		PENDING
+07.TOOLKIT	browserLanguages.js	PENDING		PENDING
+07.TOOLKIT	DiscoveryStreamBase.jsx	PENDING		PENDING
+07.TOOLKIT	ExperimentAPI.sys.mjs	PENDING		PENDING
+07.TOOLKIT	lib.rs	PENDING		PENDING
+07.TOOLKIT	LightweightThemeManager.sys.mjs	PENDING		PENDING
+07.TOOLKIT	nsContextMenu.sys.mjs	GenAI ask-chat menu item excised (comment block); rebased on FF154 vanilla base	browser/base/content/nsContextMenu.sys.mjs	APPLIED	Rebased 2026-07-31 — old base crashed initItems (stale resource:// import); master .patch regenerated
+07.TOOLKIT	QuickSuggest.sys.mjs	PENDING		PENDING
+07.TOOLKIT	search-config-v2.json	PENDING		PENDING
+07.TOOLKIT	semantic-categories.mjs	PENDING		PENDING
+07.TOOLKIT	tokens-table.mjs	PENDING		PENDING
+07.TOOLKIT	TopSites.jsx	PENDING		PENDING
+07.TOOLKIT	TranslationsParent.sys.mjs	PENDING		PENDING
+07.TOOLKIT	UrlbarProviderQuickSuggest.sys.mjs	PENDING		PENDING
+07.TOOLKIT	UrlbarProviderSearchSuggestions.sys.mjs	PENDING		PENDING
+07.TOOLKIT	XPIInstall.sys.mjs	PENDING		PENDING
+08.Look	findbar.css	Find bar: cyan text/cursor/labels/buttons on black background; color-scheme:dark forced	toolkit/themes/shared/findbar.css	APPLIED	Direct edit — master-redirect.css cannot reach toolkit widgets loaded via chrome://global/skin/
+08.Look	browser-shared.css	Find bar container: override lwtheme background/color/color-scheme on .browserContainer > findbar	browser/themes/shared/browser-shared.css	APPLIED	Required alongside findbar.css to override browser-level lwtheme cascade
+08.Look	[CSS/branding/locale files — copy operation, not source patch]	Copy branded files to firefox-main tree	See 08.Look/ subfolder structure	PENDING	Large set of locale+CSS files; apply as file copy not code patch
+09.REMOTE	Marionette.sys.mjs	PENDING		PENDING
+09.REMOTE	RemoteAgent.sys.mjs	PENDING		PENDING
+10.OVERRIDES	user.js	PENDING		PENDING	user.js goes to profile, not firefox-main source
+11.FONT.SYSTEM	gfxDWriteFontList.cpp.patch	PENDING		PENDING	already a .patch file — apply with patch command
+11.FONT.SYSTEM	gfxFcPlatformFontList.cpp.patch	PENDING		PENDING	already a .patch file — apply with patch command
+11.FONT.SYSTEM	gfxFT2FontList.cpp.patch	PENDING		PENDING	already a .patch file — apply with patch command
+11.FONT.SYSTEM	gfxPlatformFontList.cpp.patch	PENDING		PENDING	already a .patch file — apply with patch command
+11.FONT.SYSTEM	moz.build	PENDING		PENDING
+12.MOZAMBIQUE.DRILL	policies.json	PENDING		PENDING	goes to distribution/ in firefox-main
+12.MOZAMBIQUE.DRILL	RecipeRunner.sys.mjs.patch	PENDING		PENDING	already a .patch file — apply with patch command
+12.MOZAMBIQUE.DRILL	RemoteSettingsExperimentLoader.sys.mjs.patch	PENDING		PENDING	already a .patch file — apply with patch command
+13.TELEMETRY.KILL	MemoryTelemetry.cpp	GatherReports() short-circuited: immediate return before /proc/smaps scan	xpcom/base/MemoryTelemetry.cpp line 229	APPLIED	Saves ~8.9% parent CPU — perf-profiled vm_normal_page kernel overhead
+13.TELEMETRY.KILL	FOG.cpp	InitializeFOG() short-circuited: prevents Glean dispatcher thread spawn	toolkit/components/glean/xpcom/FOG.cpp line 144	APPLIED	Saves ~3.5% parent CPU — Glean SDK handles uninitialized state as no-op. VERIFIED: dispatcher thread 0.00% CPU
+13.TELEMETRY.KILL	global.rs	launch() drops metric tasks in production (!TESTING_MODE guard)	third_party/rust/glean-core/src/dispatcher/global.rs line 47	APPLIED	Stops pre-init buffer growth. REQUIRES .cargo-checksum.json SHA update
+13.TELEMETRY.KILL	glean-core/lib.rs	Added const GORILLA_TELEMETRY_OFF=true (compile-time kill switch)	third_party/rust/glean-core/src/lib.rs line 107	APPLIED	const enables DCE of guarded metric bodies. REQUIRES checksum update
+13.TELEMETRY.KILL	timing_distribution.rs	const-guard early-return in start/stop/accumulate_raw/LocalTiming::accumulate	third_party/rust/glean-core/src/metrics/timing_distribution.rs	APPLIED	Kills hot WebRender frame-timing inline recording. VERIFIED gone from profile
+13.TELEMETRY.KILL	memory_distribution.rs	const-guard early-return in accumulate/accumulate_samples/LocalMemory::accumulate	third_party/rust/glean-core/src/metrics/memory_distribution.rs	APPLIED	Total telemetry ~13.2%->0.39% VERIFIED. REQUIRES checksum update; force rebuild by deleting stale rlib/fingerprint

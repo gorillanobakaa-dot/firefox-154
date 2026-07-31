@@ -40,7 +40,8 @@ One-line rules, each proven by a real bug or regression. If you break one, you w
 | C6 | PNG files at `chrome://` MUST be actual PNG data — SVG-in-PNG silently rejected | `browser/branding/gorilla/content/` | blank logos |
 | C7 | `box-sizing: border-box !important` on `.tab-background` — prevents parentheses clipping | `master-redirect.css` | visual |
 | C8 | `contain: layout style` (NOT `contain: paint`) on major containers — `paint` breaks XUL flexbox | `master-redirect.css` | layout break |
-| C9 | `master-redirect.css` CANNOT style toolkit widgets (`findbar`, `notification`) — edit source CSS directly | `toolkit/themes/shared/findbar.css` | find bar invisible |
+| C9 | `master-redirect.css` reaches toolkit (`chrome://global/skin`) widgets ONLY via the `global-shared.css` `@import`. When that import is correctly placed, input fields/dropdowns/findbar ARE themed. Per-widget source edits (`findbar.css`) are a fallback, not because it "cannot reach" them. **[CORRECTED 2026-07-31 — the old "CANNOT reach" wording was the workaround that hid rule C10's dead import for weeks]** | `toolkit/themes/shared/global-shared.css` | unthemed inputs |
+| C10 | `@import`/`@charset` MUST be in the leading import block — an `@import` after ANY style rule is SILENTLY DROPPED by the parser. Append style RULES; PREPEND `@import`. This killed the theme for toolkit widgets (import sat at `global-shared.css:441`). **ENFORCED** — `patches/lint/check_css_import_position.py` gates git-commit + `build_gorilla.sh` + `dual-track precheck`; a violation refuses the build. | `toolkit/themes/shared/global-shared.css` | dead theme / unthemed inputs |
 
 ## LOCALE / FTL
 

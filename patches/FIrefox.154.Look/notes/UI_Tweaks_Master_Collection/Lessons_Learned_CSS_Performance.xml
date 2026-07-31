@@ -1,0 +1,33 @@
+<concept>
+  &lt;id&gt;css_performance_optimization&lt;/id&gt;
+  <name>CSS Performance Optimization in Firefox</name>
+  <description>Identification and resolution of massive CPU and RAM drains caused by unoptimized CSS selectors and compositing in Firefox custom themes.</description>
+  <category>UI Architecture</category>
+  <tags>
+    &lt;tag&gt;CSS&lt;/tag&gt;
+    &lt;tag&gt;Performance&lt;/tag&gt;
+    &lt;tag&gt;CPU&lt;/tag&gt;
+    &lt;tag&gt;RAM&lt;/tag&gt;
+    &lt;tag&gt;Gecko&lt;/tag&gt;
+  </tags>
+  <content>
+    CSS might seem like simple styling, but in a massive application like a web browser, poorly optimized CSS selectors can absolutely crush the CPU and drain RAM by forcing the layout engine (Gecko/Servo) to constantly recalculate millions of nodes.
+
+    Three major performance killers were identified and neutralized:
+
+    1. **The Universal Selector Annihilation (CRITICAL DRAIN):**
+       - **Bad:** `*, *::before, *::after { animation-duration: 0.01ms !important; }`
+       - **Why:** Using the universal `*` selector across the entire browser chrome forces the CPU to traverse and evaluate this rule against every single node in the browser's UI tree on every layout change.
+       - **Fix:** Replaced with targeted selectors: `.tab-throbber, .tab-loading-burst, .urlbar-input, .tab-background, .tabbrowser-tab`.
+
+    2. **Linear-Gradient Compositing:**
+       - **Bad:** `background-image: linear-gradient(...), url("...") !important;`
+       - **Why:** Applying a dynamic gradient layered over a large JPG image forces the GPU/CPU to re-rasterize and composite the toolbar graphics constantly.
+       - **Fix:** Removed the dynamic gradient from the CSS. Pre-composite the image offline instead.
+
+    3. **The [selected] Attribute Churn (Border vs Outline):**
+       - **Bad:** `border: 1px solid #00FFFF !important;`
+       - **Why:** Changing borders dynamically alters the element's box model dimensions, triggering a "layout thrash" rather than a simple repaint.
+       - **Fix:** Swapped `border` for `outline`, which sits outside the box model and does not trigger reflows.
+  </content>
+</concept>

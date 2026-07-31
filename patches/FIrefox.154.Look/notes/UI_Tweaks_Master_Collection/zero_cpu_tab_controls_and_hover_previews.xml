@@ -1,0 +1,27 @@
+<concept>
+    <name>Zero-CPU Tab Controls and Hover Previews Excision</name>
+    <description>Replacing tab bar SVG elements with unicode characters, purging website favicons to reduce image decoding, and disabling layout-heavy tab hover previews.</description>
+    <content>
+        To achieve true zero-CPU performance in the Firefox interface on legacy hardware (Intel HD 4000), we applied the following surgical updates to the theme and configurations:
+        
+        1. Tab Close Button (SVG Excision):
+           - Hides the native SVG-based close button (`.tab-close-button &gt; .toolbarbutton-icon`).
+           - Converts the parent button container `.tab-close-button` into a flex container and injects a raw monospace text glyph `content: "×"`.
+           - This avoids XML parsing, Skia vector path evaluation, and VRAM texture upload thrashing for close buttons on tab hover.
+           
+        2. Website Favicon Purge:
+           - Hides the `.tab-icon-image`, `.tab-sharing-icon-overlay`, and `.tab-icon-overlay` elements.
+           - This eliminates runtime CPU paint cycles and texture updates when tabs load or change website favicons (e.g. Google, GitHub logos).
+           
+        3. Text-Based Navigation Controls:
+           - Replaces standard SVG icons for Back, Forward, Reload/Stop, and Home buttons with lightweight unicode character labels (`&lt;`, `&gt;`, `↻`, `X`, `H`).
+           
+        4. Tab Hover Previews Excision:
+           - Disables the heavy layout and thumbnail generation engine for tab cards.
+           - Configuration settings updated to false:
+             - `browser.tabs.hoverPreview.enabled`
+             - `browser.tabs.hoverPreview.showThumbnails`
+             - `browser.tabs.groups.hoverPreview.enabled`
+           - JS Modification: Patched `browser/components/tabbrowser/content/tab.js` mouse enter/leave listeners to prevent dispatching the custom XUL events (`TabHoverStart` and `TabHoverEnd`) if the preference is disabled. This stops event creation, object allocation, and DOM bubbling overhead on mouse movement.
+    </content>
+</concept>

@@ -1,0 +1,985 @@
+<concept name="UI_TWEAKS_DOCUMENTATION">
+  <human_rationale>
+# Unleashed CSS &amp; UI Tweaks Documentation
+
+This document explicitly details all the styling and interface modifications made to transform standard Firefox into "Unleashed." This is written for both **Layman Users** and **Developers**, explaining the "why", the "how", and the exact values used to achieve the Pure Black &amp; Pure Cyan aesthetic.
+
+---
+
+## 1. The Theme Hollowing Breakthrough (The Master Redirector)
+
+### 🧸 Layman's Explanation
+Originally, we had to patch over 70 individual files just to hide all the old bright colors, buttons, and light themes inside the browser. This was bloated and slow. We discovered a much smarter way: instead of editing every single file, we created a single "Master Redirector." This redirector acts like a bouncer at the door, catching any attempt by the browser to load a theme and forcing it to wear "Pure Black" instead. This saved massive amounts of space and code.
+
+### 💻 Developer's Explanation
+We hollowed out the redundant theme CSS shims and replaced them with a unified master CSS redirector (`master-redirect.css`). We injected this into the core `browser-shared.css` and `global-shared.css` files. 
+**Technique Used:** CSS Variable Override / Interception.
+**Values Used:** `#000000` (Pure Black), `#00FFFF` (Pure Cyan)
+
+**GitHub Style Diff (`browser/themes/shared/browser-shared.css`):**
+```diff
+ /* Original Firefox Code */
+ @import url("chrome://browser/skin/preferences/preferences.css");
+ 
++/* Master Redirector Injection */
++@import url("chrome://browser/skin/master-redirect.css");
+```
+
+---
+
+## 2. The Pure Cyan Shadow DOM Pierce
+
+### 🧸 Layman's Explanation
+When you click on the URL bar or search bar, the placeholder text ("Search with...") looked muddy and grey, even though we told it to be bright Cyan. We found out Firefox was secretly putting a piece of "grey glass" over the text (called opacity). We shattered that glass and pushed the Cyan to maximum brightness so it pops perfectly against the black background.
+
+### 💻 Developer's Explanation
+The search pill is a Web Component utilizing the Shadow DOM (`&lt;content-search-handoff-ui&gt;`), which hardcodes an opacity of 0.54 onto the `.fake-textbox` class. Standard CSS overrides fail here unless you pierce the Shadow DOM directly in the component's internal stylesheet. We also overrode the URL bar placeholder.
+**Technique Used:** Shadow DOM piercing and alpha-transparency overriding.
+**Values Used:** `opacity: 1 !important`, `color: #00FFFF !important`
+
+**GitHub Style Diff (`browser/components/search/content/contentSearchHandoffUI.css`):**
+```diff
+ .fake-textbox {
+-  opacity: 0.54;
+-  color: inherit;
++  opacity: 1 !important;
++  color: #00FFFF !important;
+ }
+```
+
+**GitHub Style Diff (`browser/themes/shared/urlbar-searchbar.css`):**
+```diff
+ .urlbar-input::placeholder,
+ .searchbar-textbox::placeholder {
+-  opacity: 0.69;
++  opacity: 1 !important;
++  color: #00FFFF !important;
+ }
+```
+
+---
+
+## 3. Extensions &amp; Private Browsing Clean-up
+
+### 🧸 Layman's Explanation
+We scrubbed the Extensions dropdown menu and Private Browsing screens of their annoying purple borders and empty spaces. They are now pitch black, crisp, and clean.
+
+### 💻 Developer's Explanation
+We removed the `.info-border` to prevent a bright purple FOUC (Flash of Unstyled Content) during window resizes and forced the unified extensions panel background to `#000000`.
+**Technique Used:** Direct CSS background overrides and `display: none`.
+**Values Used:** `background: #000000 !important`, `border: none !important`.
+
+**GitHub Style Diff (`browser/themes/shared/addons/unified-extensions.css`):**
+```diff
+ #unified-extensions-panel {
+-  background-color: var(--panel-background);
++  background-color: #000000 !important;
+ }
+ .info-border {
+-  border: 1px solid var(--panel-separator-color);
++  display: none !important;
+ }
+```
+
+---
+
+## 4. About:Addons Theme Recommendations Lobotomy
+
+### 🧸 Layman's Explanation
+Firefox constantly tries to suggest new colorful themes to install at the bottom of the Add-ons page. We took an axe to that entire section so it never shows up again.
+
+### 💻 Developer's Explanation
+We used a CSS-only lobotomy to hide all recommended themes, disabled themes sections, and "Feeling creative?" footers without having to touch the underlying React/JS logic.
+**Technique Used:** High-specificity `display: none` overrides.
+
+**GitHub Style Diff (`toolkit/mozapps/extensions/content/aboutaddons.css`):**
+```diff
++/* Lobotomy */
++.theme-disabled-section,
++footer[is="recommended-themes-footer"],
++recommended-themes-section,
++.theme-recommendation,
++.amo-link-container {
++  display: none !important;
++}
+```
+
+---
+
+## 🛡️ Active Tab Visibility Patch
+**Rationale:** Standard theme makes it impossible to distinguish the active tab from others.
+**Technique:** CSS border injection on the selected tab background.
+**GitHub-Style Annotation:**
+```css
+/* 🛡️ LOBOTOMY: Active Tab Indicator */
+/* Rationale: High visibility border for selected tab. */
+/* Technique: 3px solid border (CPU efficient). */
+.tabbrowser-tab[selected] .tab-background {
+    border-bottom: 3px solid #FFC0CB !important;
+}
+```
+**Impact:** High visibility without CPU/GPU overhead of complex glows.
+
+---
+
+## Automated Deployment (The Fire and Forget Script)
+
+To apply all 20 of these CSS file changes effortlessly across the `mozilla-central` source code, we have provided a standalone, fire-and-forget bash script:
+**Script Location:** `assets/ui_tweaks/apply_all_css_tweaks.sh`
+
+Simply run `bash apply_all_css_tweaks.sh /path/to/mozilla-central` and the script will map every single optimized CSS file into its exact required directory in the source tree, ready for compiling.
+---
+
+# 📋 Change Entry — 20260529_114721
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 11:47:21 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Added a bright pink border to the active tab so you know which one you are using. Also, we finished purging all 'Add-on' menus from your browser.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Added active tab visibility indicator and purged extension UI
+
+**Developer Notes:**
+```
+Injected .tabbrowser-tab[selected] .tab-background border-bottom: 3px solid #FFC0CB. Purged extension-related UI elements using global display: none rules.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_114721-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_120525
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 12:05:25 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Made the active tab bright pink so you can instantly see which one is open.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Changed active tab from border to solid pink background
+
+**Developer Notes:**
+```
+Replaced .tabbrowser-tab[selected] .tab-background border-bottom with background: #FFC0CB !important.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_120525-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_122402
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 12:24:02 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Changed the active tab to a bright pink background so it's impossible to miss, and made the text black so it's super easy to read.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Updated active tab to high-contrast pink background with black text
+
+**Developer Notes:**
+```
+Replaced .tabbrowser-tab[selected] border-bottom with background: #FFC0CB !important and explicitly set tab-label color to #000000 !important for contrast.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_122402-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_124917
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 12:49:17 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Changed the 'X' button on your active pink tab to deep blue, so you can actually see it against the pink background.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Updated active tab close button to high-contrast navy blue
+
+**Developer Notes:**
+```
+Applied .tabbrowser-tab[selected] .tab-close-button { color: #000080; fill: #000080; } to ensure accessibility.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_124917-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_125300
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 12:53:00 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Changed the active tab text to a natural dark color instead of bold, keeping it elegant while remaining readable.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Refined active tab text: removed bold, applied elegant dark color
+
+**Developer Notes:**
+```
+Removed font-weight: bold !important and set color: #0f0f0f !important in .tabbrowser-tab[selected] .tab-label.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_125300-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_130607
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 13:06:07 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Removed messy tab icons so you can focus on the tab name. Refined active tab to be pink with elegant, normal-weight dark text.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Purged tab icons, refined active tab background, removed bold text
+
+**Developer Notes:**
+```
+Purged .tab-icon-image. Refined .tabbrowser-tab[selected] styles: removed font-weight: bold, set color: #0f0f0f.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_130607-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_130803
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 13:08:03 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Adjusted the tab text to be normal weight (not bold) for a natural look, and made the 'X' close button bold so it's easier to hit.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Refined active tab: normal font weight, bold close button
+
+**Developer Notes:**
+```
+Modified .tab-label to font-weight: normal; .tab-close-button to font-weight: bold.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_130803-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_131305
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 13:13:05 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Added a soft peach border to inactive tabs to make the structure clear. Active tab is still pink/blue.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Added inactive tab border, finalized tab styling
+
+**Developer Notes:**
+```
+Applied .tabbrowser-tab:not([selected]) .tab-background { border: 2px solid #FFDAB9 !important; }.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_131305-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_131541
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 13:15:41 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Changed the thin peach border on inactive tabs to be even more subtle (1px instead of 2px) for a cleaner, more elegant look.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Refined inactive tab border: changed from 2px to 1px
+
+**Developer Notes:**
+```
+Updated .tabbrowser-tab:not([selected]) .tab-background border to 1px solid #FFDAB9 !important.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_131541-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_132004
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 13:20:04 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Adjusted the thin peach border on inactive tabs to be even more delicate (0.5px instead of 1px) for the ultimate elegant look.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Refined inactive tab border: changed from 1px to 0.5px
+
+**Developer Notes:**
+```
+Updated .tabbrowser-tab:not([selected]) .tab-background border to 0.5px solid #FFDAB9 !important.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_132004-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_173551
+
+| Field | Value |
+|---|---|
+| **File** | `manifest.json` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 17:35:51 |
+| **Mozilla Source** | `mozilla-central/NA` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/NA |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Saved the theme files that bypassed our security, so we can study exactly how they work and stay ahead of theme-based threats.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Archived Blue Nebula theme for forensic reference
+
+**Developer Notes:**
+```
+Archived theme manifest and assets to assets/forensics/blue_nebula/ for architectural post-mortem.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `manifest.json`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_173551_manifest.json`
+
+---
+---
+
+# 📋 Change Entry — 20260529_180535
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 18:05:35 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Bypassed the browser's theme manager to force the look. It now uses our black toolbar and the Nebula wallpaper, overriding any theme's attempts to change it.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Aggressively forced Nebula aesthetics via CSS master-redirector
+
+**Developer Notes:**
+```
+Injected high-specificity CSS variables into :root to override LWT theme engine and applied direct background-image to #navigator-toolbox.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_180535-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_202200
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 20:22:00 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Removed the 'Find more add-ons' search bar, so you are not tempted to look for new stuff.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Purged search bar in Add-ons manager
+
+**Developer Notes:**
+```
+Added display: none !important to #search-addons, #search-addons-button in CSS.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_202200-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_214522
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 21:45:22 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Fixed the picture so it's not 'zoomed in'. It now fits perfectly inside the top bar so you can see his face and the 'Powered by Debian' hat.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Optimized Nebula scaling for header frame
+
+**Developer Notes:**
+```
+Updated #navigator-toolbox background-size to auto 100% and position to right center to ensure proper framing of the 1672x941 asset.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_214522-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_215111
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 21:51:11 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Moved the higher in the top bar and zoomed in so you can see his face and the 'Powered by Debian' hat clearly.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Refined background: moved higher and zoomed 180%
+
+**Developer Notes:**
+```
+Adjusted background-position to right top and background-size to auto 180% to prioritize the upper-right focal point of the 16:9 asset.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_215111-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260529_215954
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-29 21:59:54 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Moved the into the frame by decoupling his size from the top bar height. He's now pinned to the right with a 30% vertical shift to show his face.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Implemented Option A: Fixed-pixel scaling with vertical offset
+
+**Developer Notes:**
+```
+Applied background-size: 700px auto and background-position: right 30% to #navigator-toolbox.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260529_215954-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_213745
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 21:37:45 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Makes the toolbar background fit the height of the toolbar perfectly without getting cropped, like resizing a photo to fit a frame's height exactly.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Change toolbar background-size to auto 100% and position to center center
+
+**Developer Notes:**
+```
+Changed #navigator-toolbox background-size: cover -&gt; auto 100% and background-position: right top -&gt; center center. Prevents vertical cropping of the banner logo.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_213745-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_214830
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 21:48:30 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Shifts the toolbar background up slightly so the is centered in the active tab/address bar region instead of being pushed down.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Shift toolbar background position vertically by -25px
+
+**Developer Notes:**
+```
+Adjusted #navigator-toolbox background-position from center center to center -25px. Improves vertical alignment of the logo within the toolbar.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_214830-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_214832
+
+| Field | Value |
+|---|---|
+| **File** | `activity-stream.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 21:48:32 |
+| **Mozilla Source** | `mozilla-central/browser/extensions/newtab/css/activity-stream.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/extensions/newtab/css/activity-stream.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Moves the pill-shaped search box higher up on the new tab page, closer to the icon.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Reduce logo margin-block-end on New Tab page to 16px
+
+**Developer Notes:**
+```
+Appended custom CSS override .logo-and-wordmark, .search-wrapper .logo-and-wordmark { margin-block-end: 16px !important; } to the end of activity-stream.css to shift the search box closer to the logo.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `activity-stream.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_214832_activity-stream.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_215400
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 21:54:00 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Shifts the toolbar background up further (to -40px) to clear the search bar frame.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Shift toolbar background position vertically by -40px
+
+**Developer Notes:**
+```
+Updated background-position of #navigator-toolbox to center -40px.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_215400-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_215402
+
+| Field | Value |
+|---|---|
+| **File** | `activity-stream.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 21:54:02 |
+| **Mozilla Source** | `mozilla-central/browser/extensions/newtab/css/activity-stream.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/extensions/newtab/css/activity-stream.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Shifts the logo up by 40px on the new tab page to make room for the search bar.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Add margin-top: -40px to logo-and-wordmark override
+
+**Developer Notes:**
+```
+Added margin-top: -40px !important to the logo-and-wordmark override in activity-stream.css.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `activity-stream.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_215402_activity-stream.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_223831
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 22:38:31 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Adds a semi-transparent dark tint on the toolbar background so white text is readable.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Add 65% black overlay linear-gradient to toolbar background image
+
+**Developer Notes:**
+```
+Injected linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)) to background-image of #navigator-toolbox.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_223831-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_230222
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 23:02:22 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Increases the vertical height scale of the background image to 130% of the toolbar, making the 30% larger.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Scale up toolbar background-size to 130% height
+
+**Developer Notes:**
+```
+Modified background-size to auto 130% and background-position to center -45px of #navigator-toolbox in master-redirect.css.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_230222-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_230448
+
+| Field | Value |
+|---|---|
+| **File** | `master-redirect.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 23:04:48 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/master-redirect.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/master-redirect.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Increases the vertical height scale of the background image to 200% of the toolbar, making the and its letters twice as large and readable.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Scale up toolbar background-size to 200% height
+
+**Developer Notes:**
+```
+Modified background-size to auto 200% and background-position to center -65px of #navigator-toolbox in master-redirect.css.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `master-redirect.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_230448-master-redirect.css`
+
+---
+---
+
+# 📋 Change Entry — 20260530_233206
+
+| Field | Value |
+|---|---|
+| **File** | `preferences.css` |
+| **Category** | `ui_tweaks` |
+| **Date** | 2026-05-30 23:32:06 |
+| **Mozilla Source** | `mozilla-central/browser/themes/shared/preferences/preferences.css` |
+| **Searchfox** | https://searchfox.org/mozilla-central/source/browser/themes/shared/preferences/preferences.css |
+
+---
+
+## 🟢 Layman Track — What Changed and Why It Matters
+
+Hides the giant background logo only on the about:preferences page to ensure layout clarity.
+
+---
+
+## 🔵 Developer Track — Technical Annotation
+
+**Change Summary:** Disable global watermark on Preferences page
+
+**Developer Notes:**
+```
+Added #content { background-image: none !important; } override to preferences.css.
+```
+
+**Rationale:**
+&gt; See inline `@unleashed-153` annotation at the top of `preferences.css`.
+&gt; See backup with provenance at: `assets/ui_tweaks/backup/20260530_233206_preferences.css`
+
+---
+
+  </human_rationale>
+  <execution_logic>
+  </execution_logic>
+</concept>

@@ -1,0 +1,114 @@
+--- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/CLAUDE.md	2026-07-10 17:32:00.000000000 +0100
++++ /home/gorilla/firefox-main/CLAUDE.md	2026-07-31 18:24:15.359159068 +0100
+@@ -1 +1,111 @@
+ @AGENTS.md
++
++# Gorilla Unleashed Firefox 154 — Mandatory Rules
++
++**Hardware**: Intel HD 4000 (Ivy Bridge), i965 VA-API, 8GB UMA RAM, Debian 13, Wayland/GNOME 48
++**Source baseline**: git commit f1cb55ece8 "Day 0: Pristine Firefox 154 source"
++
++## Before touching ANY media/codec/gfx code, READ THESE FILES FIRST:
++- `patches/Mega.Lessons/MEDIA_CODEC_LESSONS.md` — 9 bugs (A-I), 6-layer codec gate, PDMFactory invariants
++- `patches/PATCH.READINESS.txt` — status of all 11 patch groups (290 modified files)
++
++## Before touching ANY CSS/theme/branding/locale code, READ THIS FILE FIRST:
++- `patches/FIrefox.154.Look/notes/UI_Tweaks_Master_Collection/CSS_UI_TWEAKS_MEGA_LESSON.md`
++
++## Before generating .patch files, READ:
++- `patches/PATCH.READINESS.txt`
++- `patches/GOLDEN_RULES.md`
++
++---
++
++## MEDIA / CODEC RULES (9 bugs fixed — these WILL recur if violated)
++
++- NEVER gate on `DecodeSupport::HardwareDecode` from `RemoteDecoderModule`. It ALWAYS returns `SoftwareDecode` (upstream bug 1754239 unfixed). Hardware enforcement belongs ONLY in `FFmpegVideoDecoder::Init()` in the RDD process.
++- NEVER call `IsBlockedSoftwareOnlyVideoCodec()` without checking the MIME is `video/` first. It blocks audio MIMEs (audio/aac, audio/opus) and kills all audio playback.
++- Frame pool in `FFmpegVideoDecoder.cpp` MUST be exactly 16. No `std::max()`, no dynamic growth. UMA RAM starvation on Intel HD 4000.
++- No `std::abort()` in the decode path. Use `MediaResult` error returns.
++- No `IsDecodingSlow()` software fallback. Hardware-only is not negotiable.
++- Zero-copy enforcement in `RemoteVideoDecoder.cpp` only when `mKnowsCompositor && mKnowsCompositor->GetTextureForwarder()` — null check drops ALL frames otherwise.
++- `LIBVA_DRIVER_NAME=i965` MUST be in `/etc/environment`. The iHD driver does NOT support Ivy Bridge.
++
++## GFX / GPU RULES (black window and bandwidth traps)
++
++- GPU process MUST be `ForceDisable`d on Wayland. NEVER remove or comment out the ForceDisable block in `gfxPlatformGtk::InitPlatformGPUProcessPrefs()`. `GtkCompositorWidgetInitData` has no Wayland surface fields → `mWidget=null` → EGL returns `EGL_NO_SURFACE` → black window.
++- VA-API decode runs in the RDD process (`media.rdd-ffmpeg.vaapi.enabled`), NOT the GPU process. They are separate.
++- Use `UserForceEnable()` for features that must be active regardless of gfxInfo blocklist. `UserEnable()` is subordinate to the environment tier — gfxInfo WILL override it.
++- `FeatureState::GetValue()` priority: `mRuntime > mUser(ForceEnabled) > mEnvironment > mUser(Enabled) > mDefault`
++- WebRender native compositor is force-enabled on Wayland builds (code fix in `gfxConfigManager.cpp`). Without it, NV12 DMABuf surfaces go through GL pipeline (5x excess IMC bandwidth on UMA).
++
++## TELEMETRY / PERFORMANCE RULES (12% parent CPU savings)
++
++- `MemoryTelemetry::GatherReports()` is short-circuited to return immediately. It reads `/proc/self/smaps` every 60s on the StreamTrans thread pool, wasting 8.9% of parent CPU on kernel page-table walks. Setting `toolkit.telemetry.enabled=false` does NOT stop this — it has its own timer mechanism.
++- `FOG::InitializeFOG()` returns before calling `fog_init()`. The Glean dispatcher thread wastes 3.5% parent CPU on metric bookkeeping even with upload disabled. The Glean SDK handles uninitialized state as no-op for all metric APIs — safe to skip. VERIFIED post-build: dispatcher thread 0.00% CPU, MemoryTelemetry 0.02%.
++- Skipping `fog_init()` stops the dispatcher from PROCESSING but NOT inline metric recording. Call sites throughout libxul still fire `.start()`/`.accumulate_raw_duration()`/`dispatcher::global::launch()` (~0.84% residual + slow pre-init buffer growth). Fix: `third_party/rust/glean-core/src/dispatcher/global.rs` `launch()` drops the task when `!TESTING_MODE`.
++- Editing `third_party/rust/glean-core/*` (or any vendored crate) REQUIRES updating that file's SHA256 in `third_party/rust/<crate>/.cargo-checksum.json` under `files`, else the build fails checksum verification.
++- NEVER re-enable `GatherReports()` or `fog_init()` without profiling first — the combined ~12% CPU overhead is significant on this hardware during video playback.
++- Use SOFT short-circuits (return early, keep files/symbols compiled), NOT structural excision. Deleting FOG.cpp/MemoryTelemetry.cpp orphans `mozilla::glean::` symbols → `NS_ERROR_FACTORY_NOT_REGISTERED` + needs 157 shim headers (documented failure, Second.Brain `fog_glean_excision_sop.xml`).
++
++## CSS / THEME RULES (zero-CPU architecture for Intel HD 4000)
++
++- NEVER apply `transform: scale()` or `transform: translate()` to `.toolbarbutton-1`, `.tabbrowser-tab`, or XUL toolbar children. Completely collapses XUL layout.
++- Use `outline` not `border` for visual feedback. Border changes box model → layout thrash. Outline sits outside box model.
++- Only animate `opacity` and `transform`. All other properties trigger CPU reflow.
++- `will-change: auto !important` globally — prevents WebRender from over-promoting layers (thrashes VRAM on HD 4000).
++- `-moz-context-properties: fill, fill-opacity, stroke !important` is REQUIRED on parent elements for SVG icon color inheritance via `fill:`.
++- PNG files served via `chrome://` MUST contain actual PNG data. SVG content in a .png file is silently rejected by CSS `background-image` — logos show blank.
++- `box-sizing: border-box !important` on `.tab-background` to prevent the parentheses "( )" clipping effect.
++- `contain: layout style` (not `contain: paint`) on major containers to isolate reflows without breaking XUL flexbox.
++- `master-redirect.css` DOES reach toolkit widgets — via the `@import` in `toolkit/themes/shared/global-shared.css`, which MUST sit in the LEADING import block (an `@import` after any style rule is SILENTLY dropped; this exact bug killed the theme for weeks). Per-widget source edits (`findbar.css`) are a fallback only. [CORRECTED 2026-07-31 — the old "CANNOT reach" wording here was the workaround that hid the dead import; see patches/GOLDEN_RULES.md C9/C10.]
++
++## LOCALE / FTL RULES
++
++- NEVER modify text inside `< >` HTML tags in .ftl files. Changing `data-l10n-name` attributes breaks DOM hydration → invisible windows.
++- After automated Firefox→Gorilla replacement, grep for "Gorilla Gorilla" duplicates and fix manually.
++- Blank lines between a Fluent message value and its `.description` attribute are FATAL.
++
++## BUILD / LAUNCH RULES
++
++- `rm -f obj-x86_64-pc-linux-gnu/tmp/profile-default/.parentlock` before `mach run` if Firefox was killed.
++- `rm -rf obj-x86_64-pc-linux-gnu/tmp/profile-default/startupCache/*` after CSS/locale/branding changes.
++- `./mach build faster` for CSS/locale/branding only. `./mach build` for C++/Rust changes.
++- Launch MUST include `-profile obj-x86_64-pc-linux-gnu/tmp/profile-default` to load user.js prefs. Without it, user.js is not read and pref-based fixes are inert.
++- Launch MUST include `--class gorilla-unleashed` for Wayland app_id matching with .desktop file.
++
++## DESKTOP INTEGRATION (Wayland/GNOME)
++
++- `.desktop` file `Icon=` must be basename only (no path, no extension). GNOME on Wayland ignores absolute paths.
++- `StartupWMClass=gorilla-unleashed` must match the `--class` CLI flag exactly.
++- Icons must be installed in `~/.local/share/icons/hicolor/{size}x{size}/apps/` with proper pixel dimensions per file.
++- Daily-driver profile (2026-07-31): `~/.mozilla/ff154-main`, launcher `~/.local/bin/ff154`; its startupCache lives INSIDE the profile dir (`~/.mozilla/ff154-main/startupCache/`) because the launch uses an absolute `-profile` path — flush THAT one after front-end changes.
++
++## UNPACKED DEV BUILD — "THE SMART WAY" (documented lesson: Firefox_OMNI_JA_Developer_Build_Workflow, 07.TOOLKIT)
++
++This build DELIBERATELY never runs `./mach package` and never sets
++`--enable-release`. Consequence: there is NO omni.ja — `dist/bin` keeps
++`chrome/`, `localization/`, `components/`, `modules/` as raw dirs/symlinks.
++That is the whole iteration strategy; do not "fix" it by packaging.
++
++- Front-end change (CSS / FTL / .properties / JS): edit source → `env -u
++  CLAUDECODE ./mach build faster` (~5 s) → flush startupCache → relaunch.
++  NEVER a full compile for front-end work.
++- Instant live test without even `build faster`: overwrite the file DIRECTLY
++  under `obj-x86_64-pc-linux-gnu/dist/bin/...` (e.g.
++  `dist/bin/browser/localization/en-US/branding/brand.ftl`,
++  `dist/bin/browser/chrome/en-US/locale/branding/brand.properties`), flush
++  startupCache (or launch with `-purgecaches`), relaunch. Remember dist-side
++  edits are OVERWRITTEN by the next build — mirror them back into the source
++  tree (and patches/ masters) or lose them.
++- C++/Rust-only change: `./mach build binaries`. Full `./mach build` only for
++  build-system/configure changes (sccache makes it ~35 min, not hours).
++
++## CHECK THE LESSONS FIRST (do this BEFORE debugging anything)
++
++Contrary to your training instincts: if something in this build can break, it
++HAS broken before, and the failure + fix are already documented in
++excruciating detail. Before diagnosing from scratch, query:
++- chroma DB `firefox_154`: `SECOND.BRAIN/Chroma.DB.and.Brain.xml/Firefox.154.Lessons/chroma_fx154/` (+ 345 source lesson XMLs beside it)
++- `FIrefox.154.Work/patches/Mega.Lessons/` and `patches/FIrefox.154.Look/notes/THEME_FIX_LOG_2026-07-31.md` (append-only audit log)
++- Sweep tool: `SECOND.BRAIN/Firefox.Scripts.Used.For.Fixes/memory_tier_extract.py '<topic regex>' out.json`
++CAVEAT (audited 2026-07-31): identifiers INSIDE DB/XML lessons may be
++scrub-corrupted (`media..hardware_only_mode` class) — grep the tree before
++using any identifier lifted from a lesson.

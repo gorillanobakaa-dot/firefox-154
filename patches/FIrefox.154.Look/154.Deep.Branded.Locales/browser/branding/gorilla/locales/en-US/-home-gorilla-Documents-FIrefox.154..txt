@@ -1,0 +1,1 @@
+/home/gorilla/Documents/FIrefox.154.Work/patches/09.Gorilla.Look/154_Deep_Branded_Locales/browser/branding/gorilla/locales/en-US

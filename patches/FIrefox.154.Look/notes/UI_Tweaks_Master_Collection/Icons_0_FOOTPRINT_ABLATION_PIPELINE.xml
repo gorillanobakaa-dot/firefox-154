@@ -1,0 +1,122 @@
+<concept name="Icons_0_FOOTPRINT_ABLATION_PIPELINE">
+  <human_rationale>
+```text
+================================================================================
+FIREFOX UI MEMORY OPTIMIZATION: ZERO-FOOTPRINT ABLATION PIPELINE
+================================================================================
+
+// --- PART 1: THE ENGINE OVERHEAD (THE "HIDDEN MATH") ---
+// The Gecko engine treats hidden/0-byte UI nodes as first-class citizens.
+// CSS `display: none` or 1x1 transparent SVGs DO NOT stop rendering calculations.
+// The engine still executes the following for the lifecycle of the tab:
+//
+// 1. DOM Allocation: C++ object instantiation in RAM for the node.
+// 2. Layout &amp; Reflow: Bounding box, margin, padding, and flex computation.
+// 3. Network/Cache Polling: JS controllers request/decode favicon data.
+// 4. Accessibility Tree: Node mapping to OS-level accessibility APIs.
+// 5. CSSOM Parsing: Memory retention of CSS rules for the hidden element.
+//
+// SOLUTION: Source-level ablation. Elements must be physically ripped from 
+// the source tree BEFORE compilation so the binary linker never sees them.
+
+
+// --- PART 2: AUTOMATED PIPELINE IMPLEMENTATION ---
+// Execution Matrix (Run prior to `./mach build`):
+// 1. Markup Ablation -&gt; 2. CSS Purge -&gt; 3. JS Neuter -&gt; 4. Manifest Unlink
+
+
+// -----------------------------------------------------------------------------
+// STEP 1: MARKUP ABLATION (XHTML / HTML / XUL)
+// Objective: Prevent DOM node instantiation via regex stream editing.
+// -----------------------------------------------------------------------------
+
+#!/bin/bash
+TARGET_CLASSES="tab-icon-image|tab-icon-overlay|bookmark-icon"
+
+# Scorch the UI directories for standard image tags and custom element nodes
+find browser/ toolkit/ -type f \( -name "*.xhtml" -o -name "*.html" -o -name "*.inc" \) -exec sed -i -E \
+  "/&lt;(image|img|svg)[^&gt;]*class=\"[^\"]*($TARGET_CLASSES)[^\"]*\"[^&gt;]*&gt;/d" {} +
+
+
+// -----------------------------------------------------------------------------
+// STEP 2: CASCADING STYLE SHEETS (CSS) PURGING
+// Objective: Eliminate CSS Object Model (CSSOM) memory overhead.
+// Method: State-machine brace depth tracking (Regex fails on nested CSS).
+// -----------------------------------------------------------------------------
+
+# python_css_purge.py
+import sys, re
+
+def purge_css_block(filepath, target_classes):
+    with open(filepath, 'r') as f:
+        content = f.read()
+
+    for cls in target_classes:
+        # Match class name and find the opening brace
+        pattern = re.compile(r'([^{]*\.' + cls + r'[^{]*)\{')
+        while match := pattern.search(content):
+            start_idx = match.start()
+            depth = 1
+            curr_idx = match.end()
+            
+            # Track brace depth to ensure complete block deletion
+            while depth &gt; 0 and curr_idx &lt; len(content):
+                if content[curr_idx] == '{': depth += 1
+                elif content[curr_idx] == '}': depth -= 1
+                curr_idx += 1
+                
+            # Slice out the entire CSS block
+            content = content[:start_idx] + content[curr_idx:]
+            
+    with open(filepath, 'w') as f:
+        f.write(content)
+
+purge_css_block('browser/themes/shared/tabs.inc.css', ['tab-icon-image', 'tab-icon-overlay'])
+
+
+// -----------------------------------------------------------------------------
+// STEP 3: LOGIC NEUTERING (JAVASCRIPT / C++ / RUST)
+// Objective: Dead Code Elimination (DCE) to prevent background polling &amp; leaks.
+// -----------------------------------------------------------------------------
+
+# JAVASCRIPT: Neuter the UI controllers by forcing an immediate return.
+# This prevents TypeError loop crashes when the markup is missing.
+sed -i '/_updateIcon(aURI)/,/^  }/c\  _updateIcon(aURI) { return; }' \
+  browser/base/content/tabbrowser-tab.js
+
+// ---
+
+// RUST (Core Engine Context): 
+// If modifying servo/webrender logic, use macro isolation to drop binary weight.
+#[cfg(not(feature = "disable_ui_icons"))]
+fn allocate_icon_buffer(size: usize) -&gt; Buffer {
+    Buffer::new(size)
+}
+
+#[cfg(feature = "disable_ui_icons")]
+fn allocate_icon_buffer(_size: usize) -&gt; Buffer {
+    Buffer::empty() // Compiler executes zero-cost abstraction
+}
+
+
+// -----------------------------------------------------------------------------
+// STEP 4: ASSET MANIFEST UNLINKING (SVG / PNG / ICO)
+// Objective: Prevent the packaging script (`mach package`) from compiling 
+// assets into `omni.ja` or the executable, saving disk I/O and package weight.
+// -----------------------------------------------------------------------------
+
+#!/bin/bash
+TARGET_ASSETS="default.png|icon16.svg|bookmark.svg"
+
+# Strip specific asset lines from packaging instructions (jar.mn files)
+find browser/ toolkit/ -name "jar.mn" -exec sed -i -E \
+  "/($TARGET_ASSETS)/d" {} +
+
+================================================================================
+
+```
+
+  </human_rationale>
+  <execution_logic>
+  </execution_logic>
+</concept>
