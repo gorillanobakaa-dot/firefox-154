@@ -1023,3 +1023,463 @@ intel_gpu_top
 | 3 | GORILLA: sticky sanity-test comment present | ✅ CONFIRMED | Line 3068, 3120 |
 
 **Score: 3/3 confirmed** — 100% accurate
+
+
+---
+
+# ═══ CONSOLIDATION 2026-08-02 — side documents merged VERBATIM below; originals deleted (recoverable: merged-docs-backup-2026-08-02.tar.gz + git history) ═══
+
+
+---
+
+# ═══ MERGED DOCUMENT: 02-gpu.AUDIT.md (verbatim · sha256:f4d5b601ed6087e6 · merged 2026-08-02) ═══
+
+# IBM-Style Audit Report: 02-gpu
+
+## SECTION A: DOCUMENT CONTROL
+
+| Attribute | Value |
+|---|---|
+| **Target Category** | 02-gpu |
+| **Files Scanned** | see payload |
+| **Baseline** | Firefox 154 (mozilla-central) |
+| **Date / Time** | 2026-07-16 22:13:41 |
+| **Audit Status** | PASS |
+
+## SECTION B: EXECUTIVE SUMMARY (Track A — Layman)
+
+This patch group is the reason the graphics chip on this laptop actually gets used by the browser. Without it, Firefox looks up the chip's model number in a text file called the blocklist, sees it there, and refuses to hardware-accelerate anything — leaving the CPU to do all the drawing and video work at roughly ten times the power cost. The patch overrides that blocklist at four different layers, force-enables the modern Wayland compositor path, and dismantles a booby trap where one failed startup test would permanently disable hardware acceleration on the machine. Same audience and cost-shift logic as the Media topic: Mozilla saves engineer-hours by dropping support for old chips; the user pays for it in fan noise, battery drain, and eventually a new laptop they did not need to buy.
+
+## SECTION C: TECHNICAL SUMMARY (Track B — Developer)
+
+Four-layer blocklist override for Intel/AMD/NVIDIA (vendor short-circuit in GfxInfoBase.cpp; APPEND_DEVICE removals in GfxDriverInfo.cpp; GTK-probe short-circuits in widget/gtk/GfxInfo.cpp; Wayland native-compositor `UserForceEnable` in gfxConfigManager.cpp) plus dead-coding of the sticky sanity-test kill-switch in gfxPlatform.cpp. Vendor-vs-codec split is deliberate: general features (WebRender, compositor, HW-accel) return OK; VP9/HEVC HW decode/encode continue to return FEATURE_BLOCKED_PLATFORM_TEST with failure id FEATURE_FAILURE_GORILLA_NO_HW_CODEC, preserving topic 01.MEDIA's hardware-only H.264 invariant. Trust boundary: `FeatureState` priority `mRuntime > mUser(ForceEnabled) > mEnvironment > mUser(Enabled) > mDefault` — `UserForceEnable` (not `UserEnable`) is the only call that beats the gfxInfo blocklist tier; getting this wrong is a common footgun. IvyBridge PCI IDs handled: 0x0152 / 0x0162 / **0x0166 (this machine)** / 0x016A. Companion prefs: gfx.webrender.all=true, gfx.webrender.fallback.software=false.
+
+## SECTION D: DETECTED DEFECTS
+
+*No defects detected by rules or model.*
+
+## SECTION E: PRODUCTION READINESS ASSESSMENT
+
+- **Overall readiness:** 🟡 88%
+- **Done:**
+  - [x] Vendor short-circuit in GfxInfoBase.cpp active for 0x8086 / 0x1002 / 0x10de
+  - [x] Vendor-vs-codec split preserved: VP9/HEVC HW decode/encode still BLOCKED (topic 01.MEDIA invariant honoured)
+  - [x] APPEND_DEVICE lines for IvyBridge (0x0152/0x0162/0x0166/0x016A) and SandyBridge (0x0102/0x0106/0x0116/0x0122/0x0126) removed from device-family blocklist
+  - [x] GTK platform-probe short-circuits (Intel-DDX bug 1710400, mGLMajorVersion<3, vaapitest missing-codec)
+  - [x] Sticky sanity-test kill-switch dead-coded in gfxPlatform.cpp
+  - [x] Native Wayland compositor force-enabled via UserForceEnable (correct call — not UserEnable)
+  - [x] Companion pref settings documented (webrender.all=true, webrender.fallback.software=false)
+  - [x] IntelWebRenderBlocked family already excluded gen7 — no edit needed (positive finding)
+- **To Do:**
+  - [ ] P2: add gtest for GetFeatureStatusImpl asserting general features OK + VP9/HEVC BLOCKED for each of 0x8086/0x1002/0x10de (BUG C class regression guard)
+  - [ ] P2: add toolchain-preflight grep for un-commented APPEND_DEVICE(0x0152/0x0162/0x0166/0x016A) — drift protection on Firefox version bumps
+  - [ ] P3: add a #error guard or static-analysis assertion that the sanity-test persistent-pref-set path stays unreachable if re-introduced by future merges
+
+## SECTION F: PHASED EXPANSION PLAN
+
+### Phase 0 — `widget/GfxInfoBase.cpp — vendor short-circuit`
+- **Tweak:** Extract the three vendor-ID literals to a named constexpr array (kOverriddenGpuVendors) with a comment explaining the trade-off. Single-point-of-truth if we ever need to add a fourth vendor (unlikely) or drop one (also unlikely).
+- **Expected impact:** Zero runtime impact; maintainability only.
+
+### Phase 0 — `gfx/thebes/gfxPlatform.cpp — sanity-test dead-code`
+- **Tweak:** Wrap the dead code in `#if 0 // GORILLA_SANITY_STICKY_DISABLED — see topic 02-gpu docs` with a link back to this AUDIT.md — makes it grep-findable in future merges.
+- **Expected impact:** Zero runtime impact; discoverability only.
+
+### Phase 1 — `widget/gtk/GfxInfo.cpp — vaapitest short-circuit`
+- **Tweak:** Add a test fixture that feeds a synthetic vaapitest failure output and asserts we return OK (not BLOCKED_PLATFORM_TEST). Regression guard for the specific mapping we override.
+- **Expected impact:** Regression protection.
+
+### Phase 2 — `toolkit-level prefs`
+- **Tweak:** Move `gfx.webrender.all=true` and `gfx.webrender.fallback.software=false` from user.js into StaticPrefList.yaml under a `media.gorilla.hardware_only_mode` gate, so they follow the master toggle from topic 01.MEDIA. Keeps everything hardware-only under one switch.
+- **Expected impact:** Cross-topic coherence; a single about:config toggle disables both codec policy AND GPU override for A/B testing.
+
+## POSITIVE OBSERVATIONS
+
+- ✅ Correct choice of `UserForceEnable` over `UserEnable` — the entire override chain depends on this one-word distinction (`FeatureState` priority: `UserForceEnable` beats `Environment`/blocklist; `UserEnable` does not). Comment in the patch names the choice explicitly.
+- ✅ Vendor-vs-codec split is architecturally clean: general graphics acceleration is unblocked, codec-specific features that would violate topic 01.MEDIA's hardware-only H.264 invariant remain blocked. Not a sledgehammer.
+- ✅ Sticky sanity-test kill-switch dead-coding is arguably the highest-leverage change in the whole build: it helps every user whose Firefox ever failed a hardware sanity test once — a silent, invisible failure most users never know is happening.
+- ✅ IntelWebRenderBlocked device-family was audited and found to already exclude gen7 (Ivy Bridge) — no edit needed. Positive finding: the audit was actually done, not assumed.
+- ✅ Comments left in place for every commented-out APPEND_DEVICE line explain WHY the removal happened — protects against a well-meaning maintainer un-doing them in a future re-sync from upstream.
+- ✅ The topic's own project log uses the phrase 'de-facto planned obsolescence of working silicon' to describe the mechanism being patched. That framing is the developer's, not the documentation project's — a rare piece of self-aware technical writing worth crediting.
+- ✅ Layered override at every consultation point is the correct pattern for asymmetric failure modes (any un-patched layer silently re-blocklists the GPU) — matches the same pattern applied in topic 01.MEDIA's six-layer H.264 enforcement.
+
+## VERIFICATION COMMANDS
+
+```bash
+about:support | grep -A5 'Graphics'   # Compositing=WebRender, GPU #1=Intel HD Graphics 4000, Driver Vendor=Mesa
+grep -n 'UserForceEnable' gfx/config/gfxConfigManager.cpp   # expect Wayland compositor force-enable line
+grep -n 'APPEND_DEVICE(0x0166)' widget/GfxDriverInfo.cpp   # expect ONLY commented-out occurrences; any un-commented is a regression
+grep -n '0x8086\|0x1002\|0x10de' widget/GfxInfoBase.cpp   # expect vendor short-circuit block
+grep -n 'FEATURE_VP9_HW_DECODE\|FEATURE_HEVC_HW_DECODE' widget/GfxInfoBase.cpp   # expect explicit BLOCKED_PLATFORM_TEST return
+MOZ_LOG='WebRender:5' firefox 2>&1 | grep -iE 'dmabuf|native compositor|zero.copy'   # expect success messages
+intel_gpu_top   # during 1080p H.264 playback: Render/3D + Video engines both active
+# Regression check for topic 01.MEDIA: VP9/HEVC HW codec features must remain BLOCKED even with GPU un-blocklisted
+```
+
+
+
+---
+
+# ═══ MERGED DOCUMENT: 02-gpu.DEVELOPER.md (verbatim · sha256:751b0ab2881aa9d4 · merged 2026-08-02) ═══
+
+# GPU Un-Blocklist — Ivy/Sandy Bridge WebRender + Native Wayland Compositor Force-Enable — Developer Track
+
+> **Topic:** `02-gpu` · **Files:** `gfx/config/gfxConfigManager.cpp`, `gfx/thebes/gfxPlatform.cpp`, `widget/GfxDriverInfo.cpp`, `widget/GfxInfoBase.cpp`, `widget/gtk/GfxInfo.cpp`
+> **Generated:** 2026-07-16
+
+---
+
+## Module Summary
+
+Four-layer override of Firefox's GPU blocklist plus dead-coding of the sticky hardware-decode sanity-test kill switch, plus `UserForceEnable` of the native Wayland compositor. Together these re-enable WebRender rasterisation, Wayland zero-copy VA-API overlay, and the entire hardware-accelerated graphics path on Intel Ivy Bridge (PCI 0x0152/0x0162/0x0166/0x016A) and Sandy Bridge devices, plus generic Intel/AMD/NVIDIA hardware. The vendor-vs-codec cut is deliberate: general features (WebRender, layers, compositor) are force-approved for vendors 0x8086/0x1002/0x10de, while VP9/HEVC/AV1 hardware decode/encode continue to report `FEATURE_BLOCKED_PLATFORM_TEST` so the hardware-only H.264 policy from topic 01.MEDIA remains enforced. Companion pref settings (typically in user.js): `gfx.webrender.all=true`, `gfx.webrender.fallback.software=false`.
+
+## Architecture
+
+- **Pattern:** Layered override at every point the blocklist is consulted. Failure mode being defended against is asymmetric: any one un-patched layer silently re-blocklists the GPU. So blocking is fixed at all layers, and one true force-enable is the entry point.
+- **Trust Boundary:** The `FeatureState` machinery decides at runtime whether a graphics feature is enabled. Priority order (documented in CLAUDE.md): `mRuntime > mUser(ForceEnabled) > mEnvironment > mUser(Enabled) > mDefault`. Only `UserForceEnable()` sits above `mEnvironment` (which is where gfxInfo's blocklist verdict lives). `UserEnable()` sits BELOW it and is therefore overridable by the blocklist — a footgun that historically caused many well-intentioned fixes to silently no-op.
+- **Attack Surface:** Blocklists exist historically because bad drivers really did crash browsers. By overriding, we accept a wider crash surface on genuinely broken drivers. Mitigation: the sanity-test failure path is dead-coded specifically so a *transient* crash does not permanently disable HW accel; a real repeated-crash driver would still surface user-visible errors. Codec-specific blocks are preserved (see vendor-vs-codec split).
+- **Dependencies:** `Wayland compositor supporting DMABuf overlays (Mutter/GNOME 48 on this system)`, `i965 VA-API driver present and initialised`, `PipeWire or working audio stack (unrelated but often co-located failures)`
+
+## Kill Switches
+
+### `gfx/config/gfxConfigManager.cpp — WebRender native compositor init path` — HARD ⚠️
+
+- **Condition:** Always on Wayland builds.
+- **Effect:** `mFeatureWrCompositor->UserForceEnable("Gorilla: native Wayland compositor for VA-API zero-copy overlay")`. Using `UserForceEnable` (NOT `UserEnable`) is what makes this override the gfxInfo verdict. The native compositor lets NV12 DMABuf handles from the RDD-process VAAPI decoder go directly to Wayland surface planes without a GL round-trip — cuts memory-bus traffic on IMC by roughly 5×.
+- **Reversibility:** reversible
+- **Notes:** The distinction between `UserForceEnable` and `UserEnable` is the whole ballgame here. `UserEnable` returns UP to `mUser`, which loses to `mEnvironment` (gfxInfo). `UserForceEnable` promotes to `mUser(ForceEnabled)`, which beats `mEnvironment`. Grepping the tree for either name is a fast way to audit override intent.
+
+### `widget/GfxInfoBase.cpp — GetFeatureStatusImpl vendor short-circuit` — HARD ⚠️
+
+- **Condition:** GPU vendor ID matches Intel (0x8086), AMD (0x1002), or NVIDIA (0x10de).
+- **Effect:** General features (WebRender, layers, compositor, hardware acceleration) return `FEATURE_STATUS_OK` before the static blocklist is consulted. HOWEVER: codec-specific features (`FEATURE_VP9_HW_DECODE`, `FEATURE_VP9_HW_ENCODE`, `FEATURE_HEVC_HW_DECODE`, `FEATURE_HEVC_HW_ENCODE`) continue to return `FEATURE_BLOCKED_PLATFORM_TEST` with failure id `FEATURE_FAILURE_GORILLA_NO_HW_CODEC`. This preserves topic 01.MEDIA's hardware-only H.264 invariant: the chip literally cannot decode VP9/HEVC in silicon, so we still block those.
+- **Reversibility:** reversible
+- **Notes:** Vendor-based rather than device-ID-based is intentional: covers essentially all consumer graphics hardware in one place. Bears the `@gorilla-unleashed-153` header from prior FF153 work — this is a proven, carried-forward mechanism.
+
+### `widget/GfxDriverInfo.cpp — APPEND_DEVICE registry` — HARD ⚠️
+
+- **Condition:** Always (compile-time commenting-out of registry entries).
+- **Effect:** IvyBridge PCI IDs 0x0152 (GT1_2 HD 2500 desktop), 0x0162 (GT2_1 HD 4000 desktop), 0x0166 (GT2_2 HD 4000 mobile — this machine), 0x016A (GT2_3 HD P4000 workstation), plus SandyBridge 0x0102/0x0106/0x0116/0x0122/0x0126 are commented out of the DeviceFamily blocklist. `DeviceFamily::IntelWebRenderBlocked` at ~L615 only lists gen4/4.5/5 + PowerVR, so no edit was needed there (gen7 IvyBridge was never in it) — a positive finding worth noting.
+- **Reversibility:** reversible
+- **Notes:** Comments explaining WHY each APPEND_DEVICE line is dead are left in place so a future re-syncing pass does not blindly re-enable them.
+
+### `gfx/thebes/gfxPlatform.cpp — sticky sanity-test kill-switch` — HARD ⚠️
+
+- **Condition:** Always (compile-time removal of the persistent-pref-set path).
+- **Effect:** The failed-hardware-decode sanity-test → persistent pref → permanent HW-accel disable chain is dead-coded. A transient hardware-decode probe failure (driver hiccup, race at startup, corrupt test vector) no longer welds the profile into software-only mode for the machine's lifetime.
+- **Reversibility:** reversible
+- **Notes:** Patch comment states the design rationale explicitly: 'One bad boot must not permanently disable HW accel.' This is arguably the highest-leverage change in the topic — it helps every user whose Firefox ever failed a sanity test once, whether they know it or not.
+
+### `widget/gtk/GfxInfo.cpp — GTK platform probe` — HARD ⚠️
+
+- **Condition:** Linux/GTK build paths.
+- **Effect:** Short-circuits the Intel-DDX WebRender block (upstream Mozilla bug 1710400 — historically blocks Intel graphics on legacy X11 DDX), plus the `mGLMajorVersion < 3` guard, plus the 'missing codec in vaapitest results' → `FEATURE_BLOCKED_PLATFORM_TEST` mapping.
+- **Reversibility:** reversible
+- **Notes:** This is the earliest layer where a fresh GNOME/Wayland install can be silently blocklisted; ordering matters.
+
+## Performance Profile
+
+| Component | Before | After | Mechanism |
+|---|---|---|---|
+| WebRender rasterisation | blocked by gfxInfo (fallback to software layers) | hardware-accelerated on HD 4000 EUs | vendor short-circuit + device-family removal + sanity-test dead-code |
+| Native Wayland compositor path | not force-enabled — subject to gfxInfo blocklist | UserForceEnable in gfxConfigManager | correct ForceEnable call — see kill switch notes |
+| Zero-copy DMABuf overlay | GL readback path (5× IMC bandwidth) | direct DMABuf → Wayland surface | consequence of native-compositor enable |
+| Sticky sanity-test failure | one failure = permanent HW-accel disable for the profile | dead-coded — transient failures do not stick | gfxPlatform.cpp kill-switch removal |
+
+- **CPU:** GPU work (WebRender rasterisation, compositor, video overlay) moves off the CPU. Not benchmarked for THIS topic as before/after; the 12.8% parent-CPU win recorded in the project belongs to topic 13.TELEMETRY. Qualitatively: parent + content processes remain low during scrolling and video; the win is the avoidance of a software-rendering fallback that would otherwise pin one core continuously.
+- **Memory:** Native compositor path eliminates GL readback of NV12 frames — cuts memory-bus traffic to IMC by ~5× vs the GL fallback path. Not measured as absolute bytes/sec, but the mechanism is well-established.
+- **I/O:** DMABuf handles pass NV12 planes directly from RDD-process VAAPI decoder to Wayland compositor surface. Zero CPU copies on the video path.
+- **Timer Interval:** N/A — event-driven.
+
+## Security Analysis
+
+### User Profiling
+
+Not applicable — this is a local rendering-path change with no data-collection surface.
+
+### Targeting
+
+Narrows the attack surface for GPU-driver bugs specifically on Ivy Bridge/Sandy Bridge users of Firefox; but broadens the surface for anyone with a genuinely-buggy driver in the Intel/AMD/NVIDIA vendor blocks. Mitigation: sanity-test still runs, still surfaces user-visible errors on real failures — it just does not persistently disable the whole path. A truly broken driver would still crash the RDD or compositor process visibly.
+
+### Trust Chain
+
+Trust placed in the Wayland compositor (Mutter on this system), Mesa, i965, and the kernel media subsystem. All open source and independently auditable.
+
+### Abuse Potential
+
+The vendor short-circuit is coarse — it approves ANY 0x8086/0x1002/0x10de device, including devices Mozilla legitimately blocklisted for driver reasons. Trade-off is deliberate: false positives (a genuinely broken chip works via software fallback if the compositor rejects the DMABuf) are less costly than false negatives (a working chip running everything on the CPU forever).
+
+## Implementation Flow
+
+1. **`gfxPlatform::InitAcceleration / InitWebRenderConfig / InitHardwareVideoConfig`** — Startup path. Asks the FeatureState machinery whether FEATURE_WEBRENDER and FEATURE_HARDWARE_VIDEO_DECODING are OK.
+   *Side effects:* Sets gfxVars (HardwareVideoDecodingEnabled, WebRender on) which are broadcast over IPC to content/RDD/GPU processes.
+2. **`GfxInfoBase::GetFeatureStatusImpl (vendor short-circuit)`** — Consulted by the FeatureState query. Short-circuit added: if vendor ∈ {Intel, AMD, NVIDIA} → return OK for general features, BLOCKED_PLATFORM_TEST for VP9/HEVC HW codec features.
+   *Side effects:* Blocklist static engine never consulted for general features on the covered vendors.
+3. **`widget/gtk/GfxInfo.cpp — platform probe`** — Runs the GTK-specific hardware probe. Short-circuits Intel-DDX WebRender block (bug 1710400), gl-version guard, vaapitest missing-codec mapping.
+   *Side effects:* Ensures the platform probe is not the source of a spurious FEATURE_BLOCKED verdict.
+4. **`gfxConfigManager::ConfigureWebRender / gfxConfigManager::ConfigureFromBlocklist`** — Reads the resulting FeatureState. `UserForceEnable(...)` promotes the native-compositor feature above the gfxInfo blocklist tier.
+   *Side effects:* Native Wayland compositor path selected; NV12 DMABuf handles go directly to Wayland surfaces.
+5. **`gfxPlatform::sanity-test path`** — Sanity-test-failure → persistent-pref-set path dead-coded.
+   *Side effects:* A single failed hardware-decode probe no longer permanently disables HW accel for the profile.
+6. **`GfxDriverInfo::GetDeviceFamily`** — The registry that would list Ivy/Sandy Bridge as blocked is missing those APPEND_DEVICE calls — commented out with rationale.
+   *Side effects:* Static blocklist engine finds no entry for these chip families → no verdict → falls back to the FeatureState default (OK).
+
+## Technical Debt
+
+🟢 **ACCEPTED** — Vendor short-circuit is coarse — approves all Intel/AMD/NVIDIA devices for general features, including any Mozilla legitimately blocklisted
+  - *Recommendation:* Trade-off documented in the module summary. A narrower whitelist would need per-generation maintenance the project cannot afford.
+
+🟠 **MEDIUM** — APPEND_DEVICE commented-out lines are drift-vulnerable on Firefox version bumps — a re-sync from upstream could quietly re-enable them
+  - *Recommendation:* Automate a per-release grep for `APPEND_DEVICE(0x0166)` in the un-commented state as part of the toolchain-preflight script.
+
+🟠 **MEDIUM** — No gtest asserts vendor short-circuit correctly preserves VP9/HEVC blocks — regression from BUG C class (blocking wrong feature IDs)
+  - *Recommendation:* Add a gtest fixture that exercises GetFeatureStatusImpl for both general and codec-specific feature IDs on each vendor.
+
+🟡 **LOW** — Dead-coded sanity-test kill switch relies on manual verification during test — no automated proof the code path is unreachable
+  - *Recommendation:* Verify with a build-time static-analysis pass or a #error guard if the code is ever re-introduced.
+
+## Impact If Removed / Disabled
+
+Reverting: (1) WebRender falls back to the CPU-based layers acceleration path on IvyBridge/SandyBridge; (2) native Wayland compositor is not force-enabled, so decoded NV12 frames route through GL readback (5× IMC bandwidth); (3) any single failed hardware-decode sanity test permanently disables HW accel on that profile forever without user knowledge; (4) topic 01.MEDIA still enforces H.264-only but has no hardware path to run it on, so H.264 falls back to software too — the entire hardware-acceleration argument collapses.
+
+## Testing Notes
+
+Manual verification recipe:
+1. `about:support` → Graphics section. Verify Compositing = WebRender, GPU #1 = Intel HD Graphics 4000, Driver Vendor = Mesa. If Compositing = 'Basic' or shows 'FEATURE_BLOCKED_*' the override did not stick.
+2. `MOZ_LOG=WebRender:5 firefox 2>&1 | grep -i 'compositor\|dmabuf'` — expect native compositor init messages and DMABuf overlay success.
+3. During 1080p H.264 playback, `intel_gpu_top` (from the intel-gpu-tools package) should show Render/3D engine and Video engine both active. RDD process CPU should be low. Parent/content near-idle.
+4. Grep the built binary for retained sanity-test dead code — `nm libxul.so | grep -i sanity` and confirm expected symbols; if the compiler kept them they will show up.
+5. Confirm codec block preserved: on `about:support`, VP9_HW_DECODE and HEVC_HW_DECODE must still show FEATURE_BLOCKED_PLATFORM_TEST. If they show OK, the vendor short-circuit is over-broad — regression from topic 01.MEDIA's invariant.
+
+## Changelog Notes
+
+See `patches/old.patches/02.GPU/MASTER_PROJECT_LOG_FIREFOX_154_GPU_PATCHES.md` for the four-layer architecture write-up. The `@gorilla-unleashed-153` header block in `widget/GfxInfoBase.cpp` (timestamp 20260529_120525) predates this Firefox 154 work — the vendor short-circuit mechanism was proven in FF153 and carried forward. The mission framing in the log ('de-facto planned obsolescence of working silicon') is the developer's own words, not this documentation project's editorial addition.
+
+---
+*Developer Track. Human Track twin: `02-gpu.LAYMAN.md`.*
+
+
+---
+
+# ═══ MERGED DOCUMENT: 02-gpu.LAYMAN.md (verbatim · sha256:54ff2cd76ff1048f · merged 2026-08-02) ═══
+
+# 🧍 The GPU Un-Blocklist — Making Firefox Actually Use the Graphics Chip You Paid For — Plain English Guide
+
+> *Topic `02-gpu` of the Gorilla Unleashed Firefox 154 build · Written for everyone · 2026-07-16*
+
+---
+
+## 🌍 The Big Picture
+
+Your graphics chip is a small factory built into your laptop. It has purpose-built machinery for drawing web pages fast (a system called WebRender), for decoding video without touching the CPU (the H.264 ASIC the Media topic talks about), and for pushing pixels to the screen efficiently on Linux (via Wayland). All of that machinery costs power, silicon, and design effort — and it is sitting *right there* in your 2012 laptop.
+
+And Firefox refuses to use it. Not because it doesn't work — it works fine. Firefox refuses because a text file inside Firefox called the *blocklist* has your GPU's model number written on it, followed by the word 'blocked'. When the browser starts up, it reads this list, sees your chip's serial number, and says: no, we will not turn on hardware acceleration for that one. We will draw every pixel in software instead, on your CPU, at ten times the power cost.
+
+This patch group takes the blocklist and, at four different points where it is consulted, makes it answer 'this GPU is fine'. Then it also disables a booby trap Firefox sets up: a 'sanity check' where **one failed video test — ever, even due to a random glitch — permanently disables hardware acceleration for the rest of the machine's life** unless someone knows to reset the pref. That booby trap is now dead code. One bad boot no longer means a lifetime of software rendering.
+
+### 💰 Why the blocklist exists in the first place
+
+Nobody at Mozilla is being malicious. Blocklists exist for a real reason: some very old graphics drivers really did crash the browser, and Mozilla did not want to spend engineering time keeping those old paths tested. So they marked whole generations of GPUs 'blocked' and moved on. **Their savings are real** — measured in engineer-hours per year that they do not have to spend testing Sandy Bridge, Ivy Bridge, or the AMD equivalents. Every hour they do not spend testing your GPU is an hour they can spend on the newest Ryzen.
+
+**Your cost is also real.** It is the CPU your laptop is now doing GPU work on. It is the fan speeding up. It is the battery draining twice as fast as it should. It is the browser feeling sluggish on a chip that could run rings around web content if it were only permitted to. Mozilla saved a support-cost line item; you paid for it in electricity, battery life, and eventually in the price of a laptop you did not actually need to buy. Same shape as the Topic 01 story about YouTube and VP9 — different actor, same cost-shift.
+
+### 🌍 Who this is for
+
+Same audience as Topic 01: **the family that saved for months to buy a 2012 laptop.** For that user, the difference between 'GPU accelerated' and 'GPU blocklisted' is the difference between a browser that can be used to attend a class and one that cannot. It is not a benchmark, it is a lifeline. Every one of the five layers of override in this patch group exists so a person on a 2012 chip in 2026 can browse the same web everyone else does — on the hardware they already own, that already works, that a text file inside Firefox has been quietly telling them is inadequate.
+
+**The chip works. Let the chip work.**
+
+## 🎭 The Main Characters
+
+| Name | What It Is | Real-World Comparison |
+|---|---|---|
+| **The Blocklist** | A hard-coded list inside Firefox of GPU model numbers Firefox will refuse to hardware-accelerate | The 'no entry' list at the door of a nightclub — except the club has a lifetime ban on a whole generation of chips based on nothing but their model number |
+| **WebRender** | Firefox's modern graphics engine that uses the GPU to draw web pages | A conveyor belt with a robot doing the assembly — versus the old way, which is one person doing the whole job by hand |
+| **gfxInfo / GfxInfoBase** | The internal 'is this GPU allowed to work?' oracle. Every graphics decision asks this oracle first. | The customs officer who checks your papers at every stage — patched here so it stamps APPROVED for Intel, AMD, and NVIDIA |
+| **The Sticky Sanity Test** | A booby trap: if hardware video decode fails a self-test even once, a flag gets set that permanently disables hardware acceleration forever | A fuse box where the fuse doesn't just blow — it welds itself shut, so no one can ever replace it |
+| **UserForceEnable** | The one call in Firefox that overrides the blocklist. Not 'suggest enabled' — actually, forcefully enabled | The manager overriding the bouncer — not by asking politely, but by physically moving the rope aside |
+| **Ivy Bridge / Sandy Bridge / HD 4000** | The generation of Intel graphics chips (2011–2012) this build is defending. The reference machine's chip is PCI ID 0x0166 — HD 4000 mobile | The perfectly good used car that keeps being told it isn't allowed on the highway anymore |
+
+## 🔢 How It Works — Step by Step
+
+### Step 1: Layer 1 — the GTK graphics probe
+
+Firefox has a Linux-specific probe (in `widget/gtk/GfxInfo.cpp`) that runs a bunch of tests when the browser starts. Historically, ANY unknown result — including 'we didn't get to that test yet' — could return the same answer as 'FAILED', which blocked WebRender. Even worse: there's a documented Mozilla bug (1710400) that told this probe to block Intel graphics on the older X11 driver even when it worked fine. All of that is now short-circuited so a healthy chip is called healthy.
+
+### Step 2: Layer 2 — the vendor gate
+
+In `widget/GfxInfoBase.cpp` (the central blocklist engine), a short-circuit was added: if the GPU vendor is Intel (0x8086), AMD (0x1002), or NVIDIA (0x10de), the blocklist is bypassed and a green light is returned for general graphics features. This is a bulk fix — it covers all three major vendors in one place, which is the vast majority of hardware on Earth. Crucially, VP9 and HEVC hardware decode still return BLOCKED — because we DON'T have those decoders in silicon on this chip, and the Media topic depends on them staying blocked. It's a scalpel, not a sledgehammer.
+
+### Step 3: Layer 3 — the device-family registry
+
+There is a giant hard-coded list of PCI device IDs organized by chip family (`widget/GfxDriverInfo.cpp`). Ivy Bridge and Sandy Bridge were listed there under 'block from WebRender'. The APPEND_DEVICE lines for our chip family — 0x0152, 0x0162, **0x0166** (this machine), 0x016A, plus the whole Sandy Bridge set — were commented out. The list no longer knows we exist. The comments left in place explain why so nobody 'fixes' them by uncommenting.
+
+### Step 4: Layer 4 — the booby trap
+
+In `gfx/thebes/gfxPlatform.cpp` there was a mechanism where a single failed hardware-decode sanity test would set a persistent preference that permanently disabled hardware acceleration on that profile — forever. Not until reboot: forever. This has been dead-coded. Comments in the patch explain: 'One bad boot must not permanently disable HW accel.' Now a transient failure — a bad frame during startup, a driver hiccup, whatever — no longer welds the fuse shut for eternity.
+
+### Step 5: Layer 5 — the Wayland compositor force-enable
+
+The last piece is in `gfx/config/gfxConfigManager.cpp`: the native Wayland compositor is *force-enabled* (using a call named `UserForceEnable`, not the weaker `UserEnable` — this distinction matters, see the Kill Switch section). This lets video frames go straight from the video decoder to the screen without a detour through the CPU. Without it, decoded frames would take a scenic route: GPU decode → CPU copy → GPU upload → display, quintupling the memory bandwidth used. On a chip that shares its memory bus with everything else in the machine, that's the difference between smooth and stuttery.
+
+## 🤔 Quirky Things Worth Knowing
+
+### ⚠️ The blocklist is Firefox's own opinion about your hardware
+
+None of this is a technical limitation. The HD 4000 works. WebRender works on it. VA-API decode works. Mozilla's own developers just decided, at some point in 2015 or so, that supporting this chip was more trouble than they wanted, so they added its model number to a text file. This patch group calls their bluff.
+
+### ⚠️ The blocklist is DIFFERENT from the codec block from Topic 01
+
+This one is confusing but important: we're UN-blocking the GPU here (so it can accelerate everything), while over in Topic 01 we're BLOCKING codecs (so nothing but H.264 gets decoded). These aren't contradictory — they're two halves of the same argument: 'use the chip for what it can do, and refuse the work it can't.' The vendor short-circuit in Layer 2 explicitly still returns BLOCKED for VP9/HEVC hardware decode, because those genuinely aren't in the silicon.
+
+### ⚠️ The sticky sanity test is the actual villain
+
+The blocklist can be worked around. The sticky sanity-test flag cannot — it's a self-inflicted permanent wound. If a user's Firefox failed a hardware sanity check *once*, five years ago, on a driver bug that has since been fixed, that user's profile has been running Firefox in software mode ever since without knowing. Dead-coding this is the change most likely to help users who haven't even heard of this project.
+
+### ⚠️ One override call, one word, huge consequences
+
+There are two calls in Firefox that touch feature state: `UserEnable()` and `UserForceEnable()`. They look nearly identical. `UserEnable()` says 'the user would like this on, but the blocklist can still say no.' `UserForceEnable()` says 'this is on, blocklist can go fly a kite.' The whole native-compositor force-enable stands or falls on using the second one, not the first. Many well-meaning attempts to fix this class of problem have failed for exactly this reason.
+
+## 💻 What Does This Mean For YOU?
+
+### 🔋 Battery, Speed & Memory
+
+The GPU doing GPU work instead of the CPU doing GPU work is enormous. Web page rendering, video, animations — all of it moves from the general-purpose CPU (which was cooking) to the purpose-built graphics chip (which was idle). Fan behavior and battery drain during normal browsing move from 'noticeable' to 'quiet'. Not benchmarked as a single before/after number for this topic; the whole-project telemetry number (12.8% parent CPU) belongs to Topic 13 and is separate.
+
+### ⚡ Speed
+
+Web page scrolling and animation on GPU-heavy sites (maps, dashboards, video-heavy pages) becomes smooth where it used to stutter. Video is no longer routed through the CPU compositor (a huge bandwidth waste). The measurable win is negative: the *absence* of the software-rendered stutters that used to happen constantly.
+
+### 🕵️ Your Privacy
+
+No direct privacy angle here — this is about local performance, not data collection. (See Topic 13 for privacy.)
+
+### 🌐 Your Internet
+
+Zero change to how the browser talks to the internet. Everything here is between Firefox and your graphics chip.
+
+## 🔴 The Kill Switch — Explained
+
+**What it is:** The four-layer override + the sticky-sanity-test dead-code + the `UserForceEnable` of the native Wayland compositor. Not one switch — five, chained. Because the failure this is defending against (Firefox refusing to use your GPU) can happen at any of five layers, all five have to be neutralised for the fix to actually stick.
+
+**Without it:** Without any one of these five: Firefox falls back to software rendering. Your CPU does what your GPU should be doing. The fan spins up. The battery drains. The user, again, concludes 'this laptop is too old for the modern web' — even though the laptop's graphics chip has been idle the whole time.
+
+**Think of it like:** It's like fixing a jammed door with five separate locks: a broken deadbolt, a rusted chain, a wedge kicked underneath, a warning sticker, and a booby trap that fires the alarm every time you try to open it. Fixing four of them still doesn't get you through the door. All five, or nothing.
+
+## 🌐 Open Source & Why It Matters To You
+
+The Mozilla project log for this exact patch group contains the following sentence, written by our developer months before this project's mission statement even existed: *'Firefox blocklists Sandy/Ivy Bridge GPUs, disabling WebRender and hardware video decode and silently pushing all that work onto the 2012 CPU — de-facto planned obsolescence of working silicon.'* That is the person doing the fix, describing the code being fixed, using the exact words this project has been using in its layman docs. It is not paranoia when it is quoted from the log of the very thing being repaired.
+
+Open source is what makes this repairable at all. The blocklist is a text file inside Firefox. A closed browser could carry the exact same list, and no one outside its company would ever know. There is no user interface that shows it to you, no about:config that reveals it, no support forum where it is discussed. You would simply experience a slow browser and be told your machine is old. **Being able to open the source, find the text file, and comment out the lines that name your chip** — that is not a technical curiosity, it is the last remaining escape hatch. It is the difference between a machine that can be maintained and a machine that can only be replaced.
+
+## 📖 Glossary (Plain English Dictionary)
+
+**Blocklist** — A list, hard-coded inside Firefox's source, of GPU model numbers Firefox refuses to hardware-accelerate. Some entries are ancient (from chips of the mid-2000s). Some are more recent and less defensible.
+
+**WebRender** — Firefox's modern graphics engine, released around 2018. It uses the GPU to draw web pages instead of the CPU. Roughly 10× more power-efficient for typical browsing on hardware that supports it — which the HD 4000 does.
+
+**VA-API** — The Linux standard interface for handing video decode work to the graphics chip. Same one used by the Media topic.
+
+**PCI ID** — The unique 4-hex-digit code that identifies a specific chip. Our HD 4000 is 0x0166 (mobile) or 0x0162 (desktop). Firefox's blocklist uses these codes to identify what to block.
+
+**gfxInfo** — Firefox's internal 'GPU information oracle'. Every graphics decision asks it: 'is feature X allowed on the current GPU?' The vendor short-circuit patch is applied here.
+
+**Sanity test** — A short self-test Firefox runs at startup to check that hardware acceleration actually works. The bug fixed here: a single failure permanently disabled hardware acceleration on that user profile, forever.
+
+**Native compositor** — The system that composes (assembles) the final image sent to your screen. On Wayland, the 'native' compositor lets video frames skip a CPU roundtrip. Without it, decoded frames get copied to the CPU and back, wasting 5× the memory bandwidth.
+
+**UserForceEnable vs UserEnable** — Two Firefox API calls that look nearly identical. `UserForceEnable` overrides the blocklist; `UserEnable` does not. Getting this wrong is the single most common reason well-meaning graphics fixes fail silently.
+
+**Ivy Bridge / Sandy Bridge** — Intel processor generations from 2011 (Sandy Bridge) and 2012 (Ivy Bridge). The reference machine is Ivy Bridge. Both generations have graphics chips that fully support WebRender and H.264 hardware decode — and both are on Firefox's blocklist for no defensible technical reason.
+
+**Saturation** — The point at which hardware is running as fast as it possibly can. A saturated CPU is at 100%. The HD 4000's WebRender pipeline is essentially never saturated by normal web browsing; it has huge unused capacity.
+
+**ASIC** — Application-Specific Integrated Circuit — a chunk of silicon designed to do one job with extreme power efficiency. Your GPU contains several: an H.264 video decoder (see Topic 01), and (in modern Wayland pipelines) an overlay compositor. Software fallback replaces these with the CPU doing the same work at ~100× the electricity cost.
+
+**Planned obsolescence** — See Topic 01's glossary. The unusual thing about this GPU topic is that the log for the patch itself uses the phrase — a Mozilla developer's-eye view that the blocklist mechanism has become one.
+
+---
+*Human Track. Its Developer Track twin (`02-gpu.DEVELOPER.md`) covers the same changes in technical detail. Neither is a simplified copy of the other — they are the same truth in two languages.*
+
+
+---
+
+# ═══ MERGED DOCUMENT: 02-gpu.PRECHECK.json (verbatim · sha256:4f53cda18c2baa0c · merged 2026-08-02) ═══
+
+```json
+[]
+```
+
+
+---
+
+# ═══ MERGED DOCUMENT: 02-gpu.PRECHECK.md (verbatim · sha256:d193b1cf3ead5bcc · merged 2026-08-02) ═══
+
+# Offline Pre-Check: 02-gpu
+
+*Generated 2026-07-16 22:07:48 by doc_audit.py (rule-based, no model involved).*
+
+## File Inventory
+
+| File | Lang | Lines | Complexity | SHA256 (16) |
+|---|---|---|---|---|
+| gfx_config_gfxConfigManager.cpp.patch | patch | 11 | 3 | `a742b7d9f5c8fbf8` |
+| gfx_thebes_gfxPlatform.cpp.patch | patch | 28 | 9 | `59562e7010feaa50` |
+| widget_GfxDriverInfo.cpp.patch | patch | 55 | 1 | `5f3ac5c2442244f6` |
+| widget_GfxInfoBase.cpp.patch | patch | 36 | 6 | `ac24c58d4aba9803` |
+| widget_gtk_GfxInfo.cpp.patch | patch | 45 | 9 | `b5ef6ef429bf257e` |
+
+## Rule Findings (0)
+
+*All offline rules passed.*
+
+---
+
+# ═══ VERIFICATION 2026-08-02 — full 01.MEDIA-grade SOP applied (folder #2) ═══
+
+**Level 1 — patches == tree (byte-exact):** each of the 5 patches applied to a pristine
+VANILLA copy and diffed against LIVE: **5/5 CLEAN apply (no offset/fuzz), 5/5 byte-IDENTICAL.**
+
+**Level 2 — tree == binary (libxul.so, 2026-08-01 build):**
+- "Gorilla: native Wayland compositor for VA-API zero-copy overlay" ×1 (gfxConfigManager
+  UserForceEnable message — compiled in).
+- "FEATURE_FAILURE_GORILLA_NO_HW_CODEC" ×1 (gtk honest-codec switch — compiled in).
+- **"FEATURE_FAILURE_SANITY_TEST_FAILED" ×0 — the strongest proof in the group**: the
+  `false &&` dead-coding made both sanity-test branches statically unreachable and -O3
+  eliminated them INCLUDING their string literals. The sticky kill-switch does not exist
+  in the shipped binary at all.
+
+**Level 3 — golden-rule invariants (live tree):** UserForceEnable (not UserEnable) at
+gfxConfigManager.cpp:161 (rule 2 — only ForceEnabled beats the gfxInfo blocklist tier);
+`false &&` ×2 in gfxPlatform.cpp (decode + encode kill-switch both dead); vendor
+short-circuits present at GfxInfoBase.cpp:1127 and gtk/GfxInfo.cpp:1477; GPU process
+ForceDisabled on Wayland confirmed same day in gfxPlatformGtk (rule 1).
+
+**Layering question answered (the group's key correctness concern):** gtk/GfxInfo's
+GetFeatureStatusImpl runs FIRST and answers codec features HONESTLY for the 3 vendors
+(H.264 OK unconditionally — deliberately NOT probe-based, immune to a broken vaapitest or
+lost LIBVA_DRIVER_NAME; VP8/VP9/AV1/HEVC → BLOCKED_PLATFORM_TEST + GORILLA failure id);
+GfxInfoBase's vendor short-circuit only catches paths that reach the base impl directly —
+belt over belt, no contradiction. The AUDIT's standing P2 gtest suggestion remains the
+regression guard for this ordering.
+
+**Observation (P3, fleet-relevant, moot on this machine):** the un-blocklist is PARTIAL —
+0x015A (Ivy GT1), 0x0112 (Sandy Bridge HD 3000 desktop) and 0x010a (SNB server) remain
+APPEND_DEVICE'd while their siblings were commented out. Irrelevant here (0x0166 unlocked +
+vendor short-circuit bypasses the list anyway), but inconsistent for the distribution fleet
+if the short-circuit were ever removed. Decide deliberately before any upstreaming.
+
+**Standards axis:** covered by the 2026-08-02 sfmedia audit (PCI vendor IDs vs offline
+pci.ids; all FEATURE_* constants traced to widget/GfxInfoFeatureDefs.inc /
+GfxInfoFeatureStatusDefs.inc; zero invented identifiers). Audit of record:
+../MEDIA_GFX_STANDARDS_AUDIT_2026-08-02.md.
+
+## CORRECTION 2026-08-02 (same day) — P3 observation resolved by owner ruling
+The partial un-blocklist was an FF153-era OVERSIGHT, not a decision. Owner: "those were
+supposed to be freed up as well." Freed the three stragglers — 0x015A (Ivy Bridge GT1),
+0x0112 (Sandy Bridge HD 3000 desktop, both families), 0x010a (SNB, both families) — in the
+live tree with dated GORILLA markers; widget_GfxDriverInfo.cpp.patch regenerated; full
+group re-verified 5/5 CLEAN + byte-IDENTICAL. The fleet unlock is now TOTAL for Sandy/Ivy
+Bridge. Behavior change is latent on this machine (vendor short-circuit already bypasses
+the list) but real for the distribution fleet. Takes effect in the binary at the next
+./mach build (widget/GfxDriverInfo.cpp recompile — already pending for the prefs bake).

@@ -1,0 +1,432 @@
+diff --git a/browser/components/BrowserComponents.manifest b/browser/components/BrowserComponents.manifest
+index 8ed42ee..2d5333b 100644
+--- a/browser/components/BrowserComponents.manifest
++++ b/browser/components/BrowserComponents.manifest
+@@ -62,7 +62,6 @@ category browser-window-load moz-src:///browser/components/customkeys/CustomKeys
+ 
+ category browser-window-delayed-startup moz-src:///browser/components/contentanalysis/content/ContentAnalysis.sys.mjs ContentAnalysis.initialize
+ category browser-window-delayed-startup resource:///modules/HomePage.sys.mjs HomePage.delayedStartup
+-category browser-window-delayed-startup moz-src:///browser/components/genai/LinkPreview.sys.mjs LinkPreview.init
+ category browser-window-delayed-startup moz-src:///browser/components/reportbrokensite/ReportBrokenSite.sys.mjs ReportBrokenSite.init
+ category browser-window-delayed-startup moz-src:///browser/components/search/SearchUIUtils.sys.mjs SearchUIUtils.init
+ category browser-window-delayed-startup resource:///modules/taskbartabs/TaskbarTabsPageAction.sys.mjs TaskbarTabsPageAction.init
+@@ -174,7 +173,6 @@ category browser-idle-startup resource://gre/modules/RFPHelper.sys.mjs RFPHelper
+ category browser-idle-startup resource://gre/modules/Blocklist.sys.mjs Blocklist.loadBlocklistAsync
+ category browser-idle-startup resource://gre/modules/psm/RemoteSecuritySettings.sys.mjs RemoteSecuritySettings.init
+ category browser-idle-startup moz-src:///browser/components/tabbrowser/TabUnloader.sys.mjs TabUnloader.init
+-category browser-idle-startup resource:///modules/GenAI.sys.mjs GenAI.init
+ category browser-idle-startup moz-src:///browser/components/urlbar/QuickSuggest.sys.mjs QuickSuggest.init
+ category browser-idle-startup moz-src:///browser/components/urlbar/UrlbarSearchTermsPersistence.sys.mjs UrlbarSearchTermsPersistence.init
+ category browser-idle-startup moz-src:///browser/components/search/SERPCategorization.sys.mjs SERPCategorization.init
+diff --git a/browser/components/DesktopActorRegistry.sys.mjs b/browser/components/DesktopActorRegistry.sys.mjs
+index e284ae5..6c38f0c 100644
+--- a/browser/components/DesktopActorRegistry.sys.mjs
++++ b/browser/components/DesktopActorRegistry.sys.mjs
+@@ -229,48 +229,9 @@ let JSWINDOWACTORS = {
+     enablePreference: "browser.aboutwelcome.enabled",
+   },
+ 
+-  AIChatContent: {
+-    parent: {
+-      esModuleURI:
+-        "moz-src:///browser/components/aiwindow/ui/actors/AIChatContentParent.sys.mjs",
+-    },
+-    child: {
+-      esModuleURI:
+-        "moz-src:///browser/components/aiwindow/ui/actors/AIChatContentChild.sys.mjs",
+-      events: {
+-        "AIChatContent:DispatchFollowUp": { wantUntrusted: true },
+-        "AIChatContent:Ready": { wantUntrusted: true },
+-        "AIChatContent:DispatchAction": { wantUntrusted: true },
+-        "AIChatContent:OpenLink": { wantUntrusted: true },
+-        "AIChatContent:DispatchNewChat": { wantUntrusted: true },
+-        "AIChatContent:AccountSignIn": { wantUntrusted: true },
+-        "AIChatContent:ToolUIUpdate": { wantUntrusted: true },
+-        "AIChatContent:RequestAssets": { wantUntrusted: true },
+-        "AIChatContent:HistoryGridRender": { wantUntrusted: true },
+-        "AIChatContent:HistoryGridItemClick": { wantUntrusted: true },
+-      },
+-    },
+-    allFrames: true,
+-    matches: ["about:aichatcontent"],
+-    remoteTypes: ["privilegedabout"],
+-    enablePreference: "browser.smartwindow.enabled",
+-  },
++  // GORILLA excised: AIChatContent actor (aiwindow removed).
+ 
+-  AISmartBar: {
+-    parent: {
+-      esModuleURI:
+-        "moz-src:///browser/components/aiwindow/ui/actors/AISmartBarParent.sys.mjs",
+-    },
+-    child: {
+-      esModuleURI:
+-        "moz-src:///browser/components/aiwindow/ui/actors/AISmartBarChild.sys.mjs",
+-    },
+-    matches: ["chrome://browser/content/aiwindow/aiWindow.html"],
+-    includeChrome: true,
+-    allFrames: true,
+-    enablePreference: "browser.smartwindow.enabled",
+-    remoteTypes: ["parent"],
+-  },
++  // GORILLA excised: AISmartBar actor (aiwindow removed).
+ 
+   BackupUI: {
+     parent: {
+@@ -594,13 +555,11 @@ let JSWINDOWACTORS = {
+       "chrome://browser/content/sidebar/sidebar-customize.html",
+       "chrome://browser/content/sidebar/sidebar-syncedtabs.html",
+       "chrome://browser/content/sidebar/sidebar-opentabs.html",
+-      "chrome://browser/content/genai/chat.html",
+       "about:firefoxview",
+       "about:editprofile",
+       "about:deleteprofile",
+       "about:newprofile",
+       "about:opentabs",
+-      "about:aichatcontent",
+     ],
+     remoteTypes: ["parent", "privilegedabout"],
+   },
+@@ -626,18 +585,6 @@ let JSWINDOWACTORS = {
+     safeForUntrustedWebProcess: true,
+   },
+ 
+-  LinkPreview: {
+-    parent: {
+-      esModuleURI: "resource:///actors/LinkPreviewParent.sys.mjs",
+-    },
+-    child: {
+-      esModuleURI: "resource:///actors/LinkPreviewChild.sys.mjs",
+-    },
+-    includeChrome: true,
+-    enablePreference: "browser.ml.linkPreview.enabled",
+-    safeForUntrustedWebProcess: true,
+-  },
+-
+   PageAssist: {
+     parent: {
+       esModuleURI: "resource:///actors/PageAssistParent.sys.mjs",
+diff --git a/browser/components/firefoxview/jar.mn b/browser/components/firefoxview/jar.mn
+index 939cb91..a6f1868 100644
+--- a/browser/components/firefoxview/jar.mn
++++ b/browser/components/firefoxview/jar.mn
+@@ -5,9 +5,6 @@
+ browser.jar:
+     content/browser/firefoxview/card-container.css
+     content/browser/firefoxview/card-container.mjs
+-    content/browser/firefoxview/chats.mjs
+-    content/browser/firefoxview/chats-tab-list.css
+-    content/browser/firefoxview/chats-tab-list.mjs
+     content/browser/firefoxview/firefoxview.html
+     content/browser/firefoxview/firefoxview.mjs
+     content/browser/firefoxview/history.css
+@@ -38,6 +35,5 @@ browser.jar:
+     content/browser/callout-tab-pickup.svg (content/callout-tab-pickup.svg)
+     content/browser/callout-tab-pickup-dark.svg (content/callout-tab-pickup-dark.svg)
+     content/browser/firefoxview/empty-chat.svg (content/empty-chat.svg)
+-    content/browser/firefoxview/view-chats.svg (content/view-chats.svg)
+     content/browser/firefoxview/view-opentabs.svg (content/view-opentabs.svg)
+     content/browser/firefoxview/view-recentlyclosed.svg (content/view-recentlyclosed.svg)
+diff --git a/browser/components/moz.build b/browser/components/moz.build
+index d1d769a..ec3065c 100644
+--- a/browser/components/moz.build
++++ b/browser/components/moz.build
+@@ -28,7 +28,9 @@ DIRS += [
+     "about",
+     "aboutlogins",
+     "aboutwelcome",
+-    "aiwindow",
++    # GORILLA excised: "aiwindow" (2026-08-02; dir moved to
++    # firefox-main.excised-ai-aiwindow-genai.2026-08-02 — stubs no longer
++    # needed, zero consumers remain after the Mozambique passes)
+     "asrouter",
+     "attribution",
+     "backup",
+@@ -42,7 +44,7 @@ DIRS += [
+     "enterprisepolicies",
+     "extensions",
+     "firefoxview",
+-    "genai",
++    # GORILLA excised: "genai",
+     "ipprotection",
+     "messagepreview",
+     "migration",
+diff --git a/browser/components/preferences/jar.mn b/browser/components/preferences/jar.mn
+index a844681..08151ec 100644
+--- a/browser/components/preferences/jar.mn
++++ b/browser/components/preferences/jar.mn
+@@ -25,7 +25,6 @@ browser.jar:
+    content/browser/preferences/etp-toggle-promo.svg
+    content/browser/preferences/etp-advanced-banner.svg
+    content/browser/preferences/spell-check-promo.svg
+-   content/browser/preferences/OnDeviceModelManager.mjs
+    content/browser/preferences/FocusHistory.mjs
+    content/browser/preferences/DefaultBrowserHelper.mjs
+    content/browser/preferences/config/about-firefox.mjs                 (config/about-firefox.mjs)
+@@ -34,7 +33,6 @@ browser.jar:
+    content/browser/preferences/config/accessibility.mjs                 (config/accessibility.mjs)
+    content/browser/preferences/config/appearance.mjs                    (config/appearance.mjs)
+    content/browser/preferences/config/browser-icon.mjs                  (config/browser-icon.mjs)
+-   content/browser/preferences/config/aiFeatures.mjs                    (config/aiFeatures.mjs)
+    content/browser/preferences/config/firefoxLabs.mjs                   (config/firefoxLabs.mjs)
+    content/browser/preferences/config/moreFromMozilla.mjs               (config/moreFromMozilla.mjs)
+    content/browser/preferences/config/downloads.mjs                     (config/downloads.mjs)
+diff --git a/browser/components/sessionstore/session.schema.json b/browser/components/sessionstore/session.schema.json
+index ee3eee1..552daf5 100644
+--- a/browser/components/sessionstore/session.schema.json
++++ b/browser/components/sessionstore/session.schema.json
+@@ -183,9 +183,6 @@
+         "hidden": {
+           "type": "string"
+         },
+-        "isAIWindow": {
+-          "type": "boolean"
+-        },
+         "isPopup": {
+           "type": "boolean"
+         },
+diff --git a/browser/components/tabbrowser/moz.build b/browser/components/tabbrowser/moz.build
+index 0700661..db3d82f 100644
+--- a/browser/components/tabbrowser/moz.build
++++ b/browser/components/tabbrowser/moz.build
+@@ -22,7 +22,6 @@ MOZ_SRC_FILES += [
+     "GroupsList.sys.mjs",
+     "NewTabPagePreloading.sys.mjs",
+     "OpenInTabsUtils.sys.mjs",
+-    "SmartTabGrouping.sys.mjs",
+     "TabMetrics.sys.mjs",
+     "TabsList.sys.mjs",
+     "TabUnloader.sys.mjs",
+diff --git a/browser/components/urlbar/jar.mn b/browser/components/urlbar/jar.mn
+index 00231df..943fd9e 100644
+--- a/browser/components/urlbar/jar.mn
++++ b/browser/components/urlbar/jar.mn
+@@ -4,9 +4,6 @@
+ 
+ browser.jar:
+         content/browser/urlbar/L10nCache.mjs               (content/L10nCache.mjs)
+-        content/browser/urlbar/SmartbarInput.mjs           (content/SmartbarInput.mjs)
+-        content/browser/urlbar/SmartbarInputController.mjs (content/SmartbarInputController.mjs)
+-        content/browser/urlbar/SmartbarInputUtils.mjs      (content/SmartbarInputUtils.mjs)
+         content/browser/urlbar/UrlbarChildController.mjs   (content/UrlbarChildController.mjs)
+         content/browser/urlbar/UrlbarEventBufferer.mjs     (content/UrlbarEventBufferer.mjs)
+         content/browser/urlbar/UrlbarInput.mjs             (content/UrlbarInput.mjs)
+diff --git a/browser/components/urlbar/moz.build b/browser/components/urlbar/moz.build
+index b3f0202..cdf4ef3 100644
+--- a/browser/components/urlbar/moz.build
++++ b/browser/components/urlbar/moz.build
+@@ -17,14 +17,12 @@ MOZ_SRC_FILES += [
+     "MerinoClient.sys.mjs",
+     "QuickActionsLoaderDefault.sys.mjs",
+     "QuickSuggest.sys.mjs",
+-    "SmartbarMentionsPanelSearch.sys.mjs",
+     "UrlbarMuxerStandard.sys.mjs",
+     "UrlbarParentController.sys.mjs",
+     "UrlbarParentControllerProxy.sys.mjs",
+     "UrlbarPrefs.sys.mjs",
+     "UrlbarProviderAboutPages.sys.mjs",
+     "UrlbarProviderActionsSearchMode.sys.mjs",
+-    "UrlbarProviderAiChat.sys.mjs",
+     "UrlbarProviderAliasEngines.sys.mjs",
+     "UrlbarProviderAutofill.sys.mjs",
+     "UrlbarProviderBookmarkKeywords.sys.mjs",
+@@ -71,11 +69,9 @@ MOZ_SRC_FILES += [
+     "private/ImpressionCaps.sys.mjs",
+     "private/MarketSuggestions.sys.mjs",
+     "private/MDNSuggestions.sys.mjs",
+-    "private/MLSuggest.sys.mjs",
+     "private/RealtimeSuggestProvider.sys.mjs",
+     "private/SportsSuggestions.sys.mjs",
+     "private/SuggestBackendMerino.sys.mjs",
+-    "private/SuggestBackendMl.sys.mjs",
+     "private/SuggestBackendRust.sys.mjs",
+     "private/SuggestFeature.sys.mjs",
+     "private/WeatherSuggestions.sys.mjs",
+diff --git a/browser/installer/package-manifest.in b/browser/installer/package-manifest.in
+index 0a69f98..5906a8b 100644
+--- a/browser/installer/package-manifest.in
++++ b/browser/installer/package-manifest.in
+@@ -185,7 +185,6 @@
+ @BINPATH@/@DLL_PREFIX@gkcodecs@DLL_SUFFIX@
+ @BINPATH@/@DLL_PREFIX@mozavutil@DLL_SUFFIX@
+ @BINPATH@/@DLL_PREFIX@mozavcodec@DLL_SUFFIX@
+-@BINPATH@/@DLL_PREFIX@mozinference@DLL_SUFFIX@
+ 
+ ; [Components]
+ #ifdef ACCESSIBILITY
+diff --git a/browser/locales/jar.mn b/browser/locales/jar.mn
+index e6efe76..28ceca1 100644
+--- a/browser/locales/jar.mn
++++ b/browser/locales/jar.mn
+@@ -11,7 +11,6 @@
+   preview/interventions.ftl                        (../components/urlbar/content/interventions.ftl)
+   preview/enUS-searchFeatures.ftl                  (../components/urlbar/content/enUS-searchFeatures.ftl)
+   preview/onboarding.ftl                           (../components/aboutwelcome/content/onboarding.ftl)
+-  preview/genai.ftl                                (../components/genai/content/genai.ftl)
+   preview/credentialChooser.ftl                    (../../toolkit/components/credentialmanagement/credentialChooser.ftl)
+   browser                                          (%browser/**/*.ftl)
+   preview/smartTabGroups.ftl                       (../locales-preview/smartTabGroups.ftl)
+diff --git a/browser/themes/addons/jar.mn b/browser/themes/addons/jar.mn
+index fc83c11..a9f637d 100644
+--- a/browser/themes/addons/jar.mn
++++ b/browser/themes/addons/jar.mn
+@@ -16,10 +16,6 @@ browser.jar:
+   content/builtin-themes/light/icon.svg            (light/icon.svg)
+   content/builtin-themes/light/manifest.json       (light/manifest.json)
+ 
+-  content/builtin-themes/aiwindow/manifest.json        (aiwindow/manifest.json)
+-  content/builtin-themes/aiwindow/aiwindow-theme.css   (aiwindow/aiwindow-theme.css)
+ 
+-  content/builtin-themes/aiwindow-nova/manifest.json   (aiwindow-nova/manifest.json)
+-  content/builtin-themes/aiwindow-nova/aiwindow-theme-nova.css  (aiwindow-nova/aiwindow-theme-nova.css)
+ 
+   content/builtin-themes/privatewindow/manifest.json            (privatewindow/manifest.json)
+diff --git a/browser/themes/addons/moz.build b/browser/themes/addons/moz.build
+index 60f9104..f8a9e34 100644
+--- a/browser/themes/addons/moz.build
++++ b/browser/themes/addons/moz.build
+@@ -4,15 +4,7 @@
+ 
+ JAR_MANIFESTS += ["jar.mn"]
+ 
+-GeneratedFile(
+-    "aiwindow/manifest.json",
+-    script="process_tokens.py",
+-    entry_point="process_tokens",
+-    inputs=[
+-        "aiwindow/manifest.in.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/base/color.tokens.json",
+-    ],
+-)
++# GORILLA excised: "aiwindow/manifest.json" GeneratedFile (aiwindow theme)
+ 
+ GeneratedFile(
+     "privatewindow/manifest.json",
+@@ -24,19 +16,4 @@ GeneratedFile(
+     ],
+ )
+ 
+-GeneratedFile(
+-    "aiwindow-nova/manifest.json",
+-    script="process_tokens.py",
+-    entry_point="process_tokens",
+-    inputs=[
+-        "aiwindow-nova/manifest.in.json",
+-        "/browser/themes/shared/tabbrowser/tab.nova.tokens.json",
+-        "/browser/themes/shared/urlbar/urlbarview.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/base/background.nova.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/base/color.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/base/color.nova.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/base/text.nova.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/components/toolbar.nova.tokens.json",
+-        "/toolkit/themes/shared/design-system/src/tokens/components/toolbarbutton.nova.tokens.json",
+-    ],
+-)
++# GORILLA excised: "aiwindow-nova/manifest.json" GeneratedFile (aiwindow theme)
+diff --git a/config/external/moz.build b/config/external/moz.build
+index 9613533..c6107a8 100644
+--- a/config/external/moz.build
++++ b/config/external/moz.build
+@@ -12,7 +12,7 @@ DIRS += [
+ ]
+ 
+ if CONFIG["MOZ_WIDGET_TOOLKIT"] != "android":
+-    DIRS += ["mozinference"]
++    pass  # GORILLA excised: mozinference (llama.cpp/ggml AI inference lib)
+ 
+ if CONFIG["MOZ_USING_WASM_SANDBOXING"]:
+     DIRS += [
+diff --git a/dom/webidl/moz.build b/dom/webidl/moz.build
+index 7eb75fb..e3bc723 100644
+--- a/dom/webidl/moz.build
++++ b/dom/webidl/moz.build
+@@ -1146,11 +1146,7 @@ WEBIDL_FILES = [
+     "XSLTProcessor.webidl",
+ ]
+ 
+-# Native llama.cpp for ml engine.
+-if CONFIG["MOZ_WIDGET_TOOLKIT"] != "android":
+-    WEBIDL_FILES += [
+-        "LlamaRunner.webidl",
+-    ]
++# GORILLA excised: LlamaRunner.webidl (ml engine removed).
+ 
+ if CONFIG["MOZ_WEBRTC"]:
+     WEBIDL_FILES += [
+diff --git a/toolkit/components/glean/metrics_index.py b/toolkit/components/glean/metrics_index.py
+index 8825fd0..9341157 100644
+--- a/toolkit/components/glean/metrics_index.py
++++ b/toolkit/components/glean/metrics_index.py
+@@ -115,7 +115,6 @@ gecko_metrics = [
+ # Order is lexicographical, enforced by t/c/glean/tests/pytest/test_yaml_indices.py
+ firefox_desktop_metrics = [
+     "browser/actors/metrics.yaml",
+-    "browser/components/aiwindow/metrics.yaml",
+     "browser/components/asrouter/metrics.yaml",
+     "browser/components/attribution/metrics.yaml",
+     "browser/components/backup/metrics.yaml",
+@@ -126,7 +125,6 @@ firefox_desktop_metrics = [
+     "browser/components/downloads/metrics.yaml",
+     "browser/components/extensions/metrics.yaml",
+     "browser/components/firefoxview/metrics.yaml",
+-    "browser/components/genai/metrics.yaml",
+     "browser/components/ipprotection/metrics.yaml",
+     "browser/components/metrics.yaml",
+     "browser/components/migration/metrics.yaml",
+diff --git a/toolkit/components/moz.build b/toolkit/components/moz.build
+index 265a226..7387b28 100644
+--- a/toolkit/components/moz.build
++++ b/toolkit/components/moz.build
+@@ -56,7 +56,7 @@ DIRS += [
+     "kvstore",
+     "media",
+     "mediasniffer",
+-    "ml",
++    # GORILLA excised: "ml",
+     "mozintl",
+     "mozprotocol",
+     "pageextractor",
+@@ -154,7 +154,7 @@ if CONFIG["MOZ_UNIFFI_FIXTURES"]:
+     DIRS += ["uniffi-bindgen-gecko-js/tests"]
+ 
+ if CONFIG["NIGHTLY_BUILD"]:
+-    DIRS += ["aboutinference"]
++    pass  # GORILLA excised: aboutinference
+ 
+ UNIFIED_SOURCES += [
+     "/toolkit/components/antitracking/ContentBlockingAllowList.cpp",
+diff --git a/toolkit/modules/ActorManagerParent.sys.mjs b/toolkit/modules/ActorManagerParent.sys.mjs
+index e906d66..185fe20 100644
+--- a/toolkit/modules/ActorManagerParent.sys.mjs
++++ b/toolkit/modules/ActorManagerParent.sys.mjs
+@@ -51,17 +51,7 @@ let JSPROCESSACTORS = {
+     },
+   },
+ 
+-  // A single process (shared with translations) that manages machine learning engines.
+-  MLEngine: {
+-    remoteTypes: ["inference"],
+-    parent: {
+-      esModuleURI: "resource://gre/actors/MLEngineParent.sys.mjs",
+-    },
+-    child: {
+-      esModuleURI: "resource://gre/actors/MLEngineChild.sys.mjs",
+-    },
+-    enablePreference: "browser.ml.enable",
+-  },
++  // GORILLA excised: MLEngine actor (ml component removed).
+ 
+   ProcessConduits: {
+     // "parent" remoteTypes is currently needed to support MV3 background service workers
+diff --git a/toolkit/mozapps/extensions/extensions.manifest b/toolkit/mozapps/extensions/extensions.manifest
+index abb82ca..a3c206d 100644
+--- a/toolkit/mozapps/extensions/extensions.manifest
++++ b/toolkit/mozapps/extensions/extensions.manifest
+@@ -6,7 +6,6 @@ category update-timer addonManager @mozilla.org/addons/integration;1,getService,
+ #ifndef MOZ_THUNDERBIRD
+ #ifndef MOZ_WIDGET_ANDROID
+ category addon-provider-module GMPProvider resource://gre/modules/addons/GMPProvider.sys.mjs
+-category addon-provider-module ModelHubProvider resource://gre/modules/addons/ModelHubProvider.sys.mjs
+ category addon-provider-module SitePermsAddonProvider resource://gre/modules/addons/SitePermsAddonProvider.sys.mjs
+ #endif
+ #endif

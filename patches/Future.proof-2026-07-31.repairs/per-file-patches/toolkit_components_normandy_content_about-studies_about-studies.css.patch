@@ -1,6 +1,6 @@
 --- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/components/normandy/content/about-studies/about-studies.css	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/toolkit/components/normandy/content/about-studies/about-studies.css	2026-07-31 21:30:26.360691865 +0100
-@@ -174,3 +174,13 @@
++++ /home/gorilla/firefox-main/toolkit/components/normandy/content/about-studies/about-studies.css	2026-07-31 22:48:04.871869152 +0100
+@@ -174,3 +174,19 @@
  .opt-in-box.opt-in-error {
    color: var(--text-color-error);
  }
@@ -14,3 +14,9 @@
 +  color: #00FFFF !important;
 +}
 +a, .learn-more-link { color: #35b3ee !important; }
++
++/* GORILLA OVERRIDE 2026-07-31 (2nd pass): the crisp gorilla the author specified
++   for this page — same fixed-bottom mechanism as aboutTelemetry.css. */
++body {
++  background: #000000 url("chrome://branding/content/about-logo.svg") no-repeat fixed center bottom 10px / 450px !important;
++}

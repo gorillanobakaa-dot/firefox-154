@@ -1186,7 +1186,7 @@ xul|*.addons-icon {
 
 /* 🦍 Gorilla Unleashed 800px watermark — right-aligned, vertically offset */
 #content {
-  background: url("chrome://branding/content/about-logo.svg") no-repeat right calc(10% - 39px) top 80px / 800px !important; /* GORILLA 2026-07-31: svg (1200px raster) — the 500px png at 800px was UPSCALED = blurry (Crisp_Logo rule) */
+  background: url("chrome://branding/content/about-logo.svg") no-repeat fixed right calc(10% - 39px) bottom 50px / 650px !important; /* 650px author-recalled; bottom-anchored + viewport-fixed 2026-07-31 (beats growing top offsets: holds on any window height, stays visible on long lists) */ /* GORILLA 2026-07-31: svg (1200px raster) — the 500px png at 800px was UPSCALED = blurry (Crisp_Logo rule) */
 }
 
 /* ==========================================================================

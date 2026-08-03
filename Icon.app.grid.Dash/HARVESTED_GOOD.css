@@ -1,0 +1,98 @@
+/* ============================================================================
+   HARVESTED_GOOD.css — proven-working pieces to PRESERVE across the clean-slate
+   rebuild of master-redirect.css. Reference record (Plan Phase 1.5b / 1.6–1.10).
+   Do NOT "improve" these. Carry them forward verbatim / leave them where they live.
+   Backed-up originals: Icon.app.grid.Dash/_BACKUP_20260718_121537/
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. FUNNY FTL STRINGS — DO NOT TOUCH (locale, not CSS; intentional & loved)
+      newtab.ftl:27  newtab-search-box-handoff-text = Search with Gorilla or enter address you Apple Moron
+      browser.ftl:580  .placeholder                  = Search with Gorilla or enter address you Apple Moron
+      browser.ftl:944  urlbar-result-search-with     = Search with Gorilla
+      The CSS rebuild must not disturb these.
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   2. NEWTAB — BIG GORILLA LOGO ABOVE THE SEARCH PILL  (WORKS, user: "perfect")
+      LIVES IN: browser/extensions/newtab/css/activity-stream.css (NOT master-redirect.css).
+      => The master-redirect.css rebuild does not touch this file. Leave it intact.
+      Verbatim (activity-stream.css:13–25):
+   --------------------------------------------------------------------------- */
+.logo-and-wordmark .logo,
+.logo-and-wordmark .logo-variation-small,
+.logo-and-wordmark .spin-ball-small {
+  width: 600px !important;
+  height: 600px !important;
+  max-width: 95vw !important;
+  max-height: 70vh !important;
+  background-size: contain !important;
+}
+/* + logo margin (activity-stream.css top override): */
+.logo-and-wordmark,
+.search-wrapper .logo-and-wordmark { margin-block-end: 16px !important; }
+
+/* ---------------------------------------------------------------------------
+   3. THE CRISP-ICON TECHNIQUE (why the 600px logo is sharp, not blurry)
+      From Lessons_Learned_SVG_Injection: NEVER CSS-upscale a small bitmap
+      (background-size interpolation = blur). Instead Lanczos-DOWNSAMPLE the
+      canonical master PNG to the wrapper's EXACT intrinsic size and embed base64
+      inside <svg><image width=W height=H .../></svg>. Tool: `brand crisp-svgs`
+      (generate_crisp_svgs.py). CSS only PLACES the logo; it never resamples up.
+      The single master lives at chrome://branding/content/about-logo.svg — never duplicated.
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   4. master-redirect.css KNOWN-GOOD CHROME BLOCKS — REUSE verbatim in the rebuild
+   --------------------------------------------------------------------------- */
+
+/* 4a. Palette via Firefox's own variables (the safe core — keep, works WITH 154) */
+:root, #main-window, #browser-window, window {
+  --lwt-accent-color:#000; --lwt-frame:#000; --toolbar-bgcolor:#000; --panel-background:#000;
+  --toolbar-field-background-color:#000; --urlbar-box-bgcolor:#000; --newtab-background-color:#000;
+  --toolbar-field-color:#00FFFF; --panel-text-color:#00FFFF; --newtab-text-primary-color:#00FFFF;
+  --lwt-tab-text:#FFFFFF;
+  color-scheme: dark !important;
+}   /* (full gray-ramp #000 list in the backup; condense but keep) */
+
+/* 4b. NATIVE MENU RESTORATION — the ERR-UI-004 fix. CRITICAL: keep exactly. */
+menupopup {
+  --panel-background: Menu !important; --panel-text-color: MenuText !important;
+  appearance: auto !important; -moz-default-appearance: auto !important;
+  background-color: Menu !important; color: MenuText !important;
+}
+menupopup menuitem, menupopup menu {
+  appearance: auto !important; -moz-default-appearance: auto !important;
+  background-color: transparent !important; color: inherit !important;
+}
+menupopup menuseparator { appearance: auto !important; -moz-default-appearance: auto !important; }
+menupopup .menu-iconic-icon, menupopup .menu-iconic-left {
+  -moz-context-properties: fill, fill-opacity, stroke !important; fill: currentColor !important;
+}
+
+/* 4c. Tabs (targeted, not native widgets — OK): pink active / cyan inactive, GPU-safe */
+.tabbrowser-tab[selected] .tab-background { background-color:#FFC0CB !important; border:none !important; box-shadow:none !important; }
+.tabbrowser-tab[selected] .tab-label { color:#000 !important; }
+.tabbrowser-tab:not([selected]) .tab-label { color:#00FFFF !important; }
+.tabbrowser-tab:not([selected]):hover .tab-background { background:transparent !important; outline:1px solid #00FFFF !important; outline-offset:-1px !important; opacity:.8 !important; }
+
+/* 4d. URL bar focus = cyan OUTLINE (no border/shadow = no reflow) */
+#urlbar[focused="true"] > #urlbar-background { outline:2px solid #00FFFF !important; outline-offset:-2px !important; border:none !important; box-shadow:none !important; }
+.urlbar-input::placeholder, .searchbar-textbox::placeholder { opacity:1 !important; color:#00FFFF !important; }
+
+/* 4e. Black-on-black visibility fixes: titlebar controls + new-tab "+" -> cyan fill */
+.titlebar-button > .toolbarbutton-icon { color:#00FFFF !important; fill:#00FFFF !important; -moz-context-properties: fill, fill-opacity, stroke !important; }
+.titlebar-close:hover > .toolbarbutton-icon { color:#FF3750 !important; fill:#FF3750 !important; }
+
+/* 4f. Autocomplete/login icon clamp — the ERR-UI-004 200px-explosion guard */
+.ac-site-icon, panel[type="autocomplete-richlistbox"] image { max-width:16px !important; max-height:16px !important; object-fit:contain !important; }
+autocomplete-row-item { --icon-width:16px !important; --icon-height:16px !important; }
+
+/* ---------------------------------------------------------------------------
+   5. FLAGGED — DO NOT copy blindly; rebuild the SMART way (Plan Phase 0)
+      - OLD line 24 `*, *::before, *::after { animation... !important }` universal
+        selector => REPLACE with targeted animation kill (Plan 0.5).
+      - `content: var(--icon)` injection on illustration classes => keep, but pair
+        with the crisp SVG (section 3), and constrain size (200px lesson).
+      - NO will-change anywhere (WRSceneBuilder thrash).
+   --------------------------------------------------------------------------- */

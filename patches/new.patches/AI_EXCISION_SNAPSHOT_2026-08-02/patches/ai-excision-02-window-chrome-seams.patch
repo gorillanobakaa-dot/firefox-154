@@ -1,0 +1,2314 @@
+diff --git a/browser/base/content/browser-init.js b/browser/base/content/browser-init.js
+index 8ae8059..8419f13 100644
+--- a/browser/base/content/browser-init.js
++++ b/browser/base/content/browser-init.js
+@@ -203,15 +203,6 @@ var gBrowserInit = {
+         );
+         window.document.documentElement.id = "taskbartab-" + taskbarTabId;
+       }
+-      if (extraOptions.hasKey("ai-window")) {
+-        document.documentElement.setAttribute("ai-window", true);
+-      }
+-      if (extraOptions.hasKey("aiwindow-immersive-view")) {
+-        document.documentElement.setAttribute("aiwindow-immersive-view", true);
+-      }
+-      if (extraOptions.hasKey("aiwindow-new-window")) {
+-        document.documentElement.setAttribute("aiwindow-new-window", true);
+-      }
+     }
+ 
+     // Run menubar initialization first, to avoid CustomTitlebar code picking
+@@ -1170,11 +1161,6 @@ var gBrowserInit = {
+       gBrowser.removeTabsProgressListener(window.TabsProgressListener);
+     } catch (ex) {}
+ 
+-    // Bug 1952900 to allow switching to unload category without leaking
+-    ChromeUtils.importESModule(
+-      "moz-src:///browser/components/genai/LinkPreview.sys.mjs"
+-    ).LinkPreview.teardown(window);
+-
+     BrowserUtils.callModulesFromCategory(
+       { categoryName: "browser-window-unload", jsGlobal: globalThis },
+       window
+diff --git a/browser/base/content/browser-main.js b/browser/base/content/browser-main.js
+index 1ff101a..b844ee7 100644
+--- a/browser/base/content/browser-main.js
++++ b/browser/base/content/browser-main.js
+@@ -31,9 +31,6 @@
+   Services.scriptloader.loadSubScript("chrome://browser/content/places/places-menupopup.js", this);
+   Services.scriptloader.loadSubScript("chrome://browser/content/search/autocomplete-popup.js", this);
+   Services.scriptloader.loadSubScript("chrome://browser/content/search/searchbar.js", this);
+-  if (AIWindow.isOpeningAIWindow(window)) {
+-    ChromeUtils.importESModule("chrome://browser/content/urlbar/SmartbarInput.mjs", { global: "current" });
+-  }
+   ChromeUtils.importESModule("chrome://browser/content/urlbar/UrlbarInput.mjs", { global: "current" });
+ }
+ 
+diff --git a/browser/base/content/browser-menubar.js b/browser/base/content/browser-menubar.js
+index 30a957f..dd4050f 100644
+--- a/browser/base/content/browser-menubar.js
++++ b/browser/base/content/browser-menubar.js
+@@ -192,8 +192,6 @@ document.addEventListener(
+           if (!event.target.parentNode._placesView) {
+             new HistoryMenu(event);
+           }
+-
+-          AIWindow.appMenu(event, window);
+           break;
+         case "historyUndoPopup":
+           document
+diff --git a/browser/base/content/browser-sets.js b/browser/base/content/browser-sets.js
+index 06cbcd1..406134a 100644
+--- a/browser/base/content/browser-sets.js
++++ b/browser/base/content/browser-sets.js
+@@ -8,8 +8,6 @@ document.addEventListener(
+     const lazy = {};
+     ChromeUtils.defineESModuleGetters(lazy, {
+       TranslationsParent: "resource://gre/actors/TranslationsParent.sys.mjs",
+-      AIWindowUI:
+-        "moz-src:///browser/components/aiwindow/ui/modules/AIWindowUI.sys.mjs",
+     });
+ 
+     // <commandset id="mainCommandSet"> defined in browser-sets.inc.xhtml
+@@ -19,15 +17,9 @@ document.addEventListener(
+       .addEventListener("command", event => {
+         switch (event.target.id) {
+           case "cmd_newNavigator":
+-            if (AIWindow.isDefaultWindow) {
+-              AIWindow.launchWindow(
+-                gBrowser?.selectedBrowser,
+-                true,
+-                "keyboard_shortcut"
+-              );
+-            } else {
+-              OpenBrowserWindow();
+-            }
++            // GORILLA OVERRIDE: pre-AI behavior restored — Ctrl+N always
++            // opens a normal browser window, never an AI window.
++            OpenBrowserWindow();
+             break;
+           case "cmd_handleBackspace":
+             BrowserCommands.handleBackspace();
+@@ -270,15 +262,9 @@ document.addEventListener(
+           case "cmd_openUnifiedExtensionsPanel":
+             gUnifiedExtensions.openPanel(event);
+             break;
+-          case "Tools:ClassicWindow":
+-            OpenBrowserWindow({ aiWindow: false });
+-            break;
+-          case "Tools:AIWindow":
+-            AIWindow.launchWindow(gBrowser?.selectedBrowser, true, "menu");
+-            break;
+-          case "Tools:ChatsHistory":
+-            FirefoxViewHandler.openTab("chats");
+-            break;
++          // GORILLA OVERRIDE: Tools:AIWindow / Tools:ClassicWindow /
++          // Tools:ChatsHistory command cases removed with the AI Window
++          // excision (their <command> elements are gone from browser-sets.inc.xhtml).
+           case "Tools:Sanitize":
+             Sanitizer.showUI(window);
+             break;
+@@ -337,26 +323,8 @@ document.addEventListener(
+         case "viewBookmarksToolbarKb":
+           BookmarkingUI.toggleBookmarksToolbar("shortcut");
+           break;
+-        case "viewGenaiChatSidebarKb": {
+-          const currentURI = window.gBrowser.selectedBrowser.currentURI;
+-          const isSmartWindowFullPageMode =
+-            AIWindow.isAIWindowContentPage(currentURI);
+-          if (AIWindow.isAIWindowActive(window) && !isSmartWindowFullPageMode) {
+-            lazy.AIWindowUI.toggleSidebar(window);
+-            break;
+-          }
+-
+-          const pref = "browser.ml.chat.enabled";
+-          const enabled = Services.prefs.getBoolPref(pref);
+-          Glean.genaiChatbot.keyboardShortcut.record({
+-            enabled,
+-            sidebar: SidebarController.currentID,
+-          });
+-          if (enabled) {
+-            SidebarController.toggle("viewGenaiChatSidebar");
+-          }
+-          break;
+-        }
++        // GORILLA OVERRIDE: viewGenaiChatSidebarKb case removed with genai
++        // (its Glean category genai.chatbot left the metrics registry).
+         case "toggleSidebarKb":
+           if (SIDEBAR_REVAMP_ENABLED) {
+             SidebarController.handleToolbarButtonClick();
+diff --git a/browser/base/content/browser-sync.js b/browser/base/content/browser-sync.js
+index cfdc284..c4953b8 100644
+--- a/browser/base/content/browser-sync.js
++++ b/browser/base/content/browser-sync.js
+@@ -16,8 +16,6 @@ const { UIState } = ChromeUtils.importESModule(
+ );
+ 
+ ChromeUtils.defineESModuleGetters(this, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
+   EnsureFxAccountsWebChannel:
+     "resource://gre/modules/FxAccountsWebChannel.sys.mjs",
+@@ -2603,9 +2601,7 @@ var gSync = {
+       deleteLocalData: false,
+     };
+ 
+-    const bodyId = AIWindow.hasActiveAIWindows()
+-      ? "fxa-signout-dialog-body-aiwindow"
+-      : "fxa-signout-dialog-body";
++    const bodyId = "fxa-signout-dialog-body";
+ 
+     let [title, body, button, checkbox] = await document.l10n.formatValues([
+       { id: "fxa-signout-dialog-title2" },
+diff --git a/browser/base/content/browser.js b/browser/base/content/browser.js
+index 52c5e5f..7ae8850 100644
+--- a/browser/base/content/browser.js
++++ b/browser/base/content/browser.js
+@@ -12,8 +12,6 @@ var { AppConstants } = ChromeUtils.importESModule(
+ // lazy module getters
+ 
+ ChromeUtils.defineESModuleGetters(this, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   AMTelemetry: "resource://gre/modules/AddonManager.sys.mjs",
+   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+   AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
+@@ -1961,15 +1959,6 @@ let gFileMenu = {
+     }
+     PrintUtils.updatePrintSetupMenuHiddenState();
+ 
+-    const aiWindowMenu = event.target.querySelector("#menu_newAIWindow");
+-    const classicWindowMenu = event.target.querySelector(
+-      "#menu_newClassicWindow"
+-    );
+-
+-    aiWindowMenu.hidden =
+-      !AIWindow.isAIWindowEnabled() || AIWindow.isAIWindowActive(window);
+-    classicWindowMenu.hidden =
+-      !AIWindow.isAIWindowEnabled() || !AIWindow.isAIWindowActive(window);
+   },
+ };
+ 
+@@ -2340,7 +2329,6 @@ var XULBrowserWindow = {
+     // If we've actually changed document, update the toolbar visibility.
+     if (!isSameDocument) {
+       updateBookmarkToolbarVisibility();
+-      AIWindow.updateImmersiveView(gBrowser.currentURI, window);
+     }
+ 
+     let closeOpenPanels = selector => {
+diff --git a/browser/base/content/navigator-toolbox.js b/browser/base/content/navigator-toolbox.js
+index 715c677..f93f159 100644
+--- a/browser/base/content/navigator-toolbox.js
++++ b/browser/base/content/navigator-toolbox.js
+@@ -2,11 +2,6 @@
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+-ChromeUtils.defineESModuleGetters(this, {
+-  AIWindowUI:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindowUI.sys.mjs",
+-});
+-
+ document.addEventListener(
+   "DOMContentLoaded",
+   () => {
+@@ -200,8 +195,7 @@ document.addEventListener(
+         #identity-icon-box,
+         #identity-permission-box,
+         #translations-button,
+-        #split-view-button,
+-        #smartwindow-ask-button
++        #split-view-button
+         `);
+       if (!element) {
+         return;
+@@ -296,12 +290,6 @@ document.addEventListener(
+           }
+           break;
+ 
+-        case "smartwindow-ask-button":
+-          if (isLeftClick) {
+-            AIWindowUI.toggleSidebar(window);
+-          }
+-          break;
+-
+         default:
+           throw new Error(`Missing case for #${element.id}`);
+       }
+@@ -334,8 +322,7 @@ document.addEventListener(
+         #unified-extensions-button,
+         #library-button,
+         #ipprotection-button,
+-        #split-view-button,
+-        #smartwindow-ask-button
++        #split-view-button
+       `);
+       if (!element) {
+         return;
+@@ -435,12 +422,6 @@ document.addEventListener(
+           }
+           break;
+ 
+-        case "smartwindow-ask-button":
+-          if (isLikeLeftClick) {
+-            AIWindowUI.toggleSidebar(window);
+-          }
+-          break;
+-
+         default:
+           throw new Error(`Missing case for #${element.id}`);
+       }
+diff --git a/browser/base/content/sanitizeDialog.js b/browser/base/content/sanitizeDialog.js
+index 04d2253..fb2561e 100644
+--- a/browser/base/content/sanitizeDialog.js
++++ b/browser/base/content/sanitizeDialog.js
+@@ -15,8 +15,6 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
+ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   DownloadUtils: "resource://gre/modules/DownloadUtils.sys.mjs",
+   SiteDataManager: "resource:///modules/SiteDataManager.sys.mjs",
+ });
+@@ -168,25 +166,6 @@ var gSanitizePromptDialog = {
+     // Show loading spinners while data sizes are being fetched
+     this.showLoadingSpinners();
+ 
+-    // Update history labels to include chat conversations if Smart Window is enabled.
+-    if (lazy.AIWindow.isEnabled) {
+-      for (let checkbox of document.querySelectorAll(
+-        "#browsingHistoryAndDownloads"
+-      )) {
+-        document.l10n.setAttributes(
+-          checkbox,
+-          "item-history-downloads-and-chat"
+-        );
+-      }
+-      for (let desc of document.querySelectorAll(
+-        "#browsing-history-downloads-description"
+-      )) {
+-        document.l10n.setAttributes(
+-          desc,
+-          "item-history-downloads-and-chat-description"
+-        );
+-      }
+-    }
+ 
+     document
+       .getElementById("sanitizeDurationChoice")
+diff --git a/browser/base/content/utilityOverlay.js b/browser/base/content/utilityOverlay.js
+index 7f24e3a..2eec128 100644
+--- a/browser/base/content/utilityOverlay.js
++++ b/browser/base/content/utilityOverlay.js
+@@ -12,8 +12,6 @@ var { XPCOMUtils } = ChromeUtils.importESModule(
+ 
+ ChromeUtils.defineESModuleGetters(this, {
+   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
+   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+   ContextualIdentityService:
+@@ -64,9 +62,6 @@ Object.defineProperty(this, "BROWSER_NEW_TAB_URL", {
+         return "about:privatebrowsing";
+       }
+     }
+-    if (AIWindow.isAIWindowActive(window)) {
+-      return AIWindow.newTabURL;
+-    }
+     return AboutNewTab.newTabURL;
+   },
+ });
+diff --git a/browser/components/customizableui/CustomizableUI.sys.mjs b/browser/components/customizableui/CustomizableUI.sys.mjs
+index ea2b13e..efb4273 100644
+--- a/browser/components/customizableui/CustomizableUI.sys.mjs
++++ b/browser/components/customizableui/CustomizableUI.sys.mjs
+@@ -1951,6 +1951,7 @@ var CustomizableUIInternal = {
+     gNavToolbox.palette = document.getElementById(
+       "BrowserToolbarPalette"
+     ).content;
++    console.warn(`CustomizableUI.handleNewBrowserWindow: palette assigned, ${gNavToolbox.palette?.childElementCount} widgets`);
+ 
+     let isVerticalTabs = Services.prefs.getBoolPref(
+       kPrefSidebarVerticalTabsEnabled,
+@@ -3161,6 +3162,22 @@ var CustomizableUIInternal = {
+    * @returns {Array<WidgetGroupWrapper|XULWidgetGroupWrapper>}
+    */
+   getUnusedWidgets(aWindowPalette) {
++    // GORILLA OVERRIDE (suspected nightly customize-tab bug): the palette
++    // fragment can go null mid-session; self-heal from the template rather
++    // than crashing reset/populatePalette (which left customize mode stuck).
++    if (!aWindowPalette) {
++      let win = Services.wm.getMostRecentBrowserWindow();
++      aWindowPalette = win?.document.getElementById(
++        "BrowserToolbarPalette"
++      )?.content;
++      if (win?.gNavToolbox && aWindowPalette) {
++        win.gNavToolbox.palette = aWindowPalette;
++        console.warn(`CustomizableUI: palette was null — re-grabbed from template, ${aWindowPalette.childElementCount} widgets, win=${win.document.documentURI}`);
++      }
++      if (!aWindowPalette) {
++        return [];
++      }
++    }
+     let window = aWindowPalette.documentGlobal;
+     let isWindowPrivate = lazy.PrivateBrowsingUtils.isWindowPrivate(window);
+     // We use a Set because there can be overlap between the widgets in
+@@ -7261,7 +7278,9 @@ function XULWidgetGroupWrapper(aWidgetId) {
+     if (!instance) {
+       // Toolbar palettes aren't part of the document, so elements in there
+       // won't be found via document.getElementById().
+-      instance = aWindow.gNavToolbox.palette.getElementsByAttribute(
++      // GORILLA OVERRIDE: palette can be null (nightly customize-tab bug);
++      // a missing instance is already handled by callers.
++      instance = aWindow.gNavToolbox.palette?.getElementsByAttribute(
+         "id",
+         aWidgetId
+       )[0];
+diff --git a/browser/components/customizableui/content/panelUI.js b/browser/components/customizableui/content/panelUI.js
+index 3cf7e1e..82ad36f 100644
+--- a/browser/components/customizableui/content/panelUI.js
++++ b/browser/components/customizableui/content/panelUI.js
+@@ -1161,29 +1161,9 @@ const PanelUI = {
+   },
+ 
+   _showAIMenuItem() {
+-    const isAIWindowActive = document.documentElement.hasAttribute("ai-window");
+-    const isBlocked =
+-      (this.AIControlSmartWindow === "default" &&
+-        this.AIControlDefault === "blocked") ||
+-      this.AIControlSmartWindow === "blocked";
+-    const isSmartWindowAvailable = this.isAIWindowEnabled && !isBlocked;
+-    const aiMenuItem = PanelMultiView.getViewNode(
+-      document,
+-      "appMenu-new-ai-window-button"
+-    );
+-    const classicWindowMenuItem = PanelMultiView.getViewNode(
+-      document,
+-      "appMenu-new-classic-window-button"
+-    );
+-    const chatHistoryMenuItem = PanelMultiView.getViewNode(
+-      document,
+-      "appMenu-chats-history-button"
+-    );
+-
+-    aiMenuItem.hidden = !isSmartWindowAvailable || isAIWindowActive;
+-    classicWindowMenuItem.hidden = !isSmartWindowAvailable || !isAIWindowActive;
+-
+-    chatHistoryMenuItem.hidden = !isSmartWindowAvailable || !isAIWindowActive;
++    // GORILLA OVERRIDE: AI Window excised; the app-menu AI/classic/chat
++    // items were removed from appmenu-viewcache.inc.xhtml, so there is
++    // nothing to toggle.
+   },
+ 
+   _showTabGroupsMenuItem() {
+diff --git a/browser/components/places/content/places-commands.js b/browser/components/places/content/places-commands.js
+index 53043c1..d8b2ec8 100644
+--- a/browser/components/places/content/places-commands.js
++++ b/browser/components/places/content/places-commands.js
+@@ -15,11 +15,7 @@ document.getElementById("placesCommands").addEventListener("command", event => {
+       PlacesCommandHook.showPlacesOrganizer("UnfiledBookmarks");
+       break;
+     case "Browser:ShowAllHistory":
+-      if (AIWindow.isAIWindowActive(window)) {
+-        FirefoxViewHandler.openTab("history");
+-      } else {
+-        PlacesCommandHook.showPlacesOrganizer("History");
+-      }
++      PlacesCommandHook.showPlacesOrganizer("History");
+       break;
+ 
+     case "placesCmd_open":
+diff --git a/browser/components/preferences/main.js b/browser/components/preferences/main.js
+index 8ee646f..aa1a093 100644
+--- a/browser/components/preferences/main.js
++++ b/browser/components/preferences/main.js
+@@ -32,7 +32,6 @@ const { DefaultBrowserHelper } = ChromeUtils.importESModule(
+ ChromeUtils.defineESModuleGetters(this, {
+   BackgroundUpdate: "resource://gre/modules/BackgroundUpdate.sys.mjs",
+   UpdateListener: "resource://gre/modules/UpdateListener.sys.mjs",
+-  LinkPreview: "moz-src:///browser/components/genai/LinkPreview.sys.mjs",
+   MigrationUtils: "resource:///modules/MigrationUtils.sys.mjs",
+   TranslationsParent: "resource://gre/actors/TranslationsParent.sys.mjs",
+   TranslationsUtils:
+diff --git a/browser/components/sidebar/sidebar-customize.mjs b/browser/components/sidebar/sidebar-customize.mjs
+index 60c31f4..3cb4893 100644
+--- a/browser/components/sidebar/sidebar-customize.mjs
++++ b/browser/components/sidebar/sidebar-customize.mjs
+@@ -15,8 +15,6 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
+ );
+ 
+ const l10nMap = new Map([
+-  ["viewGenaiChatSidebar", "sidebar-menu-genai-chat-label"],
+-  ["viewGenaiPageAssistSidebar", "sidebar-menu-genai-page-assist-label"],
+   ["viewHistorySidebar", "sidebar-menu-history-label"],
+   ["viewTabsSidebar", "sidebar-menu-synced-tabs-label"],
+   ["viewBookmarksSidebar", "sidebar-menu-bookmarks-label"],
+diff --git a/browser/components/storybook/.storybook/main.js b/browser/components/storybook/.storybook/main.js
+index 8df12b3..3b5f1aa 100644
+--- a/browser/components/storybook/.storybook/main.js
++++ b/browser/components/storybook/.storybook/main.js
+@@ -43,7 +43,6 @@ module.exports = {
+     // WebRTC components stories
+     `${projectRoot}/browser/components/webrtc/content/**/*.stories.mjs`,
+     // AI Window components stories
+-    `${projectRoot}/browser/components/aiwindow/ui/**/*.stories.mjs`,
+     // Multiline editor components stories
+     `${projectRoot}/browser/components/multilineeditor/**/*.stories.@(mjs|md)`,
+     // Trust Panel components stories
+diff --git a/browser/components/tabbrowser/content/tabbrowser.js b/browser/components/tabbrowser/content/tabbrowser.js
+index 0c714b8..e46f953 100644
+--- a/browser/components/tabbrowser/content/tabbrowser.js
++++ b/browser/components/tabbrowser/content/tabbrowser.js
+@@ -14,8 +14,6 @@
+     "about:welcome": "chrome://branding/content/icon32.png",
+     "about:privatebrowsing":
+       "chrome://browser/skin/privatebrowsing/favicon.svg",
+-    "chrome://browser/content/aiwindow/aiWindow.html":
+-      "chrome://browser/skin/smart-window-simplified.svg",
+   };
+ 
+   const {
+@@ -203,8 +201,6 @@
+         OpenInTabsUtils:
+           "moz-src:///browser/components/tabbrowser/OpenInTabsUtils.sys.mjs",
+         PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
+-        SmartTabGroupingManager:
+-          "moz-src:///browser/components/tabbrowser/SmartTabGrouping.sys.mjs",
+         SponsorProtection:
+           "moz-src:///browser/components/newtab/SponsorProtection.sys.mjs",
+         TabMetrics:
+@@ -785,23 +781,6 @@
+           browser
+         );
+ 
+-      if (AIWindow.isAIWindowActive(window)) {
+-        let uriToLoad = gBrowserInit.uriToLoadPromise;
+-        let firstURI = Array.isArray(uriToLoad) ? uriToLoad[0] : uriToLoad;
+-
+-        if (!this._allowTransparentBrowser) {
+-          // firstURI may be a Promise (uriToLoadPromise still resolving while
+-          // SessionStore restores) or empty; only build a URI from a real
+-          // string, otherwise default to transparent like the no-URI case.
+-          browser.toggleAttribute(
+-            "transparent",
+-            !firstURI ||
+-              typeof firstURI != "string" ||
+-              AIWindow.isAIWindowContentPage(Services.io.newURI(firstURI))
+-          );
+-        }
+-      }
+-
+       let uniqueId = this._generateUniquePanelID();
+       let panel = this.getPanel(browser);
+       panel.id = uniqueId;
+@@ -2866,7 +2845,7 @@
+         b.setAttribute("name", name);
+       }
+ 
+-      if (AIWindow.isAIWindowActive(window) || this._allowTransparentBrowser) {
++      if (this._allowTransparentBrowser) {
+         b.setAttribute("transparent", "true");
+       }
+ 
+@@ -9855,14 +9834,6 @@
+           ) {
+             this._browser.originalURI = aRequest.originalURI;
+           }
+-
+-          if (!gBrowser._allowTransparentBrowser) {
+-            this._browser.toggleAttribute(
+-              "transparent",
+-              AIWindow.isAIWindowActive(window) &&
+-                AIWindow.isAIWindowContentPage(aLocation)
+-            );
+-          }
+         }
+ 
+         let userContextId = this._browser.getAttribute("usercontextid") || 0;
+diff --git a/browser/components/urlbar/UrlbarParentController.sys.mjs b/browser/components/urlbar/UrlbarParentController.sys.mjs
+index 2c7fbb5..c71faac 100644
+--- a/browser/components/urlbar/UrlbarParentController.sys.mjs
++++ b/browser/components/urlbar/UrlbarParentController.sys.mjs
+@@ -7,7 +7,6 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+ /**
+  * @import {BrowserSearchTelemetry} from "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs"
+  * @import {ProvidersManager} from "moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs"
+- * @import {SapLocation, SmartbarInput} from "moz-src:///browser/components/urlbar/content/SmartbarInput.mjs"
+  * @import {UrlbarView} from "chrome://browser/content/urlbar/UrlbarView.mjs"
+  * @import {WindowMode} from "moz-src:///browser/components/urlbar/content/UrlbarInput.mjs"
+  */
+diff --git a/browser/components/urlbar/UrlbarProvidersManager.sys.mjs b/browser/components/urlbar/UrlbarProvidersManager.sys.mjs
+index 2dc4e86..181adb2 100644
+--- a/browser/components/urlbar/UrlbarProvidersManager.sys.mjs
++++ b/browser/components/urlbar/UrlbarProvidersManager.sys.mjs
+@@ -81,11 +81,6 @@ var localProviderModules = [
+       "moz-src:///browser/components/urlbar/UrlbarProviderCalculator.sys.mjs",
+     supportedSAPs: ["searchbar", "smartbar", "urlbar"],
+   },
+-  {
+-    name: "UrlbarProviderAiChat",
+-    module: "moz-src:///browser/components/urlbar/UrlbarProviderAiChat.sys.mjs",
+-    supportedSAPs: ["smartbar", "urlbar"],
+-  },
+   {
+     name: "UrlbarProviderClipboard",
+     module:
+diff --git a/browser/components/urlbar/content/UrlbarChildController.mjs b/browser/components/urlbar/content/UrlbarChildController.mjs
+index 44c1606..1761ba8 100644
+--- a/browser/components/urlbar/content/UrlbarChildController.mjs
++++ b/browser/components/urlbar/content/UrlbarChildController.mjs
+@@ -20,7 +20,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
+  * @import {UrlbarInput} from "chrome://browser/content/urlbar/UrlbarInput.mjs"
+  * @import {UrlbarParentController} from "moz-src:///browser/components/urlbar/UrlbarParentController.sys.mjs"
+  * @import {UrlbarView} from "chrome://browser/content/urlbar/UrlbarView.mjs"
+- * @import {SmartbarInput} from "moz-src:///browser/components/urlbar/content/SmartbarInput.mjs"
+  */
+ 
+ /**
+diff --git a/browser/components/urlbar/content/UrlbarView.mjs b/browser/components/urlbar/content/UrlbarView.mjs
+index a4a5796..a2837a3 100644
+--- a/browser/components/urlbar/content/UrlbarView.mjs
++++ b/browser/components/urlbar/content/UrlbarView.mjs
+@@ -311,9 +311,6 @@ export class UrlbarView {
+         if (result.providerName == "UrlbarProviderTabToSearch") {
+           return "tabtosearch";
+         }
+-        if (result.providerName == "UrlbarProviderAiChat") {
+-          return "ai_search_fallback";
+-        }
+         if (result.payload.suggestion) {
+           let type = result.payload.trending ? "trending" : "searchsuggestion";
+           if (result.isRichSuggestion) {
+diff --git a/browser/modules/BrowserWindowTracker.sys.mjs b/browser/modules/BrowserWindowTracker.sys.mjs
+index e1a8f6d..b9cb613 100644
+--- a/browser/modules/BrowserWindowTracker.sys.mjs
++++ b/browser/modules/BrowserWindowTracker.sys.mjs
+@@ -19,8 +19,6 @@ XPCOMUtils.defineLazyServiceGetters(lazy, {
+ });
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   HomePage: "resource:///modules/HomePage.sys.mjs",
+   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+ });
+@@ -344,7 +342,7 @@ export const BrowserWindowTracker = {
+       fission = undefined,
+     } = options;
+ 
+-    args = lazy.AIWindow.handleAIWindowOptions(options);
++    // GORILLA excised: aiwindow removed; args keeps its destructured value (ESR128 behavior).
+ 
+     let windowFeatures = "chrome,dialog=no";
+     if (all) {
+diff --git a/browser/themes/shared/browser-shared.css b/browser/themes/shared/browser-shared.css
+index 1c9a6ca..ab976c5 100644
+--- a/browser/themes/shared/browser-shared.css
++++ b/browser/themes/shared/browser-shared.css
+@@ -11,7 +11,6 @@
+ @import url("chrome://browser/skin/tabbrowser/ctrlTab.css");
+ @import url("chrome://browser/skin/tabbrowser/fullscreen-and-pointerlock.css");
+ @import url("chrome://browser/skin/tabbrowser/tab.tokens.css");
+-@import url("chrome://browser/skin/tabbrowser/tabs-navbar.tokens.css");
+ @import url("chrome://browser/skin/tabbrowser/tabs.css");
+ @import url("chrome://browser/skin/tabbrowser/tab-groups-list.css");
+ @import url("chrome://browser/skin/tabbrowser/tab-hover-preview.css");
+@@ -34,6 +33,7 @@
+ @import url("chrome://browser/skin/customizableui/customizeMode.css");
+ @import url("chrome://browser/skin/UITour.css");
+ @import url("chrome://browser/skin/formautofill-notification.css");
++@import url("chrome://browser/skin/master-redirect.css");
+ 
+ :root,
+ body {
+@@ -81,6 +81,7 @@ body {
+     /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+     min-height: 120px;
+ 
++    /* stylelint-disable-next-line media-query-no-invalid */
+     @media -moz-pref("sidebar.verticalTabs") {
+       /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+       min-width: calc(var(--window-min-width) + var(--window-min-width-increase-for-vertical-tabs));
+@@ -116,34 +117,21 @@ body {
+   /* on macOS the animation of the toolbox in fullscreen needs the toolbox to be higher */
+   --browser-area-z-index-toolbox-while-animating: 4;
+ 
+-  --lwt-additional-images: none;
+-  --lwt-background-tiling: no-repeat;
++  --lwt-additional-images: url("chrome://browser/skin/nebula.jpg");
+   --lwt-background-alignment: right top;
+-  --lwt-background-size: auto;
++  --lwt-background-tiling: repeat-x;
+ 
+-  --toolbox-background-image: none;
+-  --toolbox-background-repeat: no-repeat;
+-  --toolbox-background-position: right top;
++  --toolbox-background-image: var(--lwt-additional-images);
++  --toolbox-background-repeat: var(--lwt-background-tiling);
++  --toolbox-background-position: var(--lwt-background-alignment);
+   --toolbox-background-size: auto;
+ 
+-  @media -moz-pref("browser.nova.enabled") {
+-    --toolbox-background-image: var(--toolbox-background-gradient);
+-  }
+-
+-  &[lwtheme] {
+-    --toolbox-background-image: var(--lwt-additional-images);
+-    --toolbox-background-repeat: var(--lwt-background-tiling);
+-    --toolbox-background-position: var(--lwt-background-alignment);
+-    --toolbox-background-size: var(--lwt-background-size);
+-  }
+-
+   &[lwtheme-image] {
+     /* When a theme defines both theme_frame and additional_backgrounds, show
+        the latter atop the former. */
+     --toolbox-background-image: var(--lwt-header-image), var(--lwt-additional-images);
+     --toolbox-background-repeat: no-repeat, var(--lwt-background-tiling);
+     --toolbox-background-position: right top, var(--lwt-background-alignment);
+-    --toolbox-background-size: auto, var(--lwt-background-size);
+   }
+ 
+   --ext-theme-background-transition: background-color 0.1s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+@@ -171,7 +159,10 @@ body {
+     color: var(--lwt-text-color);
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("browser.nova.enabled") {
++    background-color: var(--background-color-canvas);
++
+     --chrome-window-gap: 4px;
+     --chrome-block-radius: 10px;
+ 
+@@ -239,15 +230,18 @@ body {
+   contain: paint;
+   position: relative;
+ 
+-  background-color: var(--toolbox-background-color);
+-  color: var(--toolbox-text-color);
++  /* stylelint-disable-next-line media-query-no-invalid */
++  @media not -moz-pref("browser.nova.enabled") {
++    background-color: var(--toolbox-background-color);
++    color: var(--toolbox-text-color);
+ 
+-  will-change: background-color;
+-  transition: background-color var(--inactive-window-transition);
++    will-change: background-color;
++    transition: background-color var(--inactive-window-transition);
+ 
+-  &:-moz-window-inactive {
+-    background-color: var(--toolbox-background-color-inactive);
+-    color: var(--toolbox-text-color-inactive);
++    &:-moz-window-inactive {
++      background-color: var(--toolbox-background-color-inactive);
++      color: var(--toolbox-text-color-inactive);
++    }
+   }
+ 
+   :root[customizing] & {
+@@ -282,22 +276,8 @@ body {
+   }
+ }
+ 
+-:root:not([theme-image-in-toolbox]) body,
+-:root[theme-image-in-toolbox] #navigator-toolbox {
+-  background-image: var(--toolbox-background-image);
+-  background-repeat: var(--toolbox-background-repeat);
+-  background-position: var(--toolbox-background-position);
+-  /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-  background-size: var(--toolbox-background-size);
+-}
+-
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("browser.nova.enabled") {
+-  :root[lwtheme]:not([theme-image-in-toolbox]) #navigator-toolbox {
+-    color: inherit;
+-    /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-    background-color: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+-  }
+-
+   .chrome-block {
+     background-color: var(--toolbox-background-color);
+     color: var(--toolbox-text-color);
+@@ -314,11 +294,21 @@ body {
+   }
+ 
+   #navigator-toolbox,
+-  #sidebar-container {
++  #sidebar-main {
+     background-color: var(--toolbar-background-color);
+   }
+ }
+ 
++/* Images go on the body by default, unless they are aligned in the y axis in
++ * which case they go on the toolbox for backwards compatibility */
++:root:not([lwtheme-image-y-align]) body,
++:root[lwtheme-image-y-align] #navigator-toolbox {
++  background-image: var(--toolbox-background-image);
++  background-repeat: var(--toolbox-background-repeat);
++  background-position: var(--toolbox-background-position);
++  background-size: var(--toolbox-background-size);
++}
++
+ .browser-toolbar {
+   appearance: none;
+   /* Reset linux padding */
+@@ -327,6 +317,7 @@ body {
+   background-color: transparent;
+   color: inherit;
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("sidebar.verticalTabs") {
+     &:not(.browser-titlebar) {
+       background-color: var(--toolbar-background-color);
+@@ -412,6 +403,7 @@ body {
+     }
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("sidebar.verticalTabs") {
+     :root:not([taskbartab]) &:is([type="pre-tabs"], [type="post-tabs"]) {
+       display: none;
+@@ -537,6 +529,7 @@ body {
+   /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+   min-width: 20px;
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("sidebar.verticalTabs") {
+     display: none;
+   }
+@@ -560,15 +553,6 @@ body {
+   min-height: 0;
+   padding-inline: var(--space-small);
+ 
+-  @media -moz-pref("browser.nova.enabled") {
+-    :root:not([lwtheme]) & {
+-      /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-      border-top: 1px solid var(--chrome-content-separator-color);
+-      background-color: var(--toolbar-background-color);
+-      color: var(--toolbar-text-color);
+-    }
+-  }
+-
+   :root[uidensity="compact"] & {
+     padding-inline: var(--space-xxsmall);
+   }
+@@ -723,7 +707,7 @@ menupopup::part(drop-indicator) {
+ 
+   :root[lwtheme] & {
+     background-color: var(--lwt-accent-color); /* Known opaque */
+-    background-image: image(var(--toolbar-background-color)), var(--toolbox-background-image);
++    background-image: linear-gradient(var(--toolbar-background-color)), var(--toolbox-background-image);
+     background-repeat: no-repeat, var(--toolbox-background-repeat);
+     /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+     background-position:
+@@ -783,6 +767,14 @@ menupopup::part(drop-indicator) {
+   z-index: var(--browser-stack-z-index-screenshots-panel); /* Above the web content in this stack. */
+ }
+ 
++/* Override theme colors since the picker uses extra colors that
++   themes cannot set */
++#DateTimePickerPanel {
++  color-scheme: env(-moz-content-preferred-color-scheme);
++  --panel-background-color: Field;
++  --panel-text-color: FieldText;
++}
++
+ #widget-overflow .webextension-popup-browser {
+   background: white;
+ 
+@@ -929,15 +921,17 @@ menupopup::part(drop-indicator) {
+   }
+ 
+   &[data-notification-bucket="CFR_MILESTONE_MESSAGE"] {
+-    display: flex;
+-    flex-direction: row;
+-    align-items: center;
+-    background: radial-gradient(circle farthest-side at top right, var(--short-notification-gradient), var(--short-notification-background));
+-    width: unset;
+-    /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-    max-width: 700px;
+-    overflow-wrap: break-word;
+-    padding: var(--space-xsmall);
++    &:not([hidden]) {
++      display: flex;
++      flex-direction: row;
++      align-items: center;
++      background: radial-gradient(circle farthest-side at top right, var(--short-notification-gradient), var(--short-notification-background));
++      width: unset;
++      /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
++      max-width: 700px;
++      overflow-wrap: break-word;
++      padding: var(--space-xsmall);
++    }
+ 
+     &:-moz-locale-dir(rtl) {
+       background: radial-gradient(circle farthest-side at top left, var(--short-notification-gradient), var(--short-notification-background));
+@@ -1273,7 +1267,40 @@ popupnotificationcontent {
+   -moz-context-properties: fill;
+   /* Variables defined in browser-colors.css will be updated to use design tokens, see bug 1952566. */
+   /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-  fill: var(--input-text-color);
++  fill: var(--input-color, -moz-DialogText);
++}
++
++.ac-has-end-icon {
++  text-overflow: ellipsis;
++  overflow: hidden;
++}
++
++.popup-notification-body input.ac-has-end-icon {
++  --input-padding-from-arrow-side: calc(2 * var(--space-small) + var(--icon-size)); /* spacing on either side + arrow element width */
++  padding-inline-end: var(--input-padding-from-arrow-side);
++}
++
++/* Avoid overlapping the text on the arrow icon when switching input text direction */
++.popup-notification-body:-moz-locale-dir(rtl) input.ac-has-end-icon:dir(ltr) {
++  padding-left: var(--input-padding-from-arrow-side);
++  padding-right: var(--space-small);
++}
++.popup-notification-body:-moz-locale-dir(ltr) input.ac-has-end-icon:dir(rtl) {
++  padding-right: var(--input-padding-from-arrow-side);
++  padding-left: var(--space-small);
++}
++
++.password-notification-label {
++  margin-block-start: var(--space-large);
++
++  /**
++   * There's already a margin-block-start of 8px on popupnotificationcontent,
++   * so the first label only needs 8px of margin-block-start to match the
++   * spec.
++   */
++  &:first-of-type {
++    margin-block-start: var(--space-small);
++  }
+ }
+ 
+ #tab-notification-deck {
+@@ -1351,37 +1378,10 @@ popupnotificationcontent {
+ 
+     > span:first-child {
+       margin-inline-end: var(--space-xlarge);
+-      overflow: hidden;
+-      text-overflow: ellipsis;
+-      white-space: nowrap;
+-      min-width: 0;
+-      flex: 1;
+     }
+ 
+     > span:last-child {
+       opacity: var(--opacity-deemphasized-strong);
+-      flex-shrink: 0;
+-    }
+-  }
+-}
+-
+-@media -moz-pref("browser.nova.enabled") {
+-  .reusable-relay-masks {
+-    gap: var(--space-small);
+-
+-    > button {
+-      padding: var(--space-xsmall) var(--space-medium);
+-      margin: 0;
+-      align-items: center;
+-      min-height: var(--size-item-large);
+-      border-radius: var(--border-radius-circle);
+-      border: 1px solid var(--border-color-deemphasized);
+-      background-color: transparent;
+-
+-      &:hover {
+-        background-color: var(--button-background-color-hover);
+-        border-color: var(--border-color-selected);
+-      }
+     }
+   }
+ }
+@@ -1509,9 +1509,9 @@ popupnotificationcontent {
+ 
+ /* AI Window Toggle Button */
+ #ai-window-toggle {
+-  list-style-image: url("chrome://branding/content/about-logo.svg");
++  list-style-image: url("chrome://branding/content/icon32.png");
+   border-radius: var(--border-radius-medium);
+-  padding-inline-end: var(--toolbarbutton-padding-inner);
++  padding-inline-end: var(--space-small);
+ 
+   /* Toggle button should only have padding-inline-end if #PanelUI-button both visible and rendered next to it */
+   :root:not([aiwindow-first-run]) &:has(+ #PanelUI-button) {
+@@ -1519,26 +1519,23 @@ popupnotificationcontent {
+   }
+ 
+   > .toolbarbutton-icon {
+-    padding: var(--toolbarbutton-padding-inner);
++    padding: var(--space-small);
+ 
++    /* stylelint-disable-next-line media-query-no-invalid */
+     @media not -moz-pref("browser.nova.enabled") {
+       /* The design system does not have any inset box-shadow tokens. */
+       /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+       box-shadow: 0 0 16px 4px var(--box-shadow-color-darker-layer-1) inset;
+     }
+ 
++    /* stylelint-disable-next-line media-query-no-invalid */
+     @media -moz-pref("browser.nova.enabled") {
+-      /* set default color for HCM */
+-      --smart-window-toolbarbutton-color: var(--border-color-interactive-hover);
++      --smart-window-toolbarbutton-color: color-mix(in srgb, var(--color-violet-desaturated-50) 15%, transparent);
++      /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
++      border: var(--border-width) solid var(--smart-window-toolbarbutton-color);
+       --toolbarbutton-background-color-hover: var(--background-color-box);
+       --toolbarbutton-background-color-active: var(--background-color-box);
+       --toolbarbutton-outline-color: var(--smart-window-toolbarbutton-color);
+-      /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-      border: var(--border-width) solid var(--smart-window-toolbarbutton-color);
+-
+-      @media not (forced-colors) {
+-        --smart-window-toolbarbutton-color: color-mix(in srgb, var(--color-violet-desaturated-50) 15%, transparent);
+-      }
+     }
+   }
+ 
+@@ -1546,7 +1543,13 @@ popupnotificationcontent {
+   :root[ai-window] & {
+     list-style-image: url("chrome://browser/skin/smart-window-simplified.svg");
+ 
++    /* stylelint-disable-next-line media-query-no-invalid */
++    @media -moz-pref("browser.nova.enabled") {
++      list-style-image: url("chrome://browser/skin/smart-window-nova.svg");
++    }
++
+     > .toolbarbutton-icon {
++      /* stylelint-disable-next-line media-query-no-invalid */
+       @media not -moz-pref("browser.nova.enabled") {
+         /* Smart Window icon has additional 2px padding per side, to be slightly smaller than Classic Window icon when used in Switcher */
+         padding: var(--toolbarbutton-padding-inner);
+@@ -1555,22 +1558,17 @@ popupnotificationcontent {
+         box-shadow: 0 0 16px 4px var(--smartwindow-toggle-shadow-color) inset;
+       }
+ 
+-      @media (not (forced-colors)) and -moz-pref("browser.nova.enabled") {
+-        /* The design system does not have any outline width tokens. */
+-        /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-        outline-width: var(--toolbarbutton-padding-inner-compact);
+-      }
+-
++      /* stylelint-disable-next-line media-query-no-invalid */
+       @media -moz-pref("browser.nova.enabled") {
+         /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+         box-shadow: 0 0 16px 4px var(--background-color-box) inset;
++        /* The design system does not have any outline width tokens. */
++        /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
++        outline-width: var(--toolbarbutton-padding-inner-compact);
+         --toolbarbutton-background-color-hover: var(--background-color-box);
+         --toolbarbutton-background-color-active: var(--background-color-box);
+         --toolbarbutton-outline-color-hover: var(--smart-window-toolbarbutton-color);
+-        --toolbarbutton-outline-color-active: light-dark(
+-          color-mix(in srgb, var(--color-violet-desaturated-50) 30%, transparent),
+-          var(--color-violet-desaturated-50)
+-        );
++        --toolbarbutton-outline-color-active: var(--smart-window-toolbarbutton-color);
+         --toolbarbutton-outline-color-selected: var(--smart-window-toolbarbutton-color);
+       }
+     }
+@@ -1579,14 +1577,9 @@ popupnotificationcontent {
+ 
+ #ai-window-switch-classic,
+ #ai-window-switch-ai {
+-  --button-background-color-ghost-active: light-dark(
+-    color-mix(in srgb, var(--color-violet-desaturated-60) 30%, transparent),
+-    color-mix(in srgb, var(--color-violet-desaturated-40) 36%, transparent)
+-  );
+-  --button-background-color-ghost-hover: light-dark(
+-    color-mix(in srgb, var(--color-violet-desaturated-60) 16%, transparent),
+-    color-mix(in srgb, var(--color-violet-desaturated-40) 24%, transparent)
+-  );
++  &:hover {
++    background-color: var(--button-background-color-ghost-hover);
++  }
+ 
+   .toolbarbutton-icon {
+     margin-inline-end: var(--space-small);
+@@ -1607,24 +1600,30 @@ popupnotificationcontent {
+     margin-inline-start: auto;
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.nova.enabled") {
+     .ai-window-switch-description {
+       display: none;
+     }
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("browser.nova.enabled") {
+     /* TODO: replace with token when available - Bug 2033070 */
+     /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+-    border-radius: 12px;
++    border-radius: 24px;
++
++    &[checked] {
++      background-color: var(--button-background-color-active);
++    }
+ 
+     #ai-window-switch-ai-badge {
+       display: none;
+     }
+ 
+     .toolbarbutton-icon {
+-      width: var(--icon-size-large);
+-      height: var(--icon-size-large);
++      width: 200px;
++      height: 200px;
+     }
+ 
+     .toolbarbutton-text {
+@@ -1640,7 +1639,7 @@ popupnotificationcontent {
+ }
+ 
+ #ai-window-switch-classic {
+-  list-style-image: url("chrome://branding/content/about-logo.svg");
++  list-style-image: url("chrome://branding/content/icon32.png");
+ 
+   :root[ai-window] &::after {
+     display: none;
+@@ -1654,6 +1653,7 @@ popupnotificationcontent {
+     display: none;
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.nova.enabled") {
+     & > .toolbarbutton-icon {
+       /* Smart Window icon has additional 0.125rem padding per side, to be slightly smaller than Classic Window icon when used in Switcher */
+@@ -1670,9 +1670,8 @@ popupnotificationcontent {
+   margin-inline-start: auto;
+ }
+ 
+-/* AI window: hide nav bar on new window or firstrun */
+-:root[ai-window][aiwindow-new-window],
+-:root[ai-window][aiwindow-first-run] {
++/* AI window immersive view (hidden nav bar and buttons) */
++:root[ai-window][aiwindow-immersive-view] {
+   #nav-bar:not(.browser-titlebar) {
+     height: 0;
+     min-height: 0;
+@@ -1681,46 +1680,50 @@ popupnotificationcontent {
+ 
+   #urlbar-container,
+   #nav-bar-customization-target > *:not(#sidebar-button),
+-  #nav-bar-overflow-button {
++  #nav-bar-overflow-button,
++  #smartwindow-ask-button {
+     visibility: hidden;
+   }
+-}
+ 
+-/* Show back/forward buttons when navigating back to the Smart Window from a page */
+-:root[ai-window][aiwindow-new-window][aiwindow-has-nav-forward] {
+-  #nav-bar:not(.browser-titlebar) {
+-    height: unset;
+-    min-height: unset;
+-    visibility: visible;
+-  }
++  /* Show back/forward buttons when navigating back to the Smart Window from a page */
++  &[aiwindow-has-nav-forward] {
++    #nav-bar:not(.browser-titlebar) {
++      height: unset;
++      min-height: unset;
++      visibility: visible;
++    }
+ 
+-  #nav-bar-customization-target > #back-button,
+-  #nav-bar-customization-target > #forward-button {
+-    visibility: visible;
+-    -moz-user-focus: normal;
+-  }
+-}
++    #sidebar-button {
++      display: none;
++    }
+ 
+-/* immersive view styles exclusive for first run (nav-bar/urlbar hiding is
+-   shared with new-window above) */
+-:root[ai-window][aiwindow-first-run] {
+-  #sidebar-button,
+-  #PanelUI-button {
+-    display: none;
++    #nav-bar-customization-target > #back-button,
++    #nav-bar-customization-target > #forward-button {
++      visibility: visible;
++      -moz-user-focus: normal;
++    }
+   }
+ 
+-  #TabsToolbar > .toolbar-items {
+-    /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens -- to be addressed in 2033919 */
+-    opacity: 0.2;
+-    pointer-events: none;
+-  }
++  /* immersive view styles exclusive for first run */
++  &[aiwindow-first-run] {
++    #PanelUI-button {
++      display: none;
++    }
+ 
+-  @media -moz-pref("sidebar.verticalTabs") {
+-    #sidebar-container {
++    #TabsToolbar > .toolbar-items {
+       /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens -- to be addressed in 2033919 */
+       opacity: 0.2;
+       pointer-events: none;
+     }
++
++    /* stylelint-disable-next-line media-query-no-invalid */
++    @media -moz-pref("sidebar.verticalTabs") {
++      #sidebar-main {
++        /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens -- to be addressed in 2033919 */
++        opacity: 0.2;
++        pointer-events: none;
++      }
++    }
+   }
+ }
+ 
+diff --git a/browser/themes/shared/urlbar-searchbar.css b/browser/themes/shared/urlbar-searchbar.css
+index ec70cc2..f602322 100644
+--- a/browser/themes/shared/urlbar-searchbar.css
++++ b/browser/themes/shared/urlbar-searchbar.css
+@@ -8,20 +8,12 @@
+ :root {
+   --urlbar-container-min-width: 310px;
+ 
+-  --urlbar-basic-component-size: calc(var(--urlbar-min-height) - 2 * var(--urlbar-input-container-padding));
+-  --urlbar-icon-padding: calc((var(--urlbar-basic-component-size) - 16px) / 2);
+-
+   /* Usually we wouldn't need snapping border widths manually, but we use this
+    * for other layout calculations too */
+-  --urlbar-input-container-border-width: max(env(hairline), round(down, 1px, env(hairline)));
+-  --urlbar-input-container-border-width-breakout: calc(2 * var(--urlbar-input-container-border-width));
+-  --urlbar-input-container-padding: round(nearest, var(--space-xxsmall) + var(--urlbar-input-container-border-width-breakout), 1px);
++  --urlbar-container-border-width: max(env(hairline), round(down, 1px, env(hairline)));
++  --urlbar-container-padding: round(up, 1px, env(hairline));
++  --urlbar-container-inset: calc(var(--urlbar-container-border-width) + var(--urlbar-container-padding));
+ 
+-  @media not -moz-pref("browser.nova.enabled") {
+-    --urlbar-basic-component-size: calc(var(--urlbar-min-height) - 2 * (var(--urlbar-input-container-border-width) + var(--urlbar-input-container-padding)));
+-    --urlbar-icon-padding: calc((var(--urlbar-min-height) - 2px /* border */ - 2px /* padding */ - 16px /* icon */) / 2);
+-    --urlbar-input-container-padding: round(up, 1px, env(hairline));
+-  }
+   @media (max-width: 770px) {
+     --urlbar-container-min-width: 240px;
+   }
+@@ -39,6 +31,7 @@
+      Vertical tab mode is more size-constrained due to window controls being in
+      the nav bar, so we use the smaller not-yet-default value as if the trust
+      panel was enabled. */
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("sidebar.verticalTabs") or -moz-pref("browser.urlbar.trustPanel.featureGate") {
+     --urlbar-container-min-width: 275px;
+     @media (max-width: 770px) {
+@@ -60,42 +53,37 @@
+     --chrome-box-shadow: rgba(152, 113, 255, 0.15);
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.nova.enabled") {
+     --chrome-box-shadow: rgba(0, 0, 0, 0.13);
+   }
+ }
+ 
+ /* Variables that make it easier to support both Nova and Proton. These can
+-   optionally be replaced with inline definitions when Proton is removed. */
++   optionally be removed when Proton is removed. */
+ .urlbar,
+ #searchbar {
+-  --urlbar-background-border: var(--urlbar-input-container-border-width) solid transparent;
+-  --urlbar-background-border-breakout: var(--urlbar-input-container-border-width) solid transparent;
++  --urlbar-background-background-color: var(--toolbar-field-background-color);
++  --urlbar-background-background-color-focused: var(--toolbar-field-background-color-focus);
++  --urlbar-background-border: none;
++  --urlbar-background-border-breakout: none;
+   --urlbar-background-border-radius: var(--urlbarview-border-radius);
+-  --urlbar-background-border-top-radius-breakout-compact: min(var(--urlbar-background-border-radius), calc(var(--urlbar-min-height) / 2));
+   --urlbar-background-box-shadow-breakout: 0 0 14px 0 var(--chrome-box-shadow);
+-  --urlbar-background-box-shadow-breakout-compact: none;
+-  --urlbar-background-inset-breakout: calc(var(--urlbar-min-height) / 2 - var(--urlbarview-border-radius));
+-  --urlbar-background-inset-breakout-compact: 0;
+   --urlbar-background-outline-focused: none;
+-  --urlbar-input-container-border: var(--urlbar-input-container-border-width) solid var(--toolbar-field-border-color);
+-  --urlbar-margin-block-start-breakout: calc((var(--urlbar-container-height) - var(--urlbar-height)) / 2);
++  --urlbar-input-container-border: var(--urlbar-container-border-width) solid var(--toolbar-field-border-color);
+   --urlbar-searchmode-switcher-panel-list-min-width: 17em;
+   --urlbar-selection-border-radius: var(--border-radius-xsmall);
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.nova.enabled") {
+-    --urlbar-background-border: var(--urlbar-input-container-border-width) solid var(--toolbar-field-border-color);
+-    --urlbar-background-border-breakout: var(--urlbar-input-container-border-width) solid var(--panel-border-color);
+-    --urlbar-background-border-top-radius-breakout-compact: var(--urlbar-background-border-radius);
++    --urlbar-background-border: var(--urlbar-container-border-width) solid var(--toolbar-field-border-color);
++    --urlbar-background-border-breakout: var(--urlbar-container-border-width) solid var(--panel-border-color);
+     --urlbar-background-box-shadow-breakout: 0 2px 14px var(--chrome-box-shadow);
+-    --urlbar-background-box-shadow-breakout-compact: var(--urlbar-background-box-shadow-breakout);
+-    --urlbar-background-inset-breakout: 0;
+     /* We want the focus outline with the theme's border-color when focused.
+        --toolbar-field-border-color-focus is set equal to --focus-outline-color
+        on :root, but LWT themes can override this value. */
+     --urlbar-background-outline-focused: var(--focus-outline-width) solid var(--toolbar-field-border-color-focus);
+-    --urlbar-input-container-border: var(--urlbar-input-container-border-width) solid transparent;
+-    --urlbar-margin-block-start-breakout: 0px;
++    --urlbar-input-container-border: var(--urlbar-container-border-width) solid transparent;
+     --urlbar-searchmode-switcher-panel-list-min-width: auto;
+     --urlbar-selection-border-radius: 0;
+   }
+@@ -124,8 +112,9 @@ toolbar[inactive="true"] .urlbar,
+ 
+ /* When rich suggestions are enabled the urlbar identity icon is given extra padding to
+  * align the results and urlbar text */
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("browser.urlbar.richSuggestions.featureGate") {
+-  #urlbar[pageproxystate="invalid"]:not([persistsearchterms]) > .identity-box-button {
++  #identity-box[pageproxystate="invalid"] > .identity-box-button {
+     padding-inline: calc(6px + var(--urlbar-icon-padding));
+   }
+ }
+@@ -168,10 +157,6 @@ toolbar[inactive="true"] .urlbar,
+     position: absolute;
+     height: var(--urlbar-height);
+     width: var(--urlbar-width);
+-
+-    &[breakout-extend] {
+-      margin-block-start: var(--urlbar-margin-block-start-breakout);
+-    }
+   }
+ }
+ 
+@@ -211,13 +196,13 @@ toolbar[inactive="true"] .urlbar,
+   display: block;
+   position: absolute;
+   inset: 0;
+-  background-color: var(--urlbar-background-color);
++  background-color: var(--urlbar-background-background-color);
+   background-clip: border-box;
+   border-radius: var(--urlbar-background-border-radius);
+   border: var(--urlbar-background-border);
+ 
+   .urlbar:is([focused], [open]) > & {
+-    background-color: var(--urlbar-background-color-focus);
++    background-color: var(--urlbar-background-background-color-focused);
+   }
+ 
+   .urlbar[focused]:not([suppress-focus-border]) > & {
+@@ -228,20 +213,6 @@ toolbar[inactive="true"] .urlbar,
+   .urlbar[breakout-extend] > & {
+     border: var(--urlbar-background-border-breakout);
+     box-shadow: var(--urlbar-background-box-shadow-breakout);
+-    inset: var(--urlbar-background-inset-breakout);
+-  }
+-
+-  :root[uidensity="compact"] .urlbar[breakout-extend] > & {
+-    inset: var(--urlbar-background-inset-breakout-compact);
+-
+-    .urlbar:not([open]) > & {
+-      box-shadow: var(--urlbar-background-box-shadow-breakout-compact);
+-    }
+-
+-    .urlbar[open]:not([noresults]) > & {
+-      border-top-left-radius: var(--urlbar-background-border-top-radius-breakout-compact);
+-      border-top-right-radius: var(--urlbar-background-border-top-radius-breakout-compact);
+-    }
+   }
+ 
+   .urlbar[open] > & {
+@@ -257,12 +228,12 @@ toolbar[inactive="true"] .urlbar,
+ }
+ 
+ .urlbar-input-container {
+-  padding: var(--urlbar-input-container-padding);
++  padding: var(--urlbar-container-padding);
+   min-width: 0;
+   display: flex;
+-  align-items: center;
+   flex: 1;
+   box-sizing: border-box;
++  border: var(--urlbar-input-container-border);
+   border-radius: var(--urlbar-border-radius);
+   overflow: clip;
+ 
+@@ -270,10 +241,6 @@ toolbar[inactive="true"] .urlbar,
+     width: 100%;
+     height: 100%;
+   }
+-
+-  > .urlbar-input-box {
+-    margin-inline: var(--urlbar-input-gap);
+-  }
+ }
+ 
+ .urlbar:not([open]) > .urlbarView,
+@@ -282,34 +249,14 @@ toolbar[inactive="true"] .urlbar,
+ }
+ 
+ #searchbar {
+-  background-color: var(--urlbar-background-color);
++  background-color: var(--urlbar-background-background-color);
+   background-clip: border-box;
++  border: var(--urlbar-input-container-border);
+   border-radius: var(--urlbar-border-radius);
+-  outline: var(--urlbar-input-container-border);
+-  outline-offset: calc(-1 * var(--urlbar-input-container-border-width));
+   overflow: clip;
+ 
+   &:focus-within {
+-    background-color: var(--urlbar-background-color-focus);
+-    outline-color: var(--focus-outline-color);
+-    outline-width: var(--urlbar-input-container-border-width-breakout);
+-    outline-offset: calc(-1 * var(--urlbar-input-container-border-width-breakout));
+-  }
+-
+-  @media not -moz-pref("browser.nova.enabled") {
+-    outline: none;
+-    border: var(--urlbar-input-container-border);
+-
+-    &:focus-within {
+-      outline: var(--focus-outline);
+-
+-      /* We used --focus-outline above to inherit its width and style properties,
+-         but we still want to use the theme's border-color.
+-         --toolbar-field-border-color-focus is set equal to --focus-outline-color
+-         on :root, but LWT themes can override this value. */
+-      outline-color: var(--toolbar-field-border-color-focus);
+-      border-color: transparent;
+-    }
++    background-color: var(--urlbar-background-background-color-focused);
+   }
+ }
+ 
+@@ -326,11 +273,6 @@ toolbar[inactive="true"] .urlbar,
+   outline: none;
+ }
+ 
+-.urlbar-input::selection {
+-  /* urlbar and searchbar */
+-  border-radius: var(--urlbar-selection-border-radius);
+-}
+-
+ #urlbar-input {
+   mask-repeat: no-repeat;
+   unicode-bidi: plaintext;
+@@ -371,6 +313,10 @@ toolbar[inactive="true"] .urlbar,
+   .urlbar:not([focused])[textoverflow="left"][domaindir="rtl"] > .urlbar-input-container > .urlbar-input-box > & {
+     mask-image: linear-gradient(to right, transparent var(--urlbar-scheme-size), black calc(var(--urlbar-scheme-size) + 3ch));
+   }
++
++  &::selection {
++    border-radius: var(--urlbar-selection-border-radius);
++  }
+ }
+ 
+ #urlbar-scheme {
+@@ -387,41 +333,71 @@ toolbar[inactive="true"] .urlbar,
+   }
+ }
+ 
++#searchbar:focus-within {
++  outline: var(--focus-outline);
++
++  /* We used --focus-outline above to inherit its width and style properties,
++     but we still want to use the theme's border-color.
++     --toolbar-field-border-color-focus is set equal to --focus-outline-color
++     on :root, but LWT themes can override this value. */
++  outline-color: var(--toolbar-field-border-color-focus);
++  border-color: transparent;
++}
++
+ .urlbar:is([focused], [open]),
+ #searchbar:focus-within {
+   color: var(--toolbar-field-text-color-focus);
+ }
+ 
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("browser.nova.enabled") {
+-  .urlbar:not(moz-smartbar) {
+-    > .urlbar-input-container {
+-      outline: var(--urlbar-input-container-border);
+-      outline-offset: calc(-1 * var(--urlbar-input-container-border-width));
+-    }
++  .urlbar:not(moz-smartbar)[breakout] {
++    --urlbar-input-container-top: calc((var(--urlbar-container-height) - var(--urlbar-height)) / 2);
++    --urlbar-background-inset: calc(var(--urlbar-height) / 2 - var(--border-radius-xxlarge));
++    --urlbar-container-border-width-breakout: calc(2 * var(--urlbar-container-border-width));
+ 
+-    &[breakout] > .urlbar-input-container {
++    > .urlbar-input-container {
+       height: var(--urlbar-height);
++      margin-block-start: var(--urlbar-input-container-top);
++      padding: calc(var(--urlbar-container-border-width-breakout) - var(--urlbar-container-border-width));
+     }
+ 
+-    &[breakout][breakout-extend] {
++    &[breakout-extend] {
+       height: auto;
+     }
+ 
+-    &[focused] > .urlbar-input-container,
+-    &[breakout][breakout-extend] > .urlbar-input-container {
+-      outline-width: var(--urlbar-input-container-border-width-breakout);
+-      outline-offset: calc(-1 * var(--urlbar-input-container-border-width-breakout));
++    &[breakout-extend] > .urlbar-input-container {
++      padding: 0;
++      border-width: var(--urlbar-container-border-width-breakout);
+     }
+ 
+-    &[focused] > .urlbar-input-container {
+-      outline-color: var(--focus-outline-color);
++    &[breakout-extend][focused] > .urlbar-input-container {
++      border-color: var(--focus-outline-color);
++    }
++
++    &[breakout-extend] > .urlbar-background {
++      inset-inline: var(--urlbar-background-inset);
++      inset-block-start: calc(var(--urlbar-background-inset) + var(--urlbar-input-container-top));
++      inset-block-end: var(--urlbar-background-inset);
++    }
++
++    &[breakout-extend][open] > .urlbar-background {
++      /* Rely on the height of urlbar, but compensate for the row's transparent
++         border (gutter). */
++      inset-block-end: var(--urlbarView-row-gutter);
+     }
+   }
+ }
+ 
+ .urlbar-input::placeholder,
+ .searchbar-textbox::placeholder {
+-  opacity: 0.69;
++  opacity: 1 !important;
++  color: #00FFFF !important;
++}
++
++:root {
++  --content-search-handoff-ui-fill: #00FFFF !important;
++  --content-search-handoff-ui-color: #00FFFF !important;
+ }
+ 
+ #TabsToolbar #searchbar:not(:focus-within) {
+@@ -459,6 +435,7 @@ toolbar[inactive="true"] .urlbar,
+   position: relative;
+ }
+ 
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media not -moz-pref("browser.nova.enabled") {
+   @keyframes urlbar-grow {
+     0% {
+@@ -469,10 +446,6 @@ toolbar[inactive="true"] .urlbar,
+     }
+   }
+ 
+-  .urlbar-input-container {
+-    border: var(--urlbar-input-container-border);
+-  }
+-
+   .urlbar[breakout][breakout-extend] {
+     height: auto;
+     margin-left: calc(-1 * var(--urlbar-margin-inline));
+@@ -480,8 +453,8 @@ toolbar[inactive="true"] .urlbar,
+ 
+     > .urlbar-input-container {
+       height: var(--urlbar-container-height);
+-      padding-block: calc((var(--urlbar-container-height) - var(--urlbar-height)) / 2 + var(--urlbar-input-container-padding));
+-      padding-inline: calc(var(--urlbar-margin-inline) + var(--urlbar-input-container-padding));
++      padding-block: calc((var(--urlbar-container-height) - var(--urlbar-height)) / 2 + var(--urlbar-container-padding));
++      padding-inline: calc(var(--urlbar-margin-inline) + var(--urlbar-container-padding));
+     }
+ 
+     > .urlbar-background {
+@@ -626,9 +599,9 @@ toolbar[inactive="true"] .urlbar,
+ /* Urlbar search mode indicator */
+ #urlbar-search-mode-indicator {
+   display: none;
+-  height: var(--urlbar-basic-component-size);
+   background-color: var(--urlbar-box-background-color);
+   color: var(--urlbar-box-text-color);
++  margin-inline-end: 8px;
+   align-items: center;
+   border-radius: var(--urlbar-inner-border-radius);
+   padding-inline: 8px 6px;
+@@ -724,6 +697,7 @@ toolbar[inactive="true"] .urlbar,
+  * their SVG icons instead, see Bug 2001318 for additional context).
+  *
+  */
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("extensions.webextensions.pageActionIconDarkModeFilter.enabled") {
+   .urlbar-addon-page-action[style*=".svg"] > .urlbar-icon {
+     :root[lwt-toolbar-field="dark"] #urlbar:not([focused]) &,
+@@ -753,19 +727,17 @@ toolbar[inactive="true"] .urlbar,
+   fill-opacity: var(--urlbar-icon-fill-opacity);
+ }
+ 
+-#urlbar-revert-button-container,
+ .urlbar-page-action,
++.urlbar-revert-button,
+ .urlbar-go-button,
+-.search-go-button,
+-.urlbar-input::-moz-search-clear-button {
+-  width: var(--urlbar-basic-component-size);
+-  height: var(--urlbar-basic-component-size);
++.search-go-button {
++  width: calc(var(--urlbar-min-height) - 2 * var(--urlbar-container-inset));
++  height: calc(var(--urlbar-min-height) - 2 * var(--urlbar-container-inset));
+   border-radius: var(--urlbar-inner-border-radius);
++  padding: var(--urlbar-icon-padding);
+   color: inherit;
+   outline: var(--toolbarbutton-outline);
+   outline-offset: var(--toolbarbutton-outline-offset);
+-  align-items: center;
+-  justify-content: center;
+ 
+   &:not([disabled]):hover {
+     background-color: var(--urlbar-box-background-color-hover);
+@@ -781,23 +753,6 @@ toolbar[inactive="true"] .urlbar,
+   }
+ }
+ 
+-.urlbar-input::-moz-search-clear-button {
+-  /* Overrides forms.css */
+-  padding: 0;
+-}
+-
+-.urlbar-input::-moz-search-clear-button:hover {
+-  background-color: var(--urlbar-box-background-color-hover);
+-  color: var(--urlbar-box-text-color-hover);
+-  outline-color: var(--toolbarbutton-outline-color-hover);
+-}
+-
+-.urlbar-input::-moz-search-clear-button:hover:active {
+-  background-color: var(--urlbar-box-background-color-active);
+-  color: var(--urlbar-box-text-color-hover);
+-  outline-color: var(--toolbarbutton-outline-color-active);
+-}
+-
+ .urlbar-page-action {
+   list-style-image: var(--pageAction-image, inherit);
+ 
+@@ -819,7 +774,6 @@ toolbar[inactive="true"] .urlbar,
+ 
+ .urlbar-go-button,
+ .search-go-button {
+-  padding: var(--urlbar-icon-padding);
+   &:-moz-locale-dir(rtl) {
+     transform: scaleX(-1);
+   }
+@@ -839,10 +793,7 @@ toolbar[inactive="true"] .urlbar,
+ :root[remotecontrol] {
+   #remote-control-box {
+     visibility: visible;
+-    width: var(--urlbar-basic-component-size);
+-    height: var(--urlbar-basic-component-size);
+-    align-items: center;
+-    justify-content: center;
++    padding-inline: var(--urlbar-icon-padding);
+   }
+ 
+   #remote-control-icon {
+@@ -901,6 +852,7 @@ toolbar[inactive="true"] .urlbar,
+ 
+     #cfr-button {
+       list-style-image: var(--cfr-button-features-icon);
++      height: auto;
+       align-items: center;
+     }
+   }
+@@ -910,6 +862,7 @@ toolbar[inactive="true"] .urlbar,
+ 
+     #cfr-button {
+       list-style-image: var(--cfr-button-highlights-icon);
++      height: auto;
+       align-items: center;
+     }
+   }
+@@ -967,6 +920,7 @@ toolbar[inactive="true"] .urlbar,
+   transition-timing-function: ease-in-out, ease-in-out, step-end, step-end;
+   transition-duration: var(--cfr-animation-duration);
+   align-items: center;
++  margin-block: calc((var(--urlbar-min-height) - 24px) / 2 - var(--urlbar-container-inset));
+ 
+   &:-moz-locale-dir(rtl) {
+     mask-position-x: calc(var(--cfr-label-width) * -1);
+@@ -1086,7 +1040,6 @@ toolbar[inactive="true"] .urlbar,
+   #translations-button[translationsactive] > & {
+     fill: var(--toolbarbutton-icon-fill-attention);
+     fill-opacity: 1;
+-    margin-inline: var(--space-small);
+   }
+ }
+ 
+@@ -1096,7 +1049,7 @@ toolbar[inactive="true"] .urlbar,
+   list-style-image: url("chrome://global/skin/icons/loading.svg");
+   fill: var(--toolbarbutton-icon-fill-attention);
+   fill-opacity: 1;
+-  margin-inline-end: var(--space-small);
++  margin-inline: 1px;
+ }
+ 
+ #translations-button-locale {
+@@ -1110,7 +1063,7 @@ toolbar[inactive="true"] .urlbar,
+   padding-top: 3px;
+   padding-inline: 1px;
+   box-sizing: border-box;
+-  margin-inline-end: var(--space-small);
++  margin-inline: 2px -2px;
+   margin-block: -2px;
+ }
+ 
+@@ -1146,6 +1099,7 @@ toolbar[inactive="true"] .urlbar,
+   border-radius: var(--urlbar-inner-border-radius);
+   background-color: var(--urlbar-box-background-color);
+   color: var(--urlbar-box-text-color);
++  margin-block: calc((var(--urlbar-min-height) - 20px) / 2 - var(--urlbar-container-inset));
+   overflow: hidden;
+ 
+   :where(#urlbar[focused]) & {
+@@ -1225,11 +1179,13 @@ toolbar[inactive="true"] .urlbar,
+   }
+ }
+ 
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media not -moz-pref("browser.search.widget.new") {
+   #searchbar-new {
+     display: none;
+   }
+ }
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("browser.search.widget.new") {
+   #searchbar {
+     display: none;
+@@ -1313,8 +1269,8 @@ toolbar[inactive="true"] .urlbar,
+ }
+ 
+ .searchmode-switcher {
+-  height: var(--urlbar-basic-component-size);
+-  --button-border: none;
++  margin-inline-end: var(--urlbar-searchmodeswitcher-margin-inline-end);
++  height: auto;
+   --button-padding: 0 var(--space-small);
+   --button-min-height: 100%;
+   --button-font-weight: normal;
+@@ -1327,12 +1283,8 @@ toolbar[inactive="true"] .urlbar,
+   during clicks.*/
+   --button-background-color-selected: var(--button-background-color);
+ 
+-  --button-text-color: var(--urlbar-box-text-color);
+-  --button-text-color-hover: var(--urlbar-box-text-color-hover);
+-  --button-text-color-active: var(--urlbar-box-text-color-hover);
+-  --button-text-color-selected: var(--urlbar-box-text-color);
+-
+   --button-background-color: var(--urlbar-box-background-color);
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+     .urlbar[pageproxystate="valid"] & {
+       --button-icon-content: url("chrome://global/skin/icons/search-glass.svg");
+@@ -1349,10 +1301,9 @@ toolbar[inactive="true"] .urlbar,
+     --button-background-color: var(--urlbar-box-background-color-focus);
+   }
+ 
+-  &[offscreen] {
+-    /* Display as off-screen to get focus */
+-    position: fixed;
+-    top: -999px;
++  /* No need space if page information icons such as lock and shield is shown */
++  .urlbar[pageproxystate="valid"] & {
++    margin-inline-end: 0;
+   }
+ 
+   .urlbar[searchmode] & {
+@@ -1364,6 +1315,7 @@ toolbar[inactive="true"] .urlbar,
+   }
+ 
+   .urlbar:not(#searchbar-new) & {
++    /* stylelint-disable-next-line media-query-no-invalid */
+     @media (not -moz-pref("browser.urlbar.searchModeSwitcher.featureGate")) and (not -moz-pref("browser.urlbar.scotchBonnet.enableOverride")) {
+       display: none;
+     }
+@@ -1378,6 +1330,7 @@ toolbar[inactive="true"] .urlbar,
+   white-space: nowrap;
+   max-width: var(--search-engine-name-max-width);
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+     .urlbar:not(#searchbar-new)[searchmode] & {
+       display: block;
+@@ -1390,6 +1343,7 @@ toolbar[inactive="true"] .urlbar,
+   border: 0;
+   align-self: center;
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+     .urlbar[searchmode] & {
+       display: revert;
+@@ -1411,11 +1365,13 @@ toolbar[inactive="true"] .urlbar,
+     transition: 300ms transform ease-in-out;
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+     margin-inline-start: calc(var(--space-xsmall) * -1);
+   }
+ 
+   .urlbar[searchmode] & {
++    /* stylelint-disable-next-line media-query-no-invalid */
+     @media not -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+       display: none;
+     }
+@@ -1484,18 +1440,33 @@ toolbar[inactive="true"] .urlbar,
+   position: absolute;
+ }
+ 
++/* Hide footer separator if there are no menuitems between both separators */
++.searchmode-switcher-panel-installed-engine-separator + .searchmode-switcher-panel-footer-separator {
++  display: none;
++}
++
++/* stylelint-disable-next-line media-query-no-invalid */
+ @media -moz-pref("browser.urlbar.searchModeSwitcher.featureGate") or -moz-pref("browser.urlbar.scotchBonnet.enableOverride") {
+   #urlbar[searchmode] > .urlbar-input-container > #urlbar-search-mode-indicator {
+     display: none;
+   }
+ 
++  /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.urlbar.unifiedSearchButton.always") {
+-    #urlbar[pageproxystate="invalid"] #tracking-protection-icon-container {
+-      display: none;
++    #urlbar[pageproxystate="invalid"] {
++      #identity-box,
++      #tracking-protection-icon-container {
++        display: none;
++      }
+     }
++  }
++}
+ 
+-    #urlbar[pageproxystate="invalid"]:not([persistsearchterms]) #identity-box {
+-      display: none;
+-    }
++/* stylelint-disable-next-line media-query-no-invalid */
++@media not -moz-pref("browser.urlbar.unifiedSearchButton.always") {
++  .urlbar:not([unifiedsearchbutton-available]) > .urlbar-input-container > .searchmode-switcher {
++    /* Display as off-screen to get focus */
++    position: fixed;
++    top: -999px;
+   }
+ }
+diff --git a/docshell/base/nsAboutRedirector.cpp b/docshell/base/nsAboutRedirector.cpp
+index 22bef40..f3950ab 100644
+--- a/docshell/base/nsAboutRedirector.cpp
++++ b/docshell/base/nsAboutRedirector.cpp
+@@ -134,10 +134,7 @@ static const RedirEntry kRedirMap[] = {
+      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+          nsIAboutModule::URI_CAN_LOAD_IN_CHILD | nsIAboutModule::ALLOW_SCRIPT |
+          nsIAboutModule::HIDE_FROM_ABOUTABOUT},
+-#if defined(NIGHTLY_BUILD)
+-    {"inference", "chrome://global/content/aboutInference.html",
+-     nsIAboutModule::ALLOW_SCRIPT | nsIAboutModule::IS_SECURE_CHROME_UI},
+-#endif
++    // GORILLA excised: about:inference (ml component removed).
+     {"license", "chrome://global/content/license.html",
+      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+          nsIAboutModule::IS_SECURE_CHROME_UI},
+diff --git a/dom/security/nsContentSecurityUtils.cpp b/dom/security/nsContentSecurityUtils.cpp
+index 78ccf68..631979c 100644
+--- a/dom/security/nsContentSecurityUtils.cpp
++++ b/dom/security/nsContentSecurityUtils.cpp
+@@ -1345,7 +1345,6 @@ static nsLiteralCString sImgSrcDataBlobAllowList[] = {
+     "about:editprofile"_ns,
+     "about:firefoxview"_ns,
+     "about:home"_ns,
+-    "about:inference"_ns,
+     "about:logins"_ns,
+     "about:newprofile"_ns,
+     "about:newtab"_ns,
+diff --git a/modules/libpref/init/all.js b/modules/libpref/init/all.js
+index b1f9b54..ffe0252 100644
+--- a/modules/libpref/init/all.js
++++ b/modules/libpref/init/all.js
+@@ -1,3 +1,13 @@
++/**
++ * @gorilla-unleashed-153 ─ MODIFIED
++ * ────────────────────────────────────────────────────────────
++ * Timestamp : 20260529_115407
++ * Change    : Hard-disabled telemetry-related preferences
++ * Notes     : Hard-coded toolkit.telemetry.* and datareporting.glean.* preferences to disabled/empty in all.js to prevent us
++ * Category  : logic_patches
++ * Full Docs : assets/logic_patches/LOGIC_PATCHES_DOCUMENTATION.md
++ * ────────────────────────────────────────────────────────────
++ */
+ // This Source Code Form is subject to the terms of the Mozilla Public
+ // License, v. 2.0. If a copy of the MPL was not distributed with this
+ // file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+@@ -187,7 +197,7 @@ pref("mathml.disabled",    false);
+ pref("media.throttle-factor", 2);
+ 
+ // Master HTML5 media volume scale.
+-pref("media.volume_scale", "1.0");
++pref("media.volume_scale", "2.0");
+ 
+ // Whether we should play videos opened in a "video document", i.e. videos
+ // opened as top-level documents, as opposed to inside a media element.
+@@ -233,7 +243,7 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
+ 
+ #ifdef MOZ_WEBRTC
+   pref("media.navigator.video.enabled", true);
+-  pref("media.navigator.video.default_fps",30);
++  pref("media.navigator.video.default_fps",60); // 60fps webcam via HD 4000 QuickSync HW encode
+   // Whether to expose the resizeMode constraint/setting/capability to content.
+   // Kept false while implementing the feature in bug 1286945 and dependencies,
+   // to allow for gradually gaining support and test coverage.
+@@ -531,14 +541,23 @@ pref("toolkit.tabbox.switchByScrolling", false);
+ 
+ // Telemetry settings.
+ // Server to submit telemetry pings to.
+-pref("toolkit.telemetry.server", "https://incoming.telemetry.mozilla.org");
+-// Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
+-pref("toolkit.telemetry.server_owner", "Mozilla");
+-// Determines whether full SQL strings are returned when they might contain sensitive info
+-// i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
+-pref("toolkit.telemetry.debugSlowSql", false);
+-// Whether to use the unified telemetry behavior, requires a restart.
+-pref("toolkit.telemetry.unified", true);
++// 🛡️ GORILLA UNLEASHED - H.264 HARD-LOCK
++// Rationale: Ensure hardware decoding on legacy Intel hardware.
++pref("media.av1.enabled", false);
++pref("media.webm.enabled", false);
++pref("media.vp9.enabled", false);
++
++// 🛡️ GORILLA UNLEASHED - TELEMETRY STARVATION
++// Rationale: Hard-disable all telemetry-related preferences.
++// Technique: Override defaults in all.js to prevent user-pref overrides.
++pref("toolkit.telemetry.enabled", false);
++pref("toolkit.telemetry.unified", false);
++pref("datareporting.healthreport.uploadEnabled", false);
++pref("datareporting.policy.dataSubmissionEnabled", false);
++pref("datareporting.glean.uploadEnabled", false);
++pref("toolkit.glean.uploadEnabled", false);
++pref("toolkit.telemetry.server", "");
++
+ 
+ // DAP related preferences
+ pref("toolkit.telemetry.dap_enabled", false);
+@@ -783,8 +802,8 @@ pref("dom.storage.snapshot_gradual_prefill", 4096);
+ pref("dom.storage.snapshot_reusing", true);
+ pref("dom.storage.client_validation", true);
+ 
+-// Enable time picker UI.
+-pref("dom.forms.datetime.timepicker", true);
++// Enable time picker UI. By default, disabled.
++pref("dom.forms.datetime.timepicker", false);
+ 
+ // Enable search in <select> dropdowns (more than 40 options)
+ pref("dom.forms.selectSearch", false);
+@@ -860,9 +879,6 @@ pref("privacy.purge_trackers.max_purge_count", 100);
+ // interaction directly).
+ pref("privacy.purge_trackers.consider_entity_list", false);
+ 
+-// What custom schemes to treat as accessing digital wallets, comma separated.
+-pref("privacy.wallet_schemes", "openid4vp,mdoc,mdoc-openid4vp,haip,eudi-wallet,eudi-openid4vp,openid-credential-offer");
+-
+ pref("dom.event.contextmenu.enabled",       true);
+ 
+ pref("javascript.enabled",                  true);
+@@ -2878,7 +2894,7 @@ pref("font.size.monospace.x-math", 13);
+ #if defined(ANDROID)
+   // We use the bundled Charis SIL Compact as serif font for Firefox for Android
+ 
+-  pref("font.name-list.emoji", "SamsungColorEmoji, Noto Color Emoji, Noto Color Emoji Flags");
++  pref("font.name-list.emoji", "SamsungColorEmoji, Noto Color Emoji");
+ 
+   pref("font.name-list.serif.ar", "Noto Naskh Arabic, Noto Serif, Droid Serif");
+   pref("font.name-list.sans-serif.ar", "Noto Naskh Arabic, Roboto, Google Sans, Droid Sans");
+@@ -3019,6 +3035,14 @@ pref("signon.storage.rust.enabled", false);
+ pref("signon.storage.rust.active", false);
+ pref("signon.storage.rust.migrationAttempts", 0);
+ 
++#ifdef NIGHTLY_BUILD
++  pref("signon.rustMirror.enabled", true);
++  pref("signon.rustMirror.collectFailedOrigins", true);
++#else
++  pref("signon.rustMirror.enabled", false);
++  pref("signon.rustMirror.collectFailedOrigins", false);
++#endif
++
+ // Satchel (Form Manager) prefs
+ pref("browser.formfill.debug",            false);
+ pref("browser.formfill.enable",           true);
+@@ -3152,9 +3176,9 @@ pref("extensions.webcompat-reporter.newIssueEndpoint", "https://webcompat.com/is
+ #endif
+ 
+ // Add-on content security policies.
+-pref("extensions.webextensions.base-content-security-policy", "script-src 'self' https://* http://localhost:* http://127.0.0.1:* moz-extension: blob: filesystem: 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline';");
++pref("extensions.webextensions.base-content-security-policy", "script-src 'self' https://* http://localhost:* http://0.0.0.0:* moz-extension: blob: filesystem: 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline';");
+ pref("extensions.webextensions.base-content-security-policy.v3", "script-src 'self' 'wasm-unsafe-eval';");
+-pref("extensions.webextensions.base-content-security-policy.v3-with-localhost", "script-src 'self' 'wasm-unsafe-eval' http://localhost:* http://127.0.0.1:*;");
++pref("extensions.webextensions.base-content-security-policy.v3-with-localhost", "script-src 'self' 'wasm-unsafe-eval' http://localhost:* http://0.0.0.0:*;");
+ pref("extensions.webextensions.default-content-security-policy", "script-src 'self' 'wasm-unsafe-eval';");
+ pref("extensions.webextensions.default-content-security-policy.v3", "script-src 'self'; upgrade-insecure-requests;");
+ 
+@@ -3276,11 +3300,12 @@ pref("network.trr.builtin-excluded-domains", "localhost,local");
+ // Used for progressive rollout of LNA for ETP strict users
+ pref("network.lna.etp.enabled", true);
+ 
+-pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/canonical.html");
+-pref("captivedetect.canonicalContent", "<meta http-equiv=\"refresh\" content=\"0;url=https://support.mozilla.org/kb/captive-portal\"/>");
++pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/generate_204");
++pref("captivedetect.canonicalContent", "");
+ pref("captivedetect.maxWaitingTime", 5000);
+ pref("captivedetect.pollingTime", 3000);
+ pref("captivedetect.maxRetryCount", 5);
++pref("captivedetect.expectedStatus", 204);
+ 
+ // The tables used for Safebrowsing phishing and malware checks
+ pref("urlclassifier.malwareTable", "goog-malware-proto,goog-unwanted-proto,moztest-harmful-simple,moztest-malware-simple,moztest-unwanted-simple");
+@@ -3980,13 +4005,6 @@ pref("dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled", false
+ pref("dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled", false, locked);
+ #endif
+ 
+-// Locked so end users cannot toggle SQLite encryption from about:config or
+-// user.js. Enterprise policies (Preferences allowlist) and our keystore
+-// auto-recovery use the unlock/setDefault/relock dance to override.
+-// Defined in StaticPrefList.yaml; locked here because the YAML has no
+-// "locked" attribute.
+-pref("security.storage.encryption.sqlite.enabled", false, locked);
+-
+ // Preferences for the form autofill toolkit component.
+ // The truthy values of "extensions.formautofill.addresses.available"
+ // is "on" and "detect",
+@@ -3998,11 +4016,8 @@ pref("extensions.formautofill.available", "detect");
+ 
+ #if !defined(ANDROID)
+ pref("extensions.formautofill.addresses.supported", "on");
+-// Use ML for address form field detection.
+-pref("extensions.formautofill.useml", true);
+ #else
+ pref("extensions.formautofill.addresses.supported", "detect");
+-pref("extensions.formautofill.useml", false);
+ #endif
+ pref("extensions.formautofill.addresses.enabled", true);
+ pref("extensions.formautofill.addresses.capture.enabled", true);
+@@ -4126,3 +4141,93 @@ pref("general.smoothScroll", true, sticky);
+ #ifdef MOZ_ARTIFACT_BUILDS
+   pref("telemetry.fog.artifact_build", true);
+ #endif
++
++// ============================================================
++// GORILLA UNLEASHED — ALL.JS INJECTION
++// ============================================================
++// --- GPU Acceleration & Blocklist Overrides ---
++pref("layers.acceleration.force-enabled", true);
++pref("gfx.webrender.all", true);
++pref("gfx.webrender.force-enabled", true);
++pref("gfx.webrender.software.opengl", false);
++pref("media.hardware-video-decoding.force-enabled", true);
++pref("media.ffmpeg.vaapi.enabled", true);
++pref("media.ffmpeg.vaapi.decode.force-enabled", true);
++pref("widget.dmabuf.force-enabled", true);
++pref("gfx.x11-egl.force-enabled", true);
++pref("gfx.canvas.accelerated.force-enabled", true);
++pref("layers.gpu-process.enabled", true);
++pref("layers.gpu-process.force-enabled", true);
++pref("media.gpu-process-decoder", true);
++pref("media.gpu-process-decoder.force-enabled", true);
++pref("gfx.blacklist.all", 0);
++pref("gfx.blacklist.suggested-driver-version", "0.0.0.0");
++
++// --- Sandbox & Performance Overrides ---
++pref("security.sandbox.content.level", 4);
++pref("javascript.options.mem.max", 1024);
++
++// --- Bundled Font Preferences ---
++pref("gfx.font_rendering.fontconfig.max_generic_substitutions", 5);
++pref("font.name.sans-serif.x-western", "Inter");
++pref("font.name.monospace.x-western", "JetBrains Mono");
++pref("font.name.sans-serif.ja", "Meiryo, Yu Gothic, Source Han Sans, Source Han Sans J");
++pref("font.name.serif.ja", "Yu Mincho, MS Mincho, Source Han Serif");
++pref("font.name.monospace.ja", "MS Gothic, Source Han Sans J");
++pref("font.name.sans-serif.zh-CN", "Microsoft YaHei, Source Han Sans SC");
++pref("font.name.sans-serif.zh-TW", "Microsoft JhengHei, Source Han Sans TC");
++pref("font.name.sans-serif.ko", "Malgun Gothic, Source Han Sans K");
++
++// --- Telemetry & Infrastructure Disconnection ---
++pref("datareporting.healthreport.uploadEnabled", false);
++pref("datareporting.policy.dataSubmissionEnabled", false);
++pref("datareporting.usage.uploadEnabled", false);
++pref("app.shield.optoutstudies.enabled", false);
++pref("nimbus.rollouts.enabled", false);
++pref("toolkit.telemetry.enabled", false);
++pref("toolkit.telemetry.unified", false);
++pref("toolkit.telemetry.archive.enabled", false);
++pref("toolkit.telemetry.newProfilePing.enabled", false);
++pref("toolkit.telemetry.updatePing.enabled", false);
++pref("toolkit.telemetry.shutdownPingSender.enabled", false);
++pref("toolkit.telemetry.firstShutdownPing.enabled", false);
++pref("toolkit.telemetry.bhrPing.enabled", false);
++pref("network.captive-portal-service.enabled", false);
++pref("browser.safebrowsing.malware.enabled", false);
++pref("browser.safebrowsing.phishing.enabled", false);
++pref("extensions.pocket.enabled", false);
++pref("identity.fxaccounts.enabled", false);
++
++// --- GORILLA UNLEASHED: AGGRESSIVE PURGE (AI & TOPSITES) ---
++// Disable ML / AI Chat / Sidebars
++pref("browser.ml.enable", false);
++pref("browser.ml.chat.enabled", false);
++pref("browser.ml.checkForMemory", false);
++pref("extensions.ml.enabled", false);
++pref("browser.sidebar.ai.enabled", false);
++pref("browser.ai.control.default", false);
++pref("browser.ai.control.sidebarChatbot", false);
++pref("browser.ai.control.linkPreviewKeyPoints", false);
++pref("browser.ai.control.pdfjsAltText", false);
++pref("browser.ai.control.smartTabGroups", false);
++pref("browser.ai.control.smartWindow", false);
++
++// Disable Topsites & Sponsored Noise
++pref("browser.urlbar.suggest.topsites", false);
++pref("browser.topsites.contile.enabled", false);
++pref("browser.newtabpage.activity-stream.feeds.topsites", false);
++pref("browser.newtabpage.activity-stream.showSponsoredTopSites", false);
++pref("browser.newtabpage.activity-stream.showSponsored", false);
++pref("browser.newtabpage.activity-stream.discoverystream.enabled", false);
++pref("browser.newtabpage.activity-stream.feeds.section.topstories", false);
++pref("browser.newtabpage.activity-stream.section.topstories.enabled", false);
++pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.endpoint", "0.0.0.0");
++pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled", false);
++pref("browser.newtabpage.activity-stream.discoverystream.spoc-positions", "");
++pref("browser.newtabpage.activity-stream.discoverystream.spocs-endpoint", "0.0.0.0");
++pref("browser.urlbar.suggest.quicksuggest.nonsponsored", false);
++pref("browser.urlbar.suggest.quicksuggest.sponsored", false);
++pref("browser.urlbar.suggest.weather", false);
++pref("browser.urlbar.groupLabels.enabled", false);
++
++// --- END GORILLA UNLEASHED PURGE ---
+diff --git a/toolkit/components/extensions/ext-toolkit.json b/toolkit/components/extensions/ext-toolkit.json
+index 38a435e..8696d26 100644
+--- a/toolkit/components/extensions/ext-toolkit.json
++++ b/toolkit/components/extensions/ext-toolkit.json
+@@ -167,7 +167,7 @@
+     "manifest": ["theme"],
+     "paths": [["theme"]]
+   },
+-  "trial_ml": {
++  "GORILLA_excised_trial_ml": {
+     "url": "chrome://extensions/content/parent/ext-trial-ml.js",
+     "schema": "chrome://extensions/content/schemas/trial_ml.json",
+     "scopes": ["addon_parent", "content_parent"],
+diff --git a/toolkit/components/nimbus/ExperimentAPI.sys.mjs b/toolkit/components/nimbus/ExperimentAPI.sys.mjs
+index b7a013c..8844de0 100644
+--- a/toolkit/components/nimbus/ExperimentAPI.sys.mjs
++++ b/toolkit/components/nimbus/ExperimentAPI.sys.mjs
+@@ -16,7 +16,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
+   CleanupManager: "resource://normandy/lib/CleanupManager.sys.mjs",
+   ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
+   FeatureManifest: "resource://nimbus/FeatureManifest.sys.mjs",
+-  FirstStartup: "resource://gre/modules/FirstStartup.sys.mjs",
+   NimbusMigrations: "resource://nimbus/lib/Migrations.sys.mjs",
+   NimbusTelemetry: "resource://nimbus/lib/Telemetry.sys.mjs",
+   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
+@@ -122,12 +121,8 @@ export const EnrollmentType = Object.freeze({
+ export const ExperimentAPI = new (class {
+   /**
+    * Whether or not the ExperimentAPI has been initialized.
+-   * Returns the in-flight or settled init() promise, or null if init has not been
+-   * called. Is truthy once init has been kicked off.
+-   *
+-   * @type {Promise<void> | null}
+    */
+-  #initializedPromise = null;
++  #initialized = false;
+ 
+   /**
+    * The current ExperimentManager.
+@@ -190,11 +185,6 @@ export const ExperimentAPI = new (class {
+    */
+   #studiesEnabled = false;
+ 
+-  /**
+-   * @type {FirstStartupTimestamps | null }
+-   */
+-  #firstStartupTimestamps = null;
+-
+   constructor() {
+     if (IS_MAIN_PROCESS) {
+       // Ensure that the profile ID is cached in a pref.
+@@ -256,24 +246,15 @@ export const ExperimentAPI = new (class {
+    *        Force the RemoteSettingsExperimentLoader to trigger a RemoteSettings
+    *        sync before updating recipes for the first time.
+    *
+-   * @returns {Promise<boolean>}
++   * @returns {boolean}
+    *          Whether or not the ExperimentAPI was initialized.
+    */
+   async init({ extraContext, forceSync = false } = {}) {
+-    if (this.#initializedPromise) {
+-      // Either init has already finished, or it is in flight. Either way,
+-      // chain off the promise so we only return once init is actually complete.
+-      return this.#initializedPromise.then(() => false);
++    if (this.#initialized) {
++      return false;
+     }
+ 
+-    await (this.#initializedPromise = this.#init({ extraContext, forceSync }));
+-    return true;
+-  }
+-
+-  async #init({ extraContext, forceSync }) {
+-    if (lazy.FirstStartup.state === lazy.FirstStartup.IN_PROGRESS) {
+-      this.#firstStartupTimestamps = {};
+-    }
++    this.#initialized = true;
+ 
+     // Compute the enabled state and cache it. It is possible for the enabled
+     // state to change during ExperimentAPI initialization, but we do not
+@@ -312,20 +293,12 @@ export const ExperimentAPI = new (class {
+       );
+     }
+ 
+-    if (this.#firstStartupTimestamps) {
+-      this.#firstStartupTimestamps.storeInitEnd = ChromeUtils.now();
+-    }
+-
+     try {
+       await this.manager.onStartup(extraContext);
+     } catch (e) {
+       lazy.log.error("Failed to initialize ExperimentManager:", e);
+     }
+ 
+-    if (this.#firstStartupTimestamps) {
+-      this.#firstStartupTimestamps.managerInitEnd = ChromeUtils.now();
+-    }
+-
+     try {
+       await this._rsLoader.enable({ forceSync });
+     } catch (e) {
+@@ -345,10 +318,6 @@ export const ExperimentAPI = new (class {
+       );
+     }
+ 
+-    if (this.#firstStartupTimestamps) {
+-      this.#firstStartupTimestamps.loaderInitEnd = ChromeUtils.now();
+-    }
+-
+     if (CRASHREPORTER_ENABLED) {
+       this.manager.store.on("update", this._annotateCrashReport);
+       this._annotateCrashReport();
+@@ -382,9 +351,7 @@ export const ExperimentAPI = new (class {
+     // no-op.
+     await this._onEnabledPrefChange();
+ 
+-    if (this.#firstStartupTimestamps) {
+-      this.#firstStartupTimestamps.nimbusInitEnd = ChromeUtils.now();
+-    }
++    return true;
+   }
+ 
+   /**
+@@ -450,7 +417,7 @@ export const ExperimentAPI = new (class {
+       this._onEnabledPrefChange
+     );
+ 
+-    this.#initializedPromise = null;
++    this.#initialized = false;
+   }
+ 
+   #computeEnabled() {
+@@ -482,22 +449,23 @@ export const ExperimentAPI = new (class {
+   }
+ 
+   get labsEnabled() {
+-    return Services.policies.isAllowed("FirefoxLabs");
++    return false;
+   }
+ 
+   get rolloutsEnabled() {
+-    return (
+-      this.#prefValues.rolloutsEnabled &&
+-      Services.policies.isAllowed("NimbusRollouts")
+-    );
++    return false;
+   }
+ 
+   get studiesEnabled() {
+-    return this.#studiesEnabled;
++    return false;
+   }
+ 
+   get aiFeaturesEnabled() {
+-    return this.#prefValues.aiFeaturesEnabled === "available";
++    return false;
++  }
++
++  get isInitialized() {
++    return this.#initialized;
+   }
+ 
+   /**
+@@ -560,7 +528,7 @@ export const ExperimentAPI = new (class {
+   }
+ 
+   _removeCrashReportAnnotator() {
+-    if (this.#initializedPromise) {
++    if (this.#initialized) {
+       this.#experimentManager?.store.off("update", this._annotateCrashReport);
+     }
+   }
+@@ -569,7 +537,7 @@ export const ExperimentAPI = new (class {
+    * Handle a pref change that may result in Nimbus being enabled or disabled.
+    */
+   async _onEnabledPrefChange() {
+-    if (!this.#initializedPromise) {
++    if (!this.#initialized) {
+       return;
+     }
+ 
+@@ -694,39 +662,6 @@ export const ExperimentAPI = new (class {
+   async optInToExperiment(options) {
+     return this._rsLoader._optInToExperiment(options);
+   }
+-
+-  /**
+-   * @typedef {object} FirstStartupTimestamps
+-   *
+-   * All properties are timestamps in milliseconds, as reported by
+-   * `ChromeUtils.now`.
+-   *
+-   * @property {number | undefined} storeInitEnd
+-   * The time that the ExperimentStore finished initializing.
+-   *
+-   * @property {number | undefined} managerInitEnd
+-   * The time that the ExperimentManager finished initialization.
+-   *
+-   * @property {number | undefined} loaderInitEnd
+-   * The time that the RemoteSettingsExperimentLoader finished
+-   * initialization.
+-   *
+-   * @property {number | undefined} nimbusInitEnd
+-   * The time that Nimbus became fully initialized.
+-   */
+-
+-  /**
+-   * Return the first startup timestamps.
+-   *
+-   * The timestamps will be cleared.
+-   *
+-   * @returns {FirstStartupTimestamps | null} The timestamps, if any.
+-   */
+-  getAndClearFirstStartupTimestamps() {
+-    const timestamps = this.#firstStartupTimestamps;
+-    this.#firstStartupTimestamps = null;
+-    return timestamps;
+-  }
+ })();
+ 
+ /**

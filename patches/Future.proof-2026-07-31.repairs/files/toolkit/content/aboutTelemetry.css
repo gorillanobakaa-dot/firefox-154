@@ -345,5 +345,5 @@ caption {
 /* GORILLA OVERRIDE 2026-07-31: centered watermark (author spec: "that gorilla
    was supposed to be in the center"). */
 body {
-  background: #000000 url("chrome://branding/content/about-logo.svg") no-repeat center bottom 60px / 500px !important; /* author 21:22: lower it, ~60px off the bottom */
+  background: #000000 url("chrome://branding/content/about-logo.svg") no-repeat fixed center bottom 10px / 450px !important; /* author 22:27: "way lower"; fixed = pinned to viewport bottom even on tall data tabs */
 }

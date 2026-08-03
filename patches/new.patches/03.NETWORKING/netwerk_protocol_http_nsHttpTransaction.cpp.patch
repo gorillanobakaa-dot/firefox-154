@@ -1,19 +1,6 @@
 --- a/netwerk/protocol/http/nsHttpTransaction.cpp
 +++ b/netwerk/protocol/http/nsHttpTransaction.cpp
-@@ -2,6 +2,12 @@
-  * License, v. 2.0. If a copy of the MPL was not distributed with this
-  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- 
-+// GORILLA UNLEASHED: Surgical Lobotomy (Blindness)
-+// Sever all outbound telemetry data streams at the network layer.
-+#undef MOZ_TELEMETRY_REPORTING
-+#define MOZ_TELEMETRY_REPORTING 0
-+#define GLEAN_DISABLED 1
-+
- // HttpLog.h should generally be included first
- #include "nsHttpTransaction.h"
- 
-@@ -73,6 +79,11 @@
+@@ -73,6 +73,11 @@
  
  using namespace mozilla::net;
  
@@ -25,7 +12,7 @@
  namespace mozilla::net {
  
  //-----------------------------------------------------------------------------
-@@ -834,8 +845,16 @@
+@@ -834,8 +839,16 @@
  
    mDeferredSendProgress = false;
    mReader = reader;

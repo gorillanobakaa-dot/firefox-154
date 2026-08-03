@@ -1,0 +1,17 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.title {
+  /* GORILLA 2026-07-31: brand gorilla instead of the stock robot; sized 400px
+     per author ("make it bigger... say 400x"). Heading clears the image via
+     padding; min-height keeps the box tall enough. */
+  background-image: url("chrome://branding/content/about-logo.svg");
+  background-size: 400px;
+  background-position: left center;
+  background-repeat: no-repeat;
+  min-height: 400px;
+  padding-inline-start: 420px;
+  display: flex;
+  align-items: center;
+}

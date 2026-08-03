@@ -1,0 +1,1643 @@
+diff --git a/browser/components/BrowserContentHandler.sys.mjs b/browser/components/BrowserContentHandler.sys.mjs
+index 64c325f..c97d1b2 100644
+--- a/browser/components/BrowserContentHandler.sys.mjs
++++ b/browser/components/BrowserContentHandler.sys.mjs
+@@ -8,10 +8,6 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
+ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+-  AIWindowAccountAuth:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindowAccountAuth.sys.mjs",
+   AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
+   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
+@@ -29,29 +25,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
+   UpdatePing: "resource://gre/modules/UpdatePing.sys.mjs",
+ });
+ 
+-/**
+- * Whether `openBrowserWindow` should open the window as Smart Window: the
+- * feature is on and set as default, it's not an explicitly private window, and
+- * the user previously signed in (approximated synchronously via the ToS consent
+- * timestamp; the async FxA check happens later in `onFirstWindowReady`, which
+- * prompts sign-in if they've since signed out). It deliberately avoids
+- * `SessionStartup.willRestore()`/`sessionType`: called this early, before the
+- * session file is read, that getter memoizes NO_SESSION and SessionStore then
+- * discards the session it was about to restore. Restore keeps the saved window
+- * type (`restoreWindowFeatures`); Smart-by-default only forces brand-new
+- * windows. See bug 2052953.
+- *
+- * @param {boolean} forcePrivate
+- * @returns {boolean}
+- */
+-function canOpenAsSmartWindow(forcePrivate = false) {
+-  return (
+-    !forcePrivate &&
+-    lazy.AIWindow.shouldOpenAsSmartWindow() &&
+-    lazy.AIWindowAccountAuth.hasToSConsent
+-  );
+-}
+-
+ XPCOMUtils.defineLazyServiceGetters(lazy, {
+   UpdateManager: ["@mozilla.org/updates/update-manager;1", Ci.nsIUpdateManager],
+   WinTaskbar: ["@mozilla.org/windows-taskbar;1", Ci.nsIWinTaskbar],
+@@ -298,8 +271,6 @@ function openBrowserWindow(
+ ) {
+   const isStartup =
+     cmdLine && cmdLine.state == Ci.nsICommandLine.STATE_INITIAL_LAUNCH;
+-  const openAsSmart = canOpenAsSmartWindow(forcePrivate);
+-
+   let args;
+   if (!urlOrUrlList) {
+     // Just pass in the defaultArgs directly. We'll use system principal on the other end.
+@@ -369,16 +340,9 @@ function openBrowserWindow(
+     );
+     string.data = url;
+ 
+-    // Smart Window needs args as an nsIMutableArray so handleAIWindowOptions can append its attributes
+-    if (openAsSmart) {
+-      let array = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
+-      array.appendElement(string);
+-      args = array;
+-    } else {
+-      // Single string guaranteed to not contain '|' can simply be wrapped
+-      // in an nsISupportsString object.
+-      args = string;
+-    }
++    // Single string guaranteed to not contain '|' can simply be wrapped
++    // in an nsISupportsString object.
++    args = string;
+   } else {
+     // Otherwise, pass an nsIArray.
+     if (args.length > 1) {
+@@ -399,7 +363,6 @@ function openBrowserWindow(
+     args,
+     features: gBrowserContentHandler.getFeatures(cmdLine),
+     private: forcePrivate,
+-    aiWindow: openAsSmart,
+   });
+ }
+ 
+@@ -763,17 +726,6 @@ nsBrowserContentHandler.prototype = {
+       startPage = "";
+     }
+ 
+-    // Substitute about:home with the Smart Window URL when the user has
+-    // chosen Smart Window as default. Done here (rather than in
+-    // getFirstWindowArgs) so that BrowserHandler.defaultArgs — which
+-    // browser-init.js compares against to decide session-restore /
+-    // crash-recovery overrides — reflects the same URL. A user with
+-    // browser.startup.page=0 has explicitly chosen blank startup, which we
+-    // respect — they'll get Smart Window chrome with about:blank content.
+-    if (startPage === "about:home" && canOpenAsSmartWindow()) {
+-      startPage = lazy.AIWindow.initialStartupURL;
+-    }
+-
+     if (!skipStartPage && startPage) {
+       if (page) {
+         page += "|" + startPage;
+diff --git a/browser/components/ProfileDataUpgrader.sys.mjs b/browser/components/ProfileDataUpgrader.sys.mjs
+index af68c27..dd48c4f 100644
+--- a/browser/components/ProfileDataUpgrader.sys.mjs
++++ b/browser/components/ProfileDataUpgrader.sys.mjs
+@@ -923,30 +923,6 @@ export let ProfileDataUpgrader = {
+       Services.prefs.setBoolPref("signon.reencryptionNeeded", true);
+     }
+ 
+-    if (existingDataVersion < 164) {
+-      const { PREF_BOOL, PREF_INT, PREF_STRING } = Services.prefs;
+-      const METHODS = {
+-        [PREF_BOOL]: ["getBoolPref", "setBoolPref"],
+-        [PREF_INT]: ["getIntPref", "setIntPref"],
+-        [PREF_STRING]: ["getStringPref", "setStringPref"],
+-      };
+-      const OLD_PREFIX = "browser.aiwindow.";
+-      for (let oldPref of Services.prefs.getChildList(OLD_PREFIX)) {
+-        let prefType = Services.prefs.getPrefType(oldPref);
+-        if (
+-          !Services.prefs.prefHasUserValue(oldPref) ||
+-          !Object.hasOwn(METHODS, prefType)
+-        ) {
+-          continue;
+-        }
+-        let newPref =
+-          "browser.smartwindow." + oldPref.substring(OLD_PREFIX.length);
+-        let [getter, setter] = METHODS[prefType];
+-        Services.prefs[setter](newPref, Services.prefs[getter](oldPref));
+-        Services.prefs.clearUserPref(oldPref);
+-      }
+-    }
+-
+     if (existingDataVersion < 166) {
+       // Bug 1978550: Migrate Local Network Access permissions from old
+       // "localhost" type to new "loopback-network" type.
+diff --git a/browser/components/asrouter/modules/ASRouter.sys.mjs b/browser/components/asrouter/modules/ASRouter.sys.mjs
+index 216f990..1146238 100644
+--- a/browser/components/asrouter/modules/ASRouter.sys.mjs
++++ b/browser/components/asrouter/modules/ASRouter.sys.mjs
+@@ -55,8 +55,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
+   Spotlight: "resource:///modules/asrouter/Spotlight.sys.mjs",
+   ToastNotification: "resource:///modules/asrouter/ToastNotification.sys.mjs",
+   ToolbarBadgeHub: "resource:///modules/asrouter/ToolbarBadgeHub.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+ });
+ 
+ XPCOMUtils.defineLazyPreferenceGetter(
+@@ -2590,9 +2588,6 @@ export class _ASRouter {
+         trigger.context.onThirdPartyPage = isThirdPartyPage(
+           browser.documentGlobal.gBrowser?.currentURI
+         );
+-        trigger.context.isAIWindow = !!lazy.AIWindow?.isAIWindowActive?.(
+-          browser.documentGlobal
+-        );
+         trigger.context.browserIsSelected =
+           trigger.context.browserIsSelected ||
+           browser === browser.documentGlobal.gBrowser?.selectedBrowser;
+diff --git a/browser/components/asrouter/modules/ASRouterTargeting.sys.mjs b/browser/components/asrouter/modules/ASRouterTargeting.sys.mjs
+index 82ec00a..c976622 100644
+--- a/browser/components/asrouter/modules/ASRouterTargeting.sys.mjs
++++ b/browser/components/asrouter/modules/ASRouterTargeting.sys.mjs
+@@ -1652,19 +1652,6 @@ const TargetingGetters = {
+   },
+ };
+ 
+-function addAIWindowTargeting(targeting) {
+-  if (!targeting || targeting === "true") {
+-    // Default behavior: Classic-only if no targeting is specified
+-    return `!isAIWindow`;
+-  }
+-
+-  if (/\bisAIWindow\b/.test(targeting)) {
+-    return targeting;
+-  }
+-
+-  return `((${targeting}) && !isAIWindow)`;
+-}
+-
+ /**
+  * Sentinel rejection thrown by per-property promises in
+  * `ASRouterTargeting.getEnvironmentSnapshot` when `quit-application`
+@@ -1866,7 +1853,6 @@ export const ASRouterTargeting = {
+     );
+ 
+     let { targeting } = message;
+-    targeting = addAIWindowTargeting(targeting);
+ 
+     let result;
+     try {
+diff --git a/browser/components/asrouter/modules/FeatureCalloutMessages.sys.mjs b/browser/components/asrouter/modules/FeatureCalloutMessages.sys.mjs
+index 891e57e..2582373 100644
+--- a/browser/components/asrouter/modules/FeatureCalloutMessages.sys.mjs
++++ b/browser/components/asrouter/modules/FeatureCalloutMessages.sys.mjs
+@@ -1118,265 +1118,6 @@ const MESSAGES = () => {
+         ],
+       },
+     },
+-    {
+-      id: "SMARTWINDOW_NEWTAB_CALLOUT",
+-      template: "feature_callout",
+-      groups: [],
+-      content: {
+-        id: "SMARTWINDOW_NEWTAB_CALLOUT",
+-        template: "multistage",
+-        backdrop: "transparent",
+-        transitions: false,
+-        screens: [
+-          {
+-            id: "SMARTWINDOW_SWITCHER_BUTTON_CALLOUT",
+-            anchors: [
+-              {
+-                selector: "#ai-window-toggle > .toolbarbutton-icon",
+-                panel_position: {
+-                  anchor_attachment: "bottomcenter",
+-                  callout_attachment: "topright",
+-                },
+-              },
+-            ],
+-            content: {
+-              padding: 12,
+-              position: "callout",
+-              width: "248px",
+-              title: {
+-                string_id: "smartwindow-switcher-callout",
+-                fontSize: "15px",
+-                fontWeight: "400",
+-                letterSpacing: "normal",
+-                lineHeight: "normal",
+-                marginInline: "0 18px",
+-              },
+-              dismiss_button: {
+-                size: "x-small",
+-                marginBlock: "8px 0",
+-                marginInline: "0 8px",
+-                action: {
+-                  dismiss: true,
+-                },
+-              },
+-            },
+-          },
+-        ],
+-      },
+-      targeting:
+-        "isAIWindow && 'browser.smartwindow.firstrun.hasCompleted' | preferenceValue",
+-      skip_in_tests: "it's not tested in automation",
+-      trigger: {
+-        id: "smartWindowNewTab",
+-      },
+-      frequency: {
+-        lifetime: 1,
+-      },
+-    },
+-    {
+-      id: "SMARTWINDOW_CLOSE_CURRENT_TAB",
+-      template: "feature_callout",
+-      content: {
+-        id: "SMARTWINDOW_CLOSE_CURRENT_TAB",
+-        template: "multistage",
+-        backdrop: "transparent",
+-        transitions: false,
+-        disableHistoryUpdates: true,
+-        screens: [
+-          {
+-            id: "SMARTWINDOW_CLOSE_CURRENT_TAB_SCREEN",
+-            anchors: [
+-              {
+-                selector: "#PanelUI-menu-button",
+-                panel_position: {
+-                  anchor_attachment: "bottomcenter",
+-                  callout_attachment: "topright",
+-                },
+-              },
+-            ],
+-            content: {
+-              position: "callout",
+-              width: "320px",
+-              padding: 16,
+-              title: {
+-                string_id: "smartwindow-close-tab-callout-title",
+-              },
+-              subtitle: {
+-                string_id: "smartwindow-close-tab-callout-subtitle",
+-              },
+-              dismiss_button: {
+-                size: "small",
+-                action: { dismiss: true },
+-              },
+-            },
+-          },
+-        ],
+-      },
+-      targeting: "isAIWindow && actionSource == 'close_current_tab'",
+-      // Bug 2037624 - "close_current_tab" toolcall sets
+-      // tab.smartWindowActionSource before removeTab();
+-      trigger: {
+-        id: "nthTabClosed",
+-      },
+-      skip_in_tests: "it's not tested in automation",
+-    },
+-    {
+-      id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_PROMPT",
+-      template: "feature_callout",
+-      groups: [],
+-      content: {
+-        id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_PROMPT",
+-        template: "multistage",
+-        backdrop: "transparent",
+-        transitions: false,
+-        disableHistoryUpdates: true,
+-        screens: [
+-          {
+-            id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_PROMPT_CALLOUT",
+-            force_hide_steps_indicator: true,
+-            anchors: [
+-              {
+-                selector: "#smartwindow-ask-button",
+-                panel_position: {
+-                  anchor_attachment: "bottomcenter",
+-                  callout_attachment: "topright",
+-                },
+-              },
+-            ],
+-            content: {
+-              position: "callout",
+-              title: {
+-                string_id: "smartwindow-sidebar-auto-open-callout-title",
+-              },
+-              subtitle: {
+-                string_id: "smartwindow-sidebar-auto-open-callout-body",
+-              },
+-              primary_button: {
+-                label: {
+-                  string_id: "smartwindow-sidebar-auto-open-callout-accept",
+-                },
+-                action: {
+-                  type: "SET_PREF",
+-                  data: {
+-                    pref: {
+-                      name: "browser.smartwindow.sidebar.openByDefault",
+-                      value: false,
+-                    },
+-                  },
+-                  advance_screens: {
+-                    id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_ACCEPTED_CALLOUT",
+-                  },
+-                },
+-              },
+-              secondary_button: {
+-                label: {
+-                  string_id: "smartwindow-sidebar-auto-open-callout-dismiss",
+-                },
+-                action: {
+-                  advance_screens: {
+-                    id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_REJECTED_CALLOUT",
+-                  },
+-                },
+-              },
+-              dismiss_button: { action: { dismiss: true } },
+-            },
+-          },
+-          {
+-            id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_ACCEPTED_CALLOUT",
+-            force_hide_steps_indicator: true,
+-            anchors: [
+-              {
+-                selector: "#smartwindow-ask-button",
+-                panel_position: {
+-                  anchor_attachment: "bottomcenter",
+-                  callout_attachment: "topright",
+-                },
+-              },
+-            ],
+-            content: {
+-              position: "callout",
+-              title: {
+-                string_id:
+-                  "smartwindow-sidebar-auto-open-callout-accepted-title",
+-              },
+-              above_button_content: [
+-                {
+-                  type: "text",
+-                  text: {
+-                    string_id:
+-                      "smartwindow-sidebar-auto-open-callout-accepted-subtitle",
+-                    textAlign: "start",
+-                    fontSize: "0.8em",
+-                    marginBlock: "0",
+-                    marginInline: "0",
+-                  },
+-                  link_keys: ["settings"],
+-                },
+-              ],
+-              settings: {
+-                action: {
+-                  type: "OPEN_PREFERENCES_PAGE",
+-                  data: { category: "personalizeSmartWindow" },
+-                  dismiss: true,
+-                },
+-              },
+-              dismiss_button: { action: { dismiss: true } },
+-            },
+-          },
+-          {
+-            id: "SMARTWINDOW_SIDEBAR_AUTO_OPEN_REJECTED_CALLOUT",
+-            force_hide_steps_indicator: true,
+-            anchors: [
+-              {
+-                selector: "#smartwindow-ask-button",
+-                panel_position: {
+-                  anchor_attachment: "bottomcenter",
+-                  callout_attachment: "topright",
+-                },
+-              },
+-            ],
+-            content: {
+-              position: "callout",
+-              title: {
+-                string_id:
+-                  "smartwindow-sidebar-auto-open-callout-rejected-title",
+-              },
+-              above_button_content: [
+-                {
+-                  type: "text",
+-                  text: {
+-                    string_id:
+-                      "smartwindow-sidebar-auto-open-callout-rejected-subtitle",
+-                    textAlign: "start",
+-                    fontSize: "0.8em",
+-                    marginBlock: "0",
+-                    marginInline: "0",
+-                  },
+-                  link_keys: ["settings"],
+-                },
+-              ],
+-              settings: {
+-                action: {
+-                  type: "OPEN_PREFERENCES_PAGE",
+-                  data: { category: "personalizeSmartWindow" },
+-                  dismiss: true,
+-                },
+-              },
+-              dismiss_button: { action: { dismiss: true } },
+-            },
+-          },
+-        ],
+-      },
+-      targeting:
+-        "isAIWindow && 'browser.smartwindow.sidebar.openByDefault' | preferenceValue && 'browser.smartwindow.sidebar.emptyCloseCount' | preferenceValue >= 2",
+-      trigger: {
+-        id: "preferenceObserver",
+-        params: ["browser.smartwindow.sidebar.emptyCloseCount"],
+-      },
+-      frequency: {
+-        lifetime: 1,
+-      },
+-    },
+   ];
+   messages = add24HourImpressionJEXLTargeting(
+     ["FIREFOX_VIEW_TAB_PICKUP_REMINDER"],
+diff --git a/browser/components/asrouter/modules/OnboardingMessageProvider.sys.mjs b/browser/components/asrouter/modules/OnboardingMessageProvider.sys.mjs
+index 64e2b55..8bd6684 100644
+--- a/browser/components/asrouter/modules/OnboardingMessageProvider.sys.mjs
++++ b/browser/components/asrouter/modules/OnboardingMessageProvider.sys.mjs
+@@ -3068,305 +3068,6 @@ const BASE_MESSAGES = () => [
+       ],
+     },
+   },
+-  {
+-    id: "SMARTWINDOW_DEFAULT_PROMO",
+-    template: "smart_window_newtab_promo",
+-    content: {
+-      type: "vibrant",
+-      heading: {
+-        string_id: "smart-window-default-promo-heading",
+-      },
+-      message: {
+-        string_id: "smart-window-default-promo-message",
+-      },
+-      imageSrc:
+-        "chrome://browser/content/aiwindow/assets/smart-window-promo-default.svg",
+-      imageAlignment: "start",
+-      imageWidth: "small",
+-      imageDisplay: "padded",
+-      primary_button: {
+-        label: {
+-          string_id: "smart-window-default-promo-primary-button",
+-        },
+-        action: {
+-          type: "SET_PREF",
+-          data: {
+-            pref: {
+-              name: "browser.smartwindow.isDefaultWindow",
+-              value: true,
+-            },
+-          },
+-        },
+-      },
+-      additional_button: {
+-        label: {
+-          string_id: "smart-window-default-promo-additional-button",
+-        },
+-        action: {
+-          type: "BLOCK_MESSAGE",
+-          data: {
+-            id: "SMARTWINDOW_DEFAULT_PROMO",
+-          },
+-        },
+-      },
+-    },
+-    trigger: {
+-      id: "smartWindowNewTab",
+-    },
+-    targeting:
+-      "isAIWindow && previousSessionEnd && !activeNotifications && userPrefs.cfrFeatures && ('browser.smartwindow.chat.interactionCount'|preferenceValue) > 2 && !('browser.smartwindow.isDefaultWindow' | preferenceValue)",
+-    frequency: {
+-      lifetime: 3,
+-    },
+-    groups: [],
+-  },
+-  {
+-    id: "SMARTWINDOW_FEEDBACK_MODAL_POSITIVE",
+-    template: "spotlight",
+-    groups: [],
+-    targeting: "true",
+-    trigger: {
+-      id: "feedbackThumbClick",
+-      params: ["thumbs-up"],
+-    },
+-    content: {
+-      id: "SMARTWINDOW_FEEDBACK_MODAL_POSITIVE",
+-      template: "multistage",
+-      modal: "window",
+-      write_in_microsurvey: true,
+-      screens: [
+-        {
+-          id: "SMARTWINDOW_FEEDBACK_SCREEN",
+-          content: {
+-            position: "center",
+-            screen_style: {
+-              width: "560px",
+-              overflow: "auto",
+-            },
+-            dismiss_button: { size: "small", action: { dismiss: true } },
+-            title: { string_id: "aiwindow-feedback-modal-title" },
+-            tiles: [
+-              {
+-                type: "textarea",
+-                subtitle: { string_id: "aiwindow-feedback-what-worked-well" },
+-                style: { marginBlock: "0" },
+-                data: { id: "feedback-text", rows: 4, character_limit: 1000 },
+-              },
+-              {
+-                type: "textbox",
+-                style: { marginBlock: "8px 0" },
+-                header: {
+-                  title: { string_id: "aiwindow-feedback-preview-report" },
+-                  alternateTitle: {
+-                    string_id: "aiwindow-feedback-preview-report",
+-                  },
+-                },
+-                data: {
+-                  id: "chat-log-preview",
+-                  content: "",
+-                  style: {
+-                    backgroundColor: "#F9F9FB",
+-                    maxHeight: "130px",
+-                  },
+-                },
+-              },
+-              {
+-                type: "content-toggle",
+-                data: {
+-                  id: "page-content-toggle",
+-                  label: {
+-                    string_id: "aiwindow-feedback-include-page-content",
+-                  },
+-                },
+-              },
+-            ],
+-            above_button_content: [
+-              {
+-                type: "text",
+-                text: {
+-                  string_id: "aiwindow-feedback-disclaimer",
+-                  fontSize: "13px",
+-                },
+-                link_keys: ["learn-more"],
+-              },
+-            ],
+-            "learn-more": {
+-              action: {
+-                type: "OPEN_URL",
+-                data: {
+-                  where: "chromeless",
+-                  args: "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/smart-window-user-feedback",
+-                  width: 960,
+-                  height: 720,
+-                },
+-              },
+-            },
+-            primary_button: {
+-              label: { string_id: "aiwindow-feedback-submit" },
+-              action: {
+-                type: "MULTI_ACTION",
+-                collectTextInput: true,
+-                collectContentToggleState: true,
+-                navigate: true,
+-                data: { actions: [] },
+-              },
+-            },
+-            secondary_button: {
+-              label: { string_id: "aiwindow-feedback-cancel" },
+-              action: { navigate: true },
+-            },
+-          },
+-        },
+-      ],
+-    },
+-  },
+-  {
+-    id: "SMARTWINDOW_FEEDBACK_MODAL_NEGATIVE",
+-    template: "spotlight",
+-    groups: [],
+-    targeting: "true",
+-    trigger: {
+-      id: "feedbackThumbClick",
+-      params: ["thumbs-down"],
+-    },
+-    content: {
+-      id: "SMARTWINDOW_FEEDBACK_MODAL_NEGATIVE",
+-      template: "multistage",
+-      modal: "window",
+-      write_in_microsurvey: true,
+-      screens: [
+-        {
+-          id: "SMARTWINDOW_FEEDBACK_SCREEN",
+-          content: {
+-            position: "center",
+-            screen_style: {
+-              width: "560px",
+-              overflow: "auto",
+-            },
+-            dismiss_button: { size: "small", action: { dismiss: true } },
+-            title: { string_id: "aiwindow-feedback-modal-title" },
+-            tiles: [
+-              {
+-                type: "multiselect",
+-                subtitle: { string_id: "aiwindow-feedback-choose-any" },
+-                data: [
+-                  {
+-                    id: "incorrect-or-misleading",
+-                    label: {
+-                      string_id:
+-                        "aiwindow-feedback-reason-incorrect-or-misleading",
+-                    },
+-                  },
+-                  {
+-                    id: "performance-or-usability",
+-                    label: {
+-                      string_id:
+-                        "aiwindow-feedback-reason-performance-or-usability",
+-                    },
+-                  },
+-                  {
+-                    id: "doesnt-address-my-request",
+-                    label: {
+-                      string_id:
+-                        "aiwindow-feedback-reason-doesnt-address-my-request",
+-                    },
+-                  },
+-                  {
+-                    id: "harmful-or-offensive",
+-                    label: {
+-                      string_id:
+-                        "aiwindow-feedback-reason-harmful-or-offensive",
+-                    },
+-                  },
+-                  {
+-                    id: "lacks-personalization",
+-                    label: {
+-                      string_id:
+-                        "aiwindow-feedback-reason-lacks-personalization",
+-                    },
+-                  },
+-                  {
+-                    id: "other",
+-                    label: { string_id: "aiwindow-feedback-reason-other" },
+-                  },
+-                ],
+-                style: { marginBlock: "0 16px" },
+-              },
+-              {
+-                type: "textarea",
+-                subtitle: { string_id: "aiwindow-feedback-add-details" },
+-                style: { marginBlock: "0" },
+-                data: { id: "feedback-text", rows: 4, character_limit: 1000 },
+-              },
+-              {
+-                type: "textbox",
+-                style: { marginBlock: "8px 0" },
+-                header: {
+-                  title: { string_id: "aiwindow-feedback-preview-report" },
+-                  alternateTitle: {
+-                    string_id: "aiwindow-feedback-preview-report",
+-                  },
+-                },
+-                data: {
+-                  id: "chat-log-preview",
+-                  content: "",
+-                  style: {
+-                    backgroundColor: "#F9F9FB",
+-                    maxHeight: "130px",
+-                  },
+-                },
+-              },
+-              {
+-                type: "content-toggle",
+-                data: {
+-                  id: "page-content-toggle",
+-                  label: {
+-                    string_id: "aiwindow-feedback-include-page-content",
+-                  },
+-                },
+-              },
+-            ],
+-            above_button_content: [
+-              {
+-                type: "text",
+-                text: {
+-                  string_id: "aiwindow-feedback-disclaimer",
+-                  fontSize: "13px",
+-                },
+-                link_keys: ["learn-more"],
+-              },
+-            ],
+-            "learn-more": {
+-              action: {
+-                type: "OPEN_URL",
+-                data: {
+-                  where: "chromeless",
+-                  args: "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/smart-window-user-feedback",
+-                  width: 960,
+-                  height: 720,
+-                },
+-              },
+-            },
+-            primary_button: {
+-              label: { string_id: "aiwindow-feedback-submit" },
+-              action: {
+-                type: "MULTI_ACTION",
+-                collectSelect: true,
+-                collectTextInput: true,
+-                collectContentToggleState: true,
+-                navigate: true,
+-                data: { actions: [] },
+-              },
+-            },
+-            secondary_button: {
+-              label: { string_id: "aiwindow-feedback-cancel" },
+-              action: { navigate: true },
+-            },
+-          },
+-        },
+-      ],
+-    },
+-  },
+ ];
+ 
+ const PREONBOARDING_MESSAGES = () => [
+diff --git a/browser/components/asrouter/modules/PanelTestProvider.sys.mjs b/browser/components/asrouter/modules/PanelTestProvider.sys.mjs
+index 9347570..67bd1d9 100644
+--- a/browser/components/asrouter/modules/PanelTestProvider.sys.mjs
++++ b/browser/components/asrouter/modules/PanelTestProvider.sys.mjs
+@@ -4053,62 +4053,6 @@ const MESSAGES = () => [
+     targeting:
+       "source == 'newtab' && !isMajorUpgrade && !activeNotifications && userPrefs.cfrFeatures && previousSessionEnd && !hasActiveEnterprisePolicies",
+   },
+-  {
+-    id: "TEST_CONTENT_ANCHOR",
+-    template: "feature_callout",
+-    content: {
+-      id: "TEST_CONTENT_ANCHOR",
+-      padding: "16",
+-      template: "multistage",
+-      backdrop: "transparent",
+-      transitions: false,
+-      disableHistoryUpdates: true,
+-      screens: [
+-        {
+-          id: "TEST_CONTENT_ANCHOR_SCREEN",
+-          anchors: [
+-            {
+-              selector:
+-                "hbox.deck-selected browser::%document%ai-window::%shadow%context-icon-button::%shadow% .context-icon-button",
+-              panel_position: {
+-                anchor_attachment: "bottomcenter",
+-                callout_attachment: "topright",
+-              },
+-            },
+-          ],
+-          content: {
+-            position: "callout",
+-            width: "400px",
+-            padding: 16,
+-            title: {
+-              raw: "Test Content Anchor",
+-            },
+-            subtitle: {
+-              raw: "This callout is for testing content anchors.",
+-            },
+-            additional_button: {
+-              action: {
+-                dismiss: true,
+-              },
+-              label: {
+-                string_id: "dismiss-button-label",
+-                fontWeight: "590",
+-                fontSize: "11px",
+-              },
+-              style: "secondary",
+-            },
+-          },
+-        },
+-      ],
+-    },
+-    frequency: {
+-      lifetime: 2,
+-    },
+-    trigger: {
+-      id: "smartWindowNewTab",
+-    },
+-    targeting: "isAIWindow",
+-  },
+   {
+     id: "WORLD_CUP_TASKBAR_TABS_SPOTLIGHT",
+     groups: ["panel-test-provider"],
+@@ -4220,11 +4164,7 @@ export const PanelTestProvider = {
+     return Promise.resolve(
+       MESSAGES().map(message => ({
+         ...message,
+-        targeting:
+-          typeof message.targeting === "string" &&
+-          message.targeting?.includes("isAIWindow")
+-            ? `isAIWindow && providerCohorts.panel_local_testing == "SHOW_TEST"`
+-            : `providerCohorts.panel_local_testing == "SHOW_TEST"`,
++        targeting: `providerCohorts.panel_local_testing == "SHOW_TEST"`,
+       }))
+     );
+   },
+diff --git a/browser/components/sessionstore/SessionStore.sys.mjs b/browser/components/sessionstore/SessionStore.sys.mjs
+index 90544f1..ad57dcf 100644
+--- a/browser/components/sessionstore/SessionStore.sys.mjs
++++ b/browser/components/sessionstore/SessionStore.sys.mjs
+@@ -174,8 +174,6 @@ XPCOMUtils.defineLazyServiceGetters(lazy, {
+ });
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
+   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+   DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.sys.mjs",
+@@ -2091,10 +2089,6 @@ var SessionStoreInternal = {
+       this._windows[aWindow.__SSi].isTaskbarTab = true;
+     }
+ 
+-    if (lazy.AIWindow.isAIWindowActiveAndEnabled(aWindow)) {
+-      this._windows[aWindow.__SSi].isAIWindow = true;
+-    }
+-
+     let tabbrowser = aWindow.gBrowser;
+ 
+     // add tab change listeners to all already existing tabs
+@@ -5282,15 +5276,7 @@ var SessionStoreInternal = {
+       // the state we're trying to restore and then fallback to the last selected
+       // window.
+       let windowToUse = windows[lastSessionWindowID];
+-      let lastWindowIsAIWindow =
+-        lastWindow && lazy.AIWindow.isAIWindowActive(lastWindow);
+-      let thisWindowIsAIWindow =
+-        !!winState.isAIWindow && lazy.AIWindow.isAIWindowEnabled();
+-      if (
+-        !windowToUse &&
+-        canUseLastWindow &&
+-        lastWindowIsAIWindow == thisWindowIsAIWindow
+-      ) {
++      if (!windowToUse && canUseLastWindow) {
+         windowToUse = lastWindow;
+         canUseLastWindow = false;
+       }
+@@ -5584,8 +5570,6 @@ var SessionStoreInternal = {
+     if (workspaceID) {
+       winData.workspaceID = workspaceID;
+     }
+-
+-    winData.isAIWindow = lazy.AIWindow.isAIWindowActive(aWindow);
+   },
+ 
+   /**
+@@ -6782,22 +6766,6 @@ var SessionStoreInternal = {
+     // restores don't set it), and willRestore() is true only for automatic
+     // restore / crash recovery — so this forces Smart for a genuinely new
+     // default startup window, never for a window restored from a saved session.
+-    const isNewDefaultStartupWindow =
+-      aOptions.firstWindow &&
+-      !lazy.SessionStartup.willRestore() &&
+-      lazy.AIWindow.shouldOpenAsSmartWindow();
+-    const shouldBeAIWindow =
+-      isNewDefaultStartupWindow ||
+-      (!!aWinData.isAIWindow && lazy.AIWindow.isAIWindowEnabled());
+-
+-    const trigger = aOptions.trigger ?? "open_browser";
+-
+-    if (lazy.AIWindow.isAIWindowActive(aWindow) !== shouldBeAIWindow) {
+-      lazy.AIWindow.toggleAIWindow(aWindow, shouldBeAIWindow, trigger);
+-    } else if (shouldBeAIWindow) {
+-      lazy.AIWindow.recordOpenWindowTelemetry(trigger);
+-    }
+-
+     if (!isTaskbarTab) {
+       WINDOW_HIDEABLE_FEATURES.forEach(function (aItem) {
+         aWindow[aItem].visible = !hidden.includes(aItem);
+@@ -7258,23 +7226,8 @@ var SessionStoreInternal = {
+       }
+     });
+ 
+-    // A window CANNOT be both a Private Window and an AI Window
+     if (winState.isPrivate) {
+       features.push("private");
+-    } else if (winState.isAIWindow) {
+-      let tab = winState.tabs[winState.selected - 1];
+-      let restoreSessionURL = "";
+-      if (tab.entries.length) {
+-        // tab.index is 1-based in the session store format (0/falsy means unset).
+-        let activeIndex = (tab.index || tab.entries.length) - 1;
+-        restoreSessionURL = tab.entries[activeIndex].url;
+-      }
+-      argString = lazy.AIWindow.handleAIWindowOptions({
+-        openerWindow: null,
+-        args: argString,
+-        aiWindow: winState.isAIWindow,
+-        restoreSessionURL,
+-      });
+     }
+ 
+     if (!argString) {
+diff --git a/browser/components/sidebar/browser-sidebar.js b/browser/components/sidebar/browser-sidebar.js
+index 2ba8540..7a95f66 100644
+--- a/browser/components/sidebar/browser-sidebar.js
++++ b/browser/components/sidebar/browser-sidebar.js
+@@ -13,8 +13,6 @@ const { DeferredTask } = ChromeUtils.importESModule(
+ );
+ 
+ const toolsNameMap = {
+-  viewGenaiChatSidebar: "aichat",
+-  viewGenaiPageAssistSidebar: "aipageassist",
+   viewTabsSidebar: "syncedtabs",
+   viewHistorySidebar: "history",
+   viewBookmarksSidebar: "bookmarks",
+@@ -98,17 +96,12 @@ var SidebarController = {
+       () => sidebar._updateMenus?.()
+     );
+     Object.defineProperty(sidebar, "visible", {
+-      get: () =>
+-        sidebar._prefVisible && !(config.hideInAIWindow && this.isAIWindow()),
++      get: () => sidebar._prefVisible,
+       configurable: true,
+     });
+     this.promiseInitialized.then(() => sidebar._updateMenus?.());
+   },
+ 
+-  isAIWindow() {
+-    return this.AIWindow.isAIWindowActive(window);
+-  },
+-
+   get sidebars() {
+     if (this._sidebars) {
+       return this._sidebars;
+@@ -185,40 +178,6 @@ var SidebarController = {
+       ],
+     ]);
+ 
+-    this.registerPrefSidebar(
+-      "browser.ml.chat.enabled",
+-      "viewGenaiChatSidebar",
+-      {
+-        name: "aichat",
+-        elementId: "sidebar-switcher-genai-chat",
+-        url: "chrome://browser/content/genai/chat.html",
+-        keyId: "viewGenaiChatSidebarKb",
+-        menuId: "menu_genaiChatSidebar",
+-        menuL10nId: "menu-view-genai-chat",
+-        // Bug 1900915 to expose as conditional tool
+-        revampL10nId: "sidebar-menu-genai-chat-label",
+-        iconUrl: "chrome://global/skin/icons/highlights.svg",
+-        gleanClickEvent: Glean.sidebar.chatbotIconClick,
+-        toolContextMenuId: "aichat",
+-        permissions: true,
+-        hideInAIWindow: true,
+-      }
+-    );
+-
+-    this.registerPrefSidebar(
+-      "browser.ml.pageAssist.enabled",
+-      "viewGenaiPageAssistSidebar",
+-      {
+-        name: "aipageassist",
+-        elementId: "sidebar-switcher-genai-page-assist",
+-        url: "chrome://browser/content/genai/pageAssist.html",
+-        menuId: "menu_genaiPageAssistSidebar",
+-        menuL10nId: "menu-view-genai-page-assist",
+-        revampL10nId: "sidebar-menu-genai-page-assist-label",
+-        iconUrl: "chrome://browser/skin/reader-mode.svg",
+-      }
+-    );
+-
+     this.registerPrefSidebar(
+       "browser.contextual-password-manager.enabled",
+       "viewCPMSidebar",
+@@ -2667,8 +2626,6 @@ var SidebarController = {
+ };
+ 
+ ChromeUtils.defineESModuleGetters(SidebarController, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   SidebarManager:
+     "moz-src:///browser/components/sidebar/SidebarManager.sys.mjs",
+   SidebarState: "moz-src:///browser/components/sidebar/SidebarState.sys.mjs",
+diff --git a/browser/components/sidebar/sidebar-main.mjs b/browser/components/sidebar/sidebar-main.mjs
+index 46b6026..68e475f 100644
+--- a/browser/components/sidebar/sidebar-main.mjs
++++ b/browser/components/sidebar/sidebar-main.mjs
+@@ -19,7 +19,6 @@ const lazy = {};
+ ChromeUtils.defineESModuleGetters(lazy, {
+   ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
+   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
+-  GenAI: "resource:///modules/GenAI.sys.mjs",
+ });
+ 
+ /**
+@@ -52,7 +51,7 @@ export default class SidebarMain extends MozLitElement {
+   get fluentStrings() {
+     if (!this._fluentStrings) {
+       this._fluentStrings = new Localization(
+-        ["browser/sidebar.ftl", "preview/genai.ftl"],
++        ["browser/sidebar.ftl"],
+         true
+       );
+     }
+@@ -355,17 +354,7 @@ export default class SidebarMain extends MozLitElement {
+       .querySelectorAll("[customized-tool='true']")
+       .forEach(node => node.remove());
+ 
+-    const menuBuilders = {
+-      aichat: async () => {
+-        if (Services.prefs.getBoolPref("browser.ml.chat.page")) {
+-          await lazy.GenAI.buildAskChatMenu(this._contextMenu, {
+-            browser: window.gBrowser.selectedBrowser,
+-            selectionInfo: null,
+-            source: "tool",
+-          });
+-        }
+-      },
+-    };
++    const menuBuilders = {};
+ 
+     const builder = menuBuilders[toolId];
+     if (typeof builder === "function") {
+@@ -673,14 +662,6 @@ export default class SidebarMain extends MozLitElement {
+ 
+   getEntrypointValues(action) {
+     let providerInfo;
+-    if (action.view === "viewGenaiChatSidebar") {
+-      providerInfo = lazy.GenAI.currentChatProviderInfo;
+-      action.iconUrl = providerInfo.iconUrl;
+-      // Sets the tooltip text for the action based on the chatbot provider's name.
+-      // This tooltip text is also used to set the action label
+-      action.tooltiptext = providerInfo.name;
+-    }
+-
+     if (action.disabled || action.hidden) {
+       return null;
+     }
+diff --git a/browser/components/tabbrowser/NewTabPagePreloading.sys.mjs b/browser/components/tabbrowser/NewTabPagePreloading.sys.mjs
+index 9b4f3e2..ef52528 100644
+--- a/browser/components/tabbrowser/NewTabPagePreloading.sys.mjs
++++ b/browser/components/tabbrowser/NewTabPagePreloading.sys.mjs
+@@ -13,8 +13,6 @@ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+ });
+@@ -66,13 +64,11 @@ export let NewTabPagePreloading = {
+    */
+   _adoptBrowserFromOtherWindow(window) {
+     let winPrivate = lazy.PrivateBrowsingUtils.isWindowPrivate(window);
+-    let winAIWindow = lazy.AIWindow.isAIWindowActive(window);
+     // Grab the least-recently-focused window with a preloaded browser:
+     let oldWin = lazy.BrowserWindowTracker.orderedWindows
+       .filter(w => {
+         return (
+           winPrivate == lazy.PrivateBrowsingUtils.isWindowPrivate(w) &&
+-          winAIWindow == lazy.AIWindow.isAIWindowActive(w) &&
+           w.gBrowser &&
+           w.gBrowser.preloadedBrowser
+         );
+@@ -110,12 +106,9 @@ export let NewTabPagePreloading = {
+ 
+     // Don't bother creating a preload browser if we're not in the top set of windows:
+     let windowPrivate = lazy.PrivateBrowsingUtils.isWindowPrivate(window);
+-    let windowAIWindow = lazy.AIWindow.isAIWindowActive(window);
+     let countKey = windowPrivate ? "private" : "normal";
+     let topWindows = lazy.BrowserWindowTracker.orderedWindows.filter(
+-      w =>
+-        lazy.PrivateBrowsingUtils.isWindowPrivate(w) == windowPrivate &&
+-        lazy.AIWindow.isAIWindowActive(w) == windowAIWindow
++      w => lazy.PrivateBrowsingUtils.isWindowPrivate(w) == windowPrivate
+     );
+     if (topWindows.indexOf(window) >= this.MAX_COUNT) {
+       return;
+diff --git a/browser/components/uitour/UITour-lib.js b/browser/components/uitour/UITour-lib.js
+index fa8c3ae..8ac9133 100644
+--- a/browser/components/uitour/UITour-lib.js
++++ b/browser/components/uitour/UITour-lib.js
+@@ -632,19 +632,6 @@ if (typeof Mozilla == "undefined") {
+     });
+   };
+ 
+-  /**
+-   * Trigger the Firefox Accounts sign-in flow for the AI Window feature.
+-   *
+-   * This will prompt the user to sign in and then open the AI Window
+-   * upon successful authentication.
+-   *
+-   * @example
+-   * Mozilla.UITour.showFirefoxAccountsForAIWindow();
+-   */
+-  Mozilla.UITour.showFirefoxAccountsForAIWindow = function () {
+-    _sendEvent("showFirefoxAccountsForAIWindow");
+-  };
+-
+   /**
+    * Request the browser open the "Connect Another Device" Firefox Accounts page.
+    *
+diff --git a/browser/components/uitour/UITour.sys.mjs b/browser/components/uitour/UITour.sys.mjs
+index 2c7e900..398f55f 100644
+--- a/browser/components/uitour/UITour.sys.mjs
++++ b/browser/components/uitour/UITour.sys.mjs
+@@ -8,8 +8,6 @@ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+   AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   AppProvidedConfigEngine:
+     "moz-src:///toolkit/components/search/ConfigSearchEngine.sys.mjs",
+   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.sys.mjs",
+@@ -492,26 +490,6 @@ export var UITour = {
+         break;
+       }
+ 
+-      case "showFirefoxAccountsForAIWindow": {
+-        // if user "Blocked" Smart Window feature from AI Control or global AI Control default
+-        // override Smart Window feature to "available"
+-        if (lazy.AIWindow.isBlocked) {
+-          Services.prefs.setStringPref(
+-            "browser.ai.control.smartWindow",
+-            "available"
+-          );
+-        }
+-
+-        lazy.AIWindow.launchWindow(browser).then(success => {
+-          if (!success) {
+-            lazy.log.warn(
+-              "showFirefoxAccountsForAIWindow: Failed to launch Smart Window"
+-            );
+-          }
+-        });
+-        break;
+-      }
+-
+       case "showConnectAnotherDevice": {
+         lazy.FxAccounts.config
+           .promiseConnectDeviceURI(data.entrypoint || "uitour")
+diff --git a/browser/components/urlbar/UrlbarUtils.sys.mjs b/browser/components/urlbar/UrlbarUtils.sys.mjs
+index 78c76bd..d70af65 100644
+--- a/browser/components/urlbar/UrlbarUtils.sys.mjs
++++ b/browser/components/urlbar/UrlbarUtils.sys.mjs
+@@ -10,7 +10,6 @@
+ /**
+  * @import {Query} from "./UrlbarProvidersManager.sys.mjs"
+  * @import {SearchEngine} from "moz-src:///toolkit/components/search/SearchEngine.sys.mjs"
+- * @import {SmartbarInput} from "chrome://browser/content/urlbar/SmartbarInput.mjs"
+  * @import {UrlbarSearchStringTokenData} from "./UrlbarTokenizer.sys.mjs"
+  */
+ 
+@@ -18,8 +17,6 @@ import { UrlbarShared } from "chrome://browser/content/urlbar/UrlbarShared.mjs";
+ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
+ 
+ const lazy = XPCOMUtils.declareLazy({
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   BrowserUIUtils: "resource:///modules/BrowserUIUtils.sys.mjs",
+   ContextualIdentityService:
+     "moz-src:///toolkit/components/contextualidentity/ContextualIdentityService.sys.mjs",
+@@ -2215,23 +2212,11 @@ export var UrlbarUtils = {
+    *
+    * @param {Window} window
+    *   The window to get the URL bar for.
+-   * @returns {UrlbarInput | SmartbarInput }
++   * @returns {UrlbarInput}
+    *   The URL bar element that should be focused.
+    */
+   getURLBarForFocus(window) {
+-    /** @type {UrlbarInput | SmartbarInput} */
+-    let urlbar = window.gURLBar;
+-    // Check if we're in an AI window with immersive view (no address bar visible)
+-    if (
+-      lazy.AIWindow.isAIWindowActive(window) &&
+-      lazy.AIWindow.shouldUseImmersiveView(window.gBrowser.currentURI)
+-    ) {
+-      let smartbar = lazy.AIWindow.getSmartbarForWindow(window);
+-      if (smartbar) {
+-        urlbar = smartbar;
+-      }
+-    }
+-    return urlbar;
++    return window.gURLBar;
+   },
+ 
+   /**
+diff --git a/browser/components/urlbar/content/UrlbarInput.mjs b/browser/components/urlbar/content/UrlbarInput.mjs
+index 7f47892..0ed0885 100644
+--- a/browser/components/urlbar/content/UrlbarInput.mjs
++++ b/browser/components/urlbar/content/UrlbarInput.mjs
+@@ -45,8 +45,6 @@ import { UrlbarShared } from "chrome://browser/content/urlbar/UrlbarShared.mjs";
+  */
+ 
+ const lazy = XPCOMUtils.declareLazy({
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
+   BrowserSearchTelemetry:
+     "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
+@@ -687,9 +685,7 @@ ${
+     if (this.isPrivate) {
+       return "private";
+     }
+-    return lazy.AIWindow.isAIWindowActive(this.window)
+-      ? "smartwindow"
+-      : "classic";
++    return "classic";
+   }
+ 
+   blur() {
+diff --git a/browser/modules/Sanitizer.sys.mjs b/browser/modules/Sanitizer.sys.mjs
+index ca648d9..7e6bc4d 100644
+--- a/browser/modules/Sanitizer.sys.mjs
++++ b/browser/modules/Sanitizer.sys.mjs
+@@ -7,10 +7,6 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+-  ChatStore:
+-    "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs",
+   ContextualIdentityService:
+     "moz-src:///toolkit/components/contextualidentity/ContextualIdentityService.sys.mjs",
+   FormHistory: "resource://gre/modules/FormHistory.sys.mjs",
+@@ -884,8 +880,6 @@ export var Sanitizer = {
+         timerId = Glean.browserSanitizer.downloads.start();
+         await clearData(range, Ci.nsIClearDataService.CLEAR_DOWNLOADS);
+         Glean.browserSanitizer.downloads.stopAndAccumulate(timerId);
+-
+-        await clearChatConversations(range, progress);
+       },
+     },
+ 
+@@ -912,33 +906,11 @@ export var Sanitizer = {
+         }
+         await clearData(range, Ci.nsIClearDataService.CLEAR_MEDIA_DEVICES);
+         Glean.browserSanitizer.cookies.stopAndAccumulate(timerId);
+-
+-        await clearChatConversations(range, progress);
+       },
+     },
+   },
+ };
+ 
+-// Clear chat conversations if AI Window is enabled.
+-// (ChatStore uses milliseconds.)
+-async function clearChatConversations(range, progress) {
+-  if (!lazy.AIWindow.isEnabled) {
+-    return;
+-  }
+-  progress.step = "clearing Smart Window chat conversations";
+-  try {
+-    if (range) {
+-      let startDate = new Date(range[0] / 1000);
+-      let endDate = new Date(range[1] / 1000);
+-      await lazy.ChatStore.deleteConversationsByDateRange(startDate, endDate);
+-    } else {
+-      await lazy.ChatStore.deleteAllConversations();
+-    }
+-  } catch (ex) {
+-    log("Failed to clear chat conversations", ex);
+-  }
+-}
+-
+ async function sanitizeInternal(items, aItemsToClear, options) {
+   let { ignoreTimespan = true, range, progress } = options;
+   let seenError = false;
+diff --git a/toolkit/components/messaging-system/lib/SpecialMessageActions.sys.mjs b/toolkit/components/messaging-system/lib/SpecialMessageActions.sys.mjs
+index e41e58b..b5e6a56 100644
+--- a/toolkit/components/messaging-system/lib/SpecialMessageActions.sys.mjs
++++ b/toolkit/components/messaging-system/lib/SpecialMessageActions.sys.mjs
+@@ -27,15 +27,11 @@ const lazy = {};
+ 
+ ChromeUtils.defineESModuleGetters(lazy, {
+   AddonManager: "resource://gre/modules/AddonManager.sys.mjs",
+-  AIWindow:
+-    // eslint-disable-next-line mozilla/no-browser-refs-in-toolkit
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   // eslint-disable-next-line mozilla/no-browser-refs-in-toolkit
+   CustomizableUI:
+     "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
+   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
+   FxAccounts: "resource://gre/modules/FxAccounts.sys.mjs",
+-  GenAI: "resource:///modules/GenAI.sys.mjs",
+   IPProtection:
+     // eslint-disable-next-line mozilla/no-browser-refs-in-toolkit
+     "moz-src:///browser/components/ipprotection/IPProtection.sys.mjs",
+@@ -970,9 +966,6 @@ export const SpecialMessageActions = {
+       case "FXA_SIGNIN_FLOW":
+         /** @returns {Promise<boolean>} */
+         return this.fxaSignInFlow(action.data, browser);
+-      case "FXA_AIWINDOW_SIGNIN_FLOW":
+-        /** @returns {Promise<boolean>} */
+-        return lazy.AIWindow.launchWindow(browser);
+       case "OPEN_PROTECTION_PANEL": {
+         let { gProtectionsHandler } = window;
+         gProtectionsHandler.showProtectionsPopup({});
+@@ -1057,11 +1050,6 @@ export const SpecialMessageActions = {
+         window.gURLBar.searchMode = action.data;
+         window.gURLBar.focus();
+         break;
+-      case "SUMMARIZE_PAGE": {
+-        const entry = action.data ?? "message";
+-        await lazy.GenAI.summarizeCurrentPage(window, entry);
+-        break;
+-      }
+       case "OPEN_PANEL": {
+         let { anchor_id, widget_id, panel_id, fallback_to_app_menu } =
+           action.data;
+diff --git a/toolkit/modules/LightweightThemeConsumer.sys.mjs b/toolkit/modules/LightweightThemeConsumer.sys.mjs
+index 7c24b0d..7d33983 100644
+--- a/toolkit/modules/LightweightThemeConsumer.sys.mjs
++++ b/toolkit/modules/LightweightThemeConsumer.sys.mjs
+@@ -227,7 +227,6 @@ export function LightweightThemeConsumer(aDocument) {
+   this._doc = aDocument;
+   this._win = aDocument.defaultView;
+   this._winId = this._win.docShell.outerWindowID;
+-  this._isAIWindow = this._doc.documentElement.hasAttribute("ai-window");
+   this._isPrivateWindow = lazy.PrivateBrowsingUtils.isWindowPrivate(this._win);
+ 
+   XPCOMUtils.defineLazyPreferenceGetter(
+@@ -251,11 +250,7 @@ export function LightweightThemeConsumer(aDocument) {
+     "_toolbarTheme",
+     "browser.theme.toolbar-theme",
+     2,
+-    () => {
+-      if (this._isAIWindow) {
+-        this._update(this._lastData);
+-      }
+-    }
++    () => {}
+   );
+ 
+   // Whether we should switch to a dark theme variant in private windows
+@@ -275,13 +270,6 @@ export function LightweightThemeConsumer(aDocument) {
+   this.forcedColorsMediaQuery = this._win.matchMedia("(forced-colors)");
+   this.forcedColorsMediaQuery.addListener(this);
+ 
+-  this._aiWindowObserver = new this._win.MutationObserver(() => {
+-    this.toggleAIWindowMode(this._win);
+-  });
+-  this._aiWindowObserver.observe(this._doc.documentElement, {
+-    attributeFilter: ["ai-window"],
+-  });
+-
+   this._update(lazy.LightweightThemeManager.themeData);
+ 
+   this._win.addEventListener("unload", this, { once: true });
+@@ -316,8 +304,6 @@ LightweightThemeConsumer.prototype = {
+       case "unload":
+         Services.obs.removeObserver(this, "lightweight-theme-styling-update");
+         Services.ppmm.sharedData.delete(`theme/${this._winId}`);
+-        this._aiWindowObserver?.disconnect();
+-        this._aiWindowObserver = null;
+         this._win = this._doc = null;
+         this.darkThemeMediaQuery?.removeListener(this);
+         this.darkThemeMediaQuery = null;
+@@ -330,7 +316,7 @@ LightweightThemeConsumer.prototype = {
+   _update(themeData) {
+     const manager = lazy.LightweightThemeManager;
+ 
+-    // Store user's theme before replacing with aiThemeData or privateThemeData.
++    // Store user's theme before replacing with privateThemeData.
+     this._lastData = themeData;
+     let isPrivateThemeActive = false;
+ 
+@@ -344,26 +330,7 @@ LightweightThemeConsumer.prototype = {
+       DEFAULT_THEME_ID === themeId ||
+       !!lazy.BuiltInThemeConfig.get(themeId)?.inApp;
+ 
+-    if (this._isAIWindow) {
+-      const useNova = this.BROWSER_NOVA_ENABLED;
+-      const cachedData = useNova
+-        ? manager.aiNovaThemeData
+-        : manager.aiThemeData;
+-      if (cachedData) {
+-        themeData = cachedData;
+-        isDefaultOrInApp = true;
+-      } else {
+-        const promise = useNova
+-          ? manager.promiseAINovathemeData()
+-          : manager.promiseAIThemeData();
+-        promise.then(() => {
+-          if (this._isAIWindow && this._win && !this._win.closed) {
+-            this._update(this._lastData);
+-          }
+-        });
+-        return;
+-      }
+-    } else if (
++    if (
+       shouldMakePrivateWindowDark &&
+       this.BROWSER_NOVA_ENABLED &&
+       isDefaultOrInApp
+@@ -409,7 +376,7 @@ LightweightThemeConsumer.prototype = {
+       return true;
+     })();
+ 
+-    if (this._isAIWindow || isPrivateThemeActive) {
++    if (isPrivateThemeActive) {
+       updateGlobalThemeData = false;
+     }
+ 
+@@ -608,11 +575,6 @@ LightweightThemeConsumer.prototype = {
+       this._lastExperimentData.stylesheet = stylesheet;
+     }
+   },
+-
+-  toggleAIWindowMode(win) {
+-    this._isAIWindow = win.document.documentElement.hasAttribute("ai-window");
+-    this._update(lazy.LightweightThemeManager.themeData);
+-  },
+ };
+ 
+ function _getContentProperties(doc, hasTheme, data) {
+diff --git a/toolkit/mozapps/extensions/LightweightThemeManager.sys.mjs b/toolkit/mozapps/extensions/LightweightThemeManager.sys.mjs
+index a5c5472..f7cb8ac 100644
+--- a/toolkit/mozapps/extensions/LightweightThemeManager.sys.mjs
++++ b/toolkit/mozapps/extensions/LightweightThemeManager.sys.mjs
+@@ -6,13 +6,6 @@
+ // active theme can be found. This the case for WebExtension Themes, for example.
+ var _fallbackThemeData = null;
+ 
+-function processImage(img, baseURI) {
+-  if (typeof img == "object") {
+-    return img;
+-  }
+-  return baseURI.resolve(img);
+-}
+-
+ // Parses the `images` property of a theme manifest and stores them in `styles`.
+ function loadImages(images, styles, experiment, baseURI, logger) {
+   for (let image of Object.keys(images)) {
+@@ -24,16 +17,18 @@ function loadImages(images, styles, experiment, baseURI, logger) {
+ 
+     switch (image) {
+       case "additional_backgrounds": {
+-        styles.additionalBackgrounds = val.map(v => processImage(v, baseURI));
++        let backgroundImages = val.map(img => baseURI.resolve(img));
++        styles.additionalBackgrounds = backgroundImages;
+         break;
+       }
+       case "theme_frame": {
+-        styles.headerImage = processImage(val, baseURI);
++        let resolvedURL = baseURI.resolve(val);
++        styles.headerURL = resolvedURL;
+         break;
+       }
+       default: {
+         if (experiment?.images && image in experiment.images) {
+-          styles.experimental.images[image] = processImage(val, baseURI);
++          styles.experimental.images[image] = baseURI.resolve(val);
+         } else {
+           logger?.warn(`Unrecognized theme property found: images.${image}`);
+         }
+@@ -165,14 +160,12 @@ function loadProperties(properties, styles, experiment, logger) {
+         if (!assertValidAdditionalBackgrounds(property, val.length)) {
+           break;
+         }
+-        styles.backgroundsTiling = val.join(",");
+-        break;
+-      }
+-      case "additional_backgrounds_size": {
+-        if (!assertValidAdditionalBackgrounds(property, val.length)) {
+-          break;
++
++        let tiling = [];
++        for (let i = 0, l = styles.additionalBackgrounds.length; i < l; ++i) {
++          tiling.push(val[i] || "no-repeat");
+         }
+-        styles.backgroundsSize = val.join(",");
++        styles.backgroundsTiling = tiling.join(",");
+         break;
+       }
+       case "color_scheme":
+@@ -222,75 +215,6 @@ function loadDetails(details, experiment, baseURI, id, version, logger) {
+ }
+ 
+ export var LightweightThemeManager = {
+-  // Bump this number whenever the shape or interpretation of the theme data
+-  // changes, in order to invalidate extensions startup cache.
+-  DATA_VERSION: 1,
+-  aiThemeData: null,
+-  _aiThemeDataPromise: null,
+-  aiNovaThemeData: null,
+-  _aiNovaThemeDataPromise: null,
+-  privateThemeData: null,
+-  _privateThemeDataPromise: null,
+-
+-  async promiseAIThemeData() {
+-    if (this.aiThemeData) {
+-      return this.aiThemeData;
+-    }
+-
+-    if (this._aiThemeDataPromise) {
+-      return this._aiThemeDataPromise;
+-    }
+-
+-    this._aiThemeDataPromise = this._fetchThemeDataFromBuiltinManifest(
+-      "resource://builtin-themes/aiwindow/"
+-    ).then(data => {
+-      this.aiThemeData = data;
+-      this._aiThemeDataPromise = null;
+-      return data;
+-    });
+-
+-    return this._aiThemeDataPromise;
+-  },
+-
+-  async promiseAINovathemeData() {
+-    if (this.aiNovaThemeData) {
+-      return this.aiNovaThemeData;
+-    }
+-
+-    if (this._aiNovaThemeDataPromise) {
+-      return this._aiNovaThemeDataPromise;
+-    }
+-
+-    this._aiNovaThemeDataPromise = this._fetchThemeDataFromBuiltinManifest(
+-      "resource://builtin-themes/aiwindow-nova/"
+-    ).then(data => {
+-      this.aiNovaThemeData = data;
+-      this._aiNovaThemeDataPromise = null;
+-      return data;
+-    });
+-
+-    return this._aiNovaThemeDataPromise;
+-  },
+-
+-  async promisePrivateThemeData() {
+-    if (this.privateThemeData) {
+-      return this.privateThemeData;
+-    }
+-
+-    if (this._privateThemeDataPromise) {
+-      return this._privateThemeDataPromise;
+-    }
+-
+-    this._privateThemeDataPromise = this._fetchThemeDataFromBuiltinManifest(
+-      "resource://builtin-themes/privatewindow/"
+-    ).then(data => {
+-      this.privateThemeData = data;
+-      this._privateThemeDataPromise = null;
+-      return data;
+-    });
+-
+-    return this._privateThemeDataPromise;
+-  },
+   async _fetchThemeDataFromBuiltinManifest(baseURI) {
+     let baseURIObj = Services.io.newURI(baseURI);
+     let res = await fetch(baseURIObj.resolve("./manifest.json"));
+@@ -333,7 +257,6 @@ export var LightweightThemeManager = {
+       experiment.stylesheet = baseURI.resolve(experiment.stylesheet);
+     }
+     let lwtData = {
+-      dataVersion: this.DATA_VERSION,
+       experiment,
+     };
+     lwtData.theme = loadDetails(
+@@ -358,7 +281,7 @@ export var LightweightThemeManager = {
+   },
+ 
+   set fallbackThemeData(data) {
+-    if (data?.dataVersion === this.DATA_VERSION) {
++    if (data && Object.getOwnPropertyNames(data).length) {
+       _fallbackThemeData = Object.assign({}, data);
+     } else {
+       _fallbackThemeData = null;
+@@ -366,6 +289,22 @@ export var LightweightThemeManager = {
+   },
+ 
+   get themeData() {
+-    return _fallbackThemeData || { theme: null };
++    // 🛡️ API LOBOTOMY - GORILLA UNLEASHED
++    // Rationale: Force-enforce 'Gorilla Nebula' aesthetic natively.
++    return _fallbackThemeData || { 
++      theme: {
++        images: {
++            additional_backgrounds: ["chrome://branding/content/nebula.jpg"]
++        },
++        colors: {
++          frame: "#000000",
++          toolbar: "rgba(0, 0, 0, 0.9)",
++          toolbar_text: "#ffffff",
++          tab_selected: "#FFC0CB",
++          tab_background_text: "#0f0f0f",
++          tab_line: "#008080"
++        }
++      }
++    };
+   },
+ };

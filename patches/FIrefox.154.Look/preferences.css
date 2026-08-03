@@ -28,33 +28,18 @@
   margin-inline-end: 12px !important;
 }
 
-/* LINK PROMO ILLUSTRATION: Replace kit-concerned with dominant high-res Gorilla */
-moz-promo img {
-  content: url("chrome://branding/content/about-logo.png") !important;
-  width: 480px !important; /* Increased for maximum impact */
-  height: auto !important;
-  display: block !important;
-  margin: 20px auto !important;
-}
-
-moz-promo {
-  /* GORILLA OVERRIDE 2026-07-31: contain the 480px promo image. On the FF154
-     redesigned privacy pane the promo banner is slim and the big image bled
-     UNDER later cards (user screenshot 20:07). overflow:hidden clips inside
-     the card instead of overlapping; home pane unaffected (its card grows to
-     fit content). Z-index deliberately untouched — z-index minimalism rule
-     (CSS_UI_TWEAKS_MEGA_LESSON: VRAM economy on iGPU). */
-  overflow: hidden !important;
-  background-color: #121214 !important;
-  border: 1px solid #2b2b2e !important;
-  border-radius: 20px !important;
-  padding: 40px !important;
-  margin-top: 30px !important;
-}
+/* ==========================================================================
+   GORILLA REJECTED 2026-08-01: privacy-pane promo gorilla injection
+   (moz-promo img content-replacement + moz-promo container styling)
+   REMOVED by author verdict -- the pane is too text-dense for art. This
+   was a REJECTED item of the 2026-05-30 Gemini theming plan that
+   RESURRECTED because the rejection was never written down. It is
+   written down now. DO NOT RE-ADD. THEME_FIX_LOG 2026-07-31 ledger, s32.
+   ========================================================================== */
 
 /* Link all Label and Link colors for high contrast */
 label, description, .text-link, .help-button, h1, h2 {
-  color: #f9f9fb !important;
+  color: #00FFFF !important; /* GORILLA 2026-08-01: harmonized to theme cyan */
 }
 
 .text-link {
@@ -122,3 +107,43 @@ moz-button[action="remove"] {
   display: none !important;
 }
 
+
+/* ==========================================================================
+   GORILLA OVERRIDE 2026-08-01: FF154 REDESIGNED settings sidebar is a
+   moz-page-nav web component -- labels + icons live in shadow DOM where
+   document selectors cannot reach, but CSS custom properties inherit
+   through. The ghost-button text tokens (layered :host rules in
+   moz-page-nav.tokens.css) resolve near-black on our black page ->
+   invisible sidebar entries. Pin hard cyan on the nav subtree only
+   (page-wide --icon-color untouched). Selected keeps accent-primary.
+   Unlayered document rule on the host beats the widget @layer :host rule.
+   ========================================================================== */
+moz-page-nav {
+  --page-nav-button-text-color: #00FFFF;
+  --page-nav-button-text-color-hover: #00FFFF;
+  --page-nav-button-text-color-active: #00FFFF;
+  --icon-color: #00FFFF;
+}
+
+/* ==========================================================================
+   GORILLA OVERRIDE 2026-08-01 (round 3): main-content text of the redesigned
+   settings widgets (moz-checkbox / moz-toggle / setting-group ...) renders
+   black-on-dark -- the labels live in shadow DOM, so the line-56
+   label/description overrides never reach them. But moz-checkbox has ZERO
+   color rules of its own (pure color:inherit), so a document rule on the
+   HOST element flows straight through the shadow boundary.
+   THE TRICK (author: "remember the trick, because it worked"): shadow walls
+   stop SELECTORS, not inherited values or custom properties -- pin color +
+   tokens on the host element from document CSS and the inside follows.
+   ========================================================================== */
+body#preferences-body {
+  color: #00FFFF !important;
+  --text-color: #00FFFF;
+}
+setting-group, setting-control, setting-pane, moz-fieldset, moz-checkbox,
+moz-toggle, moz-radio-group, moz-radio, moz-select, moz-input-text,
+moz-input-search, moz-box-item, moz-box-group, moz-box-link,
+moz-message-bar, moz-promo, moz-support-link {
+  color: #00FFFF;
+  --text-color: #00FFFF;
+}

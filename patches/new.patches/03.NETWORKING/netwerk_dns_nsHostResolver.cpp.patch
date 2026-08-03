@@ -1,19 +1,6 @@
 --- a/netwerk/dns/nsHostResolver.cpp
 +++ b/netwerk/dns/nsHostResolver.cpp
-@@ -2,6 +2,12 @@
-  * License, v. 2.0. If a copy of the MPL was not distributed with this
-  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- 
-+// GORILLA UNLEASHED: Surgical Lobotomy (Blindness)
-+// Sever all outbound telemetry data streams at the DNS layer.
-+#undef MOZ_TELEMETRY_REPORTING
-+#define MOZ_TELEMETRY_REPORTING 0
-+#define GLEAN_DISABLED 1
-+
- #include "nsIThreadPool.h"
- #if defined(HAVE_RES_NINIT)
- #  include <sys/types.h>
-@@ -63,7 +69,10 @@
+@@ -63,7 +63,10 @@
  
  // None of our implementations expose a TTL for negative responses, so we use a
  // constant always.
@@ -25,7 +12,7 @@
  
  //----------------------------------------------------------------------------
  
-@@ -181,8 +190,11 @@
+@@ -181,8 +184,11 @@
    LOG(("Native HTTPS records supported=%d", bool(sNativeHTTPSSupported)));
  
    nsCOMPtr<nsIThreadPool> threadPool = new nsThreadPool();

@@ -2,7 +2,7 @@
 // Keeps GPU process off on Wayland: the compositor widget in the GPU process
 // has no wl_egl_window (GtkCompositorWidgetInitData carries no Wayland handle),
 // so EGL surface creation fails and the window stays black.
-// VA-API decode still works via the RDD process (media.rdd-ffmpeg.vaapi.enabled).
+// VA-API decode still works via the RDD process (media.rdd-ffmpeg.enabled).
 user_pref("layers.gpu-process.enabled", false);
 user_pref("layers.gpu-process.force-enabled", false);
 user_pref("media.gpu-process-decoder", false);
@@ -20,7 +20,6 @@ user_pref("gfx.x11-egl.force-enabled", false);
 // LIBVA_DRIVER_NAME=i965 must be set in /etc/environment (it is).
 user_pref("media.ffmpeg.vaapi.enabled", true);
 user_pref("media.ffmpeg.vaapi.decode.force-enabled", true);
-user_pref("media.ffmpeg.vaapi-drm-display.enabled", true);
 
 // ── VA-API surface zero-copy: bypass gfxInfo blocklist ────────────────────
 // media.ffmpeg.vaapi.force-surface-zero-copy defaults to 2 (gfxInfo-controlled).
