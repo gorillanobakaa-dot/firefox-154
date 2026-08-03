@@ -470,3 +470,27 @@ files, doubled-brand count now 0); NEW_FILES + Safety.Vault.Theme
 master-redirect.css re-synced (were 187-line stale, now 315); icon-script
 profile template fixed. Restore order: vault → 07-16 snapshots → Look copies
 → APPLIED-STATE.2026-07-31.REPAIRS.tar.gz LAST.
+
+=== 2026-08-03 TOPIC 14-AI-EXCISION (see new.patches/AI_EXCISION_SNAPSHOT_2026-08-02/) ===
+AI stack STRUCTURALLY REMOVED from tree: browser/components/aiwindow + genai
+(dirs moved to firefox-main.excised-ai-aiwindow-genai.2026-08-02), plus earlier
+ml/mozinference/llama.cpp. ~130 seam edits across ~40 files via six assert-once
+scripts (mozambique_*.py, all in snapshot dir with originals + EXCISION_MANIFEST).
+Five hidden anchors cut: glean metrics_index.py, startup categories, provider
+category, jar.mn/Localization lists, document <link rel=localization>. Three
+pre-existing live crashes fixed (tab right-click, window close, link right-click).
+Dual-track docs: 14-ai-excision.DEVELOPER.md + .LAYMAN.md (same dir). Lessons
+ingested to chroma firefox_154 (215 vectors). Fresh-profile headless boot: ZERO
+AI refs, ZERO fluent errors. Full ./mach build launched 2026-08-02 23:51 to bake
+libxul (drops 2 dead Glean categories) — verify binary + symbols when it lands.
+
+=== 2026-08-03 SESSION CHRONICLE + GUI VERIFICATION (final) ===
+Full 3-day narrative (dual-track) + roadblock ledger (27 entries) + atom index
+(30) + script index: patches/new.patches/SESSION_CHRONICLE_2026-07-31_to_08-03.md.
+GUI-verified on running binary: AI-free, phantom customize fixed, tab groups off.
+4 new tail atoms ingested (chroma firefox_154 now 219 vectors):
+Phantom_Customize_Panel_ID_Selector_Beats_Hidden, GUI_Runtime_Forensics_Monitor_
+Breadcrumb_StackInject, StartupCache_Stale_Bytecode_Invalidates_On_BuildID_Only,
+Session_Chronicle_2026_08_Three_Day_Arc. Excision manifest closed (runtime state
+section). Ship build still owed for tab-groups-off + tier3 + customize CSS to bake
+into libxul (current libxul verified AI-symbol-free; these are JS/CSS/pref layer).

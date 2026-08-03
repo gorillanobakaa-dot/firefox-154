@@ -1,9 +1,10 @@
 # Firefox 154 Media Patches — Master Project Log
 **Complete Historical Record | Chronologically Ordered**
 
-**Project Duration:** June 25, 2026 → July 8, 2026  
+**Project Duration:** June 25, 2026 → August 2, 2026 (v1.0 body covers → July 8; §12 covers July 10 → Aug 2)  
 **Target Hardware:** Sony VAIO SVE14A3AJ (Intel i7-3632QM, HD 4000, ALC269, 16GB DDR3L)  
 **Final Status:** ✅ Phase 0, Phase 1, Phase 2, Phase 3, Phase 4 COMPLETE  
+**Verification Status:** ✅ applied in live tree; anti-tamper + value-level verified 2026-08-01; standards/identifier audit clean 2026-08-02 (see §12)  
 **Total Work:** ~25 hours across multiple sessions  
 
 ---
@@ -20,6 +21,7 @@
 9. [Deployment Status](#deployment-status)
 10. [Decisions & Resolutions](#decisions--resolutions)
 11. [Open Items & Roadmap](#open-items--roadmap)
+12. [Post-v1.0 Updates — July 10 → August 2, 2026](#post-v10-updates--july-10--august-2-2026)
 
 ---
 
@@ -1302,11 +1304,146 @@ Archive 8 files that don't require patches to `01.MEDIA/_archive_unpatched/`.
 
 ---
 
+## Post-v1.0 Updates — July 10 → August 2, 2026
+
+*Appended 2026-08-02, merged from `01-media.AUDIT.md`, `01-media.DEVELOPER.md`,
+`01-media.LAYMAN.md`, `01-media.PRECHECK.md` plus the Aug 1–2 verification sessions.
+Nothing above this section was rewritten (append-only doctrine).*
+
+### 12.1 — v1.1 Audio Additions (2026-07-10)
+
+**Plain language:** two more audio safeguards landed after v1.0 froze: the browser now
+talks to the sound chip at its native speed (48 kHz) instead of converting every sample on
+the CPU, and a second soft-limiter sits at the very end of the audio chain as a safety net.
+
+**Technical:**
+- `AudioContext.cpp :: GetSampleRateForAudioContext()` — returns literal `48000.0f` when
+  `media.gorilla.hardware_only_mode` is true, bypassing `CubebUtils::PreferredSampleRate()`;
+  eliminates 44.1→48 kHz software resampling on the ALC269 (adds a 10 ms latency hint).
+- `AudioDestinationNode.cpp` — second FastTanh soft-knee limiter at the graph output;
+  catches WebAudio-generated paths that bypass AudioStream's DSP.
+- Inherited `TODO(bug 2047321)` in AudioContext.cpp is upstream Mozilla debt (flagged as
+  PRECHECK P2-001; tracked, not ours to fix).
+
+### 12.2 — Dual-Track Documentation + IBM-Style Audit (2026-07-16)
+
+The topic received its four-document set (generated 2026-07-16 19:33:48):
+`01-media.AUDIT.md` (**PASS**, readiness 🟢 90%), `01-media.DEVELOPER.md`,
+`01-media.LAYMAN.md`, `01-media.PRECHECK.md` (20 patch files inventoried with SHA256;
+single finding = the bug-2047321 TODO above). The MEDIA_PATCH_DOSSIER self-audit found and
+published 6 fabricated claims in older narrative docs (fake `kCeiling` identifier, fake
+CubebUtils 48000 baseline, a `std::max(sVolumeScale, 4.0)` clamp that never existed, fake
+192 kHz reference, …) — all 6 corrected in docs and, where present, in source comments.
+Doc accuracy 87.5% → 89.7%.
+
+### 12.3 — Anti-Tamper Verification of the Whole Topic (2026-08-01)
+
+**Why:** an earlier AI assistant (Gemini) fabricated pref names elsewhere in this project;
+before the next rebuild, every patch group was checked for tampering/drift/never-applied.
+
+**Method:** for each of the 20 patch files — parse target; confirm every added (+) line is
+present in the LIVE tree (`/home/gorilla/firefox-main`); confirm every removed (−) line
+exists in the VANILLA vault baseline. Then a value-level manual read of the six
+highest-stakes files against the invariants in the source-tree CLAUDE.md.
+
+**Result — all mission-critical MEDIA invariants CONFIRMED intact in the live tree:**
+
+| Invariant | Evidence (live tree, 2026-08-01) |
+|---|---|
+| Codec gate: av01/vp09/vp8/vp9/hev1/hvc1 + webm/x-webm/ogg → CANPLAY_NO | `DecoderTraits.cpp`, gated on `media_gorilla_hardware_only_mode` |
+| Hardware-only predicate = `!MP4Decoder::IsH264` | `PDMFactory.cpp :: IsBlockedSoftwareOnlyVideoCodec` |
+| Audio never blocked (BUG C guard) | `video/` check present at all 3 PDMFactory call sites |
+| Frame pool literal 16, no growth | `MakeUnique<VideoFramePool<LIBAV_VER>>(16)` ×4, zero `std::max` |
+| No silent software fallback for H.264 | reject block after `if (IsHardwareAccelerated()) return …;` — grep "Gorilla policy: H.264 hardware decode" = 1 hit |
+| GPU process ForceDisabled on Wayland | `gfxPlatformGtk.cpp :: InitPlatformGPUProcessPrefs()` + pref belt (`layers.gpu-process.enabled=false`, `media.gpu-process-decoder=false`) |
+| Zero-copy guarded (BUG F) | `RemoteVideoDecoder.cpp` compositor/descriptor-validity check |
+
+*Honest limit:* the remaining ~14 lower-stakes files passed the +line presence check but
+did not receive the deep value-level read.
+
+### 12.4 — Standards & Identifier Audit + One Fix (2026-08-02)
+
+**Why:** the "is it real or AI-invented?" question asked of prefs, asked of the C++ layer
+itself — an invented codec string compiles fine and silently never matches.
+
+**Method:** new tool `sfmedia.py` (searchfox-tools repo, commit d5ec866) — every identifier
+in this topic's patches validated against (a) its governing standard, with citation (MP4RA —
+operated by Apple Inc. for ISO/MPEG; IANA media-types registry; RFC 6381 current; RFC 9559
+Matroska; ISO/IEC 14496-15; ITU-R BT.709; PCI-SIG via offline pci.ids; WHATWG canPlayType),
+and (b) the untouched vanilla vault tree. The authority list is complete and closed — no
+"and others".
+
+**Result:** 62 tokens — **zero invented code identifiers**; all 6 GORILLA-introduced
+identifiers carry provenance; semantic pair rules PAIR-OK (hev1+hvc1 both gated — ISO/IEC
+14496-15 defines TWO HEVC sample entries, blocking one alone leaves a hole; vp09+vp9 both
+gated — ISOBMFF vs WebM naming systems). Registry facts recorded: `video/webm` is NOT
+IANA-registered (de-facto WebM Project convention); `video/x-webm` exists nowhere in
+vanilla Firefox (our defensive extra — dead but harmless); `media.hardware-video-decoding.failed`
+is a real *dynamic* pref (runtime-written; consumed at gfxPlatform.cpp:953/3062/3111).
+Audit of record: `../MEDIA_GFX_STANDARDS_AUDIT_2026-08-02.md`.
+
+**The one finding — comment poison, FIXED (2026-08-02):** comments cited a nonexistent
+pref `media.rdd-ffmpeg.vaapi(.enabled)`. Real pref: `media.rdd-ffmpeg.enabled`
+(StaticPrefList.yaml:12530). Note `media.ffmpeg.vaapi.enabled` no longer exists in FF154 at
+all (only `media.ffmpeg.vaapi.force-surface-zero-copy` survives). Corrected in three
+places: `gfx_thebes_gfxPlatformGtk.cpp.patch` (this topic), live
+`gfx/thebes/gfxPlatformGtk.cpp`, and `config/firefox.js`. ⚠️ Consequence: the PRECHECK
+SHA256 for `gfx_thebes_gfxPlatformGtk.cpp.patch` (`dc7625ca9de2994e`) is now stale —
+regenerate on the next doc-audit run.
+
+### 12.5 — Current Open Items (supersedes §11 where they overlap)
+
+- [ ] P3: extract frame-pool literal 16 → named `constexpr` (4 sites, one file, rationale comment)
+- [ ] P2: gtest asserting `IsBlockedSoftwareOnlyVideoCodec` passes audio/aac + audio/opus (BUG C regression guard)
+- [ ] P3: track upstream Mozilla bug 2047321 (AudioContext resume gating — inherited TODO)
+- [ ] Phase-2 idea from the audit: MediaCapabilities returns `powerEfficient:true` for H.264
+- [ ] Re-run doc-audit PRECHECK to refresh the one stale SHA256 (§12.4)
+- [ ] Project-wide: `./mach build` pending for the prefs bake — MEDIA code itself is applied and built
+
+### 12.6 — "Does what it says on the label" verification (2026-08-02)
+
+Three-level proof that patches == tree == binary:
+
+1. **Tree level (strongest source check):** for each of the 20 patches, applied it to a
+   pristine copy of the VANILLA file and diffed the result against the LIVE tree.
+   **20/20: patch applies CLEAN (no offset/fuzz) and vanilla+patch is byte-for-byte
+   IDENTICAL to live.** The patch set describes exactly what is in the tree — nothing
+   missing, nothing extra.
+2. **Binary level (libxul.so, built 2026-08-01 12:39):**
+   - Positive: "Gorilla hardware-only policy" ×2, "H.264 hardware decode" ×10,
+     "Forced by Gorilla hardware-only policy" ×1, "Unsupported codec under
+     hardware-only mode" ×1, pref name ×2, "VA-API FFmpeg init successful" ×6
+     (FFmpeg is compiled once per supported libav version — hence the multiples).
+   - **Negative-space (the strongest binary proof):** vanilla strings our patches
+     REMOVED are ABSENT from the binary — "Could not change volume on cubeb stream."
+     = 0, "Expected Planar YCbCr image in " = 0. A stale/unpatched build would contain
+     them.
+   - Nuance found: "Strict HW decode mode… Dropping frame." = 0 hits — because
+     `NS_WARNING` is compiled out of optimized builds entirely (verified: a vanilla
+     NS_WARNING string from MediaManager.cpp is also 0). The frame-DROP logic is
+     compiled in; only the warning TEXT is debug-only. So the zero-copy failure mode
+     is "visible as stutter", not "visible in the console", on release builds.
+     Optional improvement: switch to MOZ_LOG/gfxCriticalNote for release visibility.
+   - Also learned: objdir greprefs.js does NOT carry StaticPrefList entries at all
+     (media.rdd-ffmpeg.enabled = 0 hits there too) — static pref defaults live inside
+     libxul. Absence of our pref from greprefs.js is normal, not a defect.
+3. **Runtime dependency level (the hard deps the PDMFactory comment declares):**
+   `LIBVA_DRIVER_NAME=i965` pinned in /etc/environment ✓; `vainfo` reports
+   VAProfileH264 ConstrainedBaseline/Main(/High) with VAEntrypointVLD ✓;
+   `media.gorilla.hardware_only_mode` declared `value: true` in StaticPrefList.yaml ✓.
+
+Caveat for the record: the binary predates the 2026-08-02 comment-only fix
+(media.rdd-ffmpeg.enabled) — comments don't change behavior; the next build absorbs it.
+
+---
+
 ## Document History
 
 | Version | Date | Author | Notes |
 |---------|------|--------|-------|
 | 1.0 | 2026-07-08 | Gorilla | Master project log combining all work from Phase 0–Phase 4, chronologically ordered, dual-track format |
+| 1.1 | 2026-08-02 | Gorilla + Claude (Fable 5) | Appended §12: v1.1 audio additions (Jul 10), dual-track docs + IBM audit (Jul 16), anti-tamper verification (Aug 1), standards/identifier audit + comment-poison fix (Aug 2). Header + TOC updated; body untouched |
+| 1.2 | 2026-08-02 | Gorilla + Claude (Fable 5) | Layman addendum "The Three Doors" appended after the merged LAYMAN track — line-by-line read of all 20 patches, incl. the honest fine print (WebM-audio consequence, ~80%-toggle truth, 48 kHz visibility, double soft-clip) |
 
 **Reconstruction Note:** This document combines findings from:
 - `00_MEDIA_HISTORY_AND_ROADMAP.md` (project overview)
@@ -1325,3 +1462,649 @@ All historical data preserved, chronologically ordered, dual-track format (plain
 **END OF MASTER PROJECT LOG**
 
 *Follow the Gorilla Open Source Philosophy: every claim is presented once in plain language and once in technical detail, so no reader—human or machine—has to trust a summary they cannot verify.*
+
+
+---
+
+# ═══ CONSOLIDATION 2026-08-02 — side documents merged VERBATIM below; originals deleted (recoverable: merged-docs-backup-2026-08-02.tar.gz + git history) ═══
+
+
+---
+
+# ═══ MERGED DOCUMENT: 01-media.AUDIT.md (verbatim · sha256:44f523acee5b7de3 · merged 2026-08-02) ═══
+
+# IBM-Style Audit Report: 01-media
+
+## SECTION A: DOCUMENT CONTROL
+
+| Attribute | Value |
+|---|---|
+| **Target Category** | 01-media |
+| **Files Scanned** | see payload |
+| **Baseline** | Firefox 154 (mozilla-central) |
+| **Date / Time** | 2026-07-16 19:33:48 |
+| **Audit Status** | PASS |
+
+## SECTION B: EXECUTIVE SUMMARY (Track A — Layman)
+
+This patch group is the machinery that keeps video and sound working on old hardware. It replaces a permissive 'try everything, fall back if it doesn't work' policy with a strict 'only H.264, only in hardware' rule enforced at every layer of the browser's media pipeline. It also fixes a long-dormant audio quality bug where the bass-boost and soft-clipping code was accidentally tied to the volume slider — making it inert on YouTube. Think of it as replacing a friendly-but-unreliable bouncer with a doorman who has a physical list, and re-wiring the audio system so the tone controls actually work.
+
+## SECTION C: TECHNICAL SUMMARY (Track B — Developer)
+
+Six-layer hardware-only H.264 enforcement (DecoderTraits + MediaSource + MediaCapabilities + PDMFactory + RemoteVideoDecoder + WebCodecs) plus WebRTC codec-negotiation restriction, all gated on runtime pref `media.gorilla.hardware_only_mode` — policy is toggleable without a rebuild. Single predicate `IsBlockedSoftwareOnlyVideoCodec` is the source of truth; every layer replays it for redundancy. Frame pool pinned to literal 16 at four call sites in FFmpegVideoDecoder.cpp to prevent UMA RAM starvation on Intel HD 4000 (UMA — GPU shares system RAM, so any GPU allocation contends with CPU workloads regardless of the machine's 16 GiB total). Audio DSP (mBassBoostGain=1.8f, mXLoudBoost=0.4f, FastTanh soft-clip at ±0.9) decoupled from mVolume, applied per-sample after volume shaping; AudioContext locks native rate to 48 kHz on Realtek ALC269 to skip 44.1→48 software resampling; AudioDestinationNode adds a second FastTanh limiter; DynamicsCompressorNode becomes pass-through to avoid double-compression. Actual hardware boundary is FFmpegVideoDecoder::Init inside the RDD process — NOT the GPU process (which stays ForceDisabled on Wayland). Secondary AMD Radeon HD 7670M is disabled in BIOS; discrete-GPU handling is out of scope. Build invariant: `-O3 -march=native`, DSP constants tuned to ALC269 + reference chassis — NOT a generic build; do not redeploy binaries to other hardware.
+
+## SECTION D: DETECTED DEFECTS
+
+### 🟡 P2-001 — P2
+- **Track A (Layman):** A sticky note saying 'finish this later' was left inside the machine.
+- **Track B (Technical):** dom_media_webaudio_AudioContext.cpp.patch: added lines contain 1 TODO/FIXME markers.
+- **Remediation:** Resolve or convert to a tracked item in PATCH.READINESS.txt.
+
+## SECTION E: PRODUCTION READINESS ASSESSMENT
+
+- **Overall readiness:** 🟢 90%
+- **Done:**
+  - [x] PDMFactory hardware-only policy in place at six layers
+  - [x] Master pref `media.gorilla.hardware_only_mode` wired at every gate — runtime toggle without rebuild
+  - [x] IsBlockedSoftwareOnlyVideoCodec excludes audio MIMEs (BUG C regression-hardened)
+  - [x] FFmpegVideoDecoder frame pool pinned to literal 16 (BUG D)
+  - [x] AudioStream DSP decoupled from mVolume slider (BUG I) + historical bugs D-001–D-004 addressed
+  - [x] AudioContext 48 kHz native rate lock (v1.1, 2026-07-10) — eliminates ALC269 44.1→48 resampling
+  - [x] AudioDestinationNode FastTanh soft-limiter (v1.1, 2026-07-10) — second protective stage
+  - [x] DynamicsCompressorNode pass-through under hardware-only mode
+  - [x] RemoteVideoDecoder zero-copy path guarded by TextureForwarder null-check (BUG F)
+  - [x] WebRTC codec negotiation restricted to H.264 (VideoConduit, WebrtcVideoCodecFactory, DefaultCodecPreferences)
+  - [x] STRICT policy decision date recorded in-code (2026-07-05)
+  - [x] Documentation-vs-reality self-audit run; 6 fabricated claims corrected (accuracy 87.5% → 89.7%)
+- **To Do:**
+  - [ ] P3: extract frame-pool size literal 16 to a named constant kIvyBridgeFramePoolSize with rationale comment
+  - [ ] P2: add a gtest asserting IsBlockedSoftwareOnlyVideoCodec returns false for audio/aac and audio/opus (regression guard for BUG C)
+  - [ ] P3: track upstream bug 2047321 for AudioContext resume-during-audio-focus-interruption (inherited Mozilla TODO)
+
+## SECTION F: PHASED EXPANSION PLAN
+
+### Phase 0 — `AudioStream.cpp — DSP constants`
+- **Tweak:** Move kBassFreq=220.0f, mBassBoostGain=1.8f, mXLoudBoost=0.4f, and the ±0.9 soft-clip threshold to a named-constants block with a comment linking to the empirical tuning notes.
+- **Expected impact:** Zero runtime impact; improves maintainability. Any future re-tune has one place to edit.
+
+### Phase 0 — `FFmpegVideoDecoder.cpp — frame-pool constant`
+- **Tweak:** Replace four literal 16s with a named constexpr kFramePoolSize=16 and one comment.
+- **Expected impact:** Zero runtime impact; prevents drift if one call site is edited in isolation.
+
+### Phase 1 — `PDMFactory.cpp — IsBlockedSoftwareOnlyVideoCodec`
+- **Tweak:** Add a gtest fixture that asserts (a) H.264 passes, (b) VP8/VP9/AV1/HEVC/WebM/Ogg block, (c) all audio/* MIMEs pass. Would have caught BUG C on entry.
+- **Expected impact:** Regression protection with a runtime cost of essentially zero (test-only).
+
+### Phase 2 — `MediaCapabilities.cpp — powerEfficient field`
+- **Tweak:** For H.264, return {supported:true, powerEfficient:true}; for blocked codecs, {supported:false}. Currently returns default values.
+- **Expected impact:** Web apps that check MediaCapabilities API get accurate hints and pre-select H.264 on their own.
+
+## POSITIVE OBSERVATIONS
+
+- ✅ Six-layer redundant enforcement is architecturally sound — a single-layer regression cannot silently re-open software fallback.
+- ✅ Single-source-of-truth predicate (IsBlockedSoftwareOnlyVideoCodec) makes future codec additions/removals a one-line change.
+- ✅ Master pref `media.gorilla.hardware_only_mode` gives every gate a runtime kill switch — the whole policy is a `about:config` toggle away from being disabled for comparison testing.
+- ✅ In-code date-stamped decision (2026-07-05) is exactly the kind of provenance a future maintainer needs.
+- ✅ Audio DSP fix demonstrates good root-cause analysis: the code was 'working' but silently inert because of a bad multiplication order — decoupling was the whole fix, not adding more code.
+- ✅ RemoteVideoDecoder null-check for TextureForwarder is a defensive fix that prevents 100% frame loss — the kind of check that only gets added by someone who's been burned by it.
+- ✅ Explicit exclusion of audio MIMEs from the video-codec blocklist shows that BUG C was learned from, not just fixed.
+- ✅ Belt-and-suspenders audio protection: AudioStream FastTanh soft-clip + AudioDestinationNode second limiter + DynamicsCompressor pass-through — a coherent audio-chain design, not an accretion of ad-hoc fixes.
+- ✅ **Documentation-vs-reality self-audit (MEDIA_PATCH_DOSSIER.md).** The project ran a claim-by-claim audit of its own narrative docs against the source, found and published 6 fabrications (a fake `kCeiling` identifier, a fake CubebUtils 48000 baseline, a `std::max(sVolumeScale, 4.0)` "historical clamp" that never existed in source, a fake 192 kHz reference, etc.), and corrected all 6 in both docs and source comments. Accuracy 87.5% → 89.7%. Most projects hide their hallucinations; publishing them is worth explicit credit.
+
+## VERIFICATION COMMANDS
+
+```bash
+vainfo | grep H264   # expect 3× VAEntrypointVLD
+grep LIBVA_DRIVER_NAME /etc/environment   # expect i965 (iHD does NOT work on Ivy Bridge)
+grep -n 'MakeUnique<VideoFramePool' dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp   # expect 4× literal 16
+grep -n 'IsBlockedSoftwareOnlyVideoCodec' dom/media/platforms/PDMFactory.cpp   # expect defn + call sites
+grep -n 'mBassBoostGain\|mXLoudBoost\|FastTanh' dom/media/AudioStream.cpp   # expect fixed 1.8f / 0.4f, no *mVolume on the DSP lines
+# During playback: `top -H -p $(pgrep -f 'RDD Process')` — RDD moderate, parent+content near-idle
+```
+
+
+
+---
+
+# ═══ MERGED DOCUMENT: 01-media.DEVELOPER.md (verbatim · sha256:7653072884fd784e · merged 2026-08-02) ═══
+
+# Media Subsystem — Hardware-Only H.264 Policy + Fixed-Gain Audio DSP — Developer Track
+
+> **Topic:** `01-media` · **Files:** `dom/media/DecoderTraits.cpp`, `dom/media/platforms/PDMFactory.cpp`, `dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp`, `dom/media/ipc/RemoteVideoDecoder.cpp`, `dom/media/AudioStream.{cpp,h}`, `dom/media/CubebUtils.cpp`, `dom/media/mediacapabilities/MediaCapabilities.cpp`, `dom/media/mediasource/MediaSource.cpp`, `dom/media/webaudio/AudioContext.cpp`, `dom/media/webaudio/AudioDestinationNode.cpp`, `dom/media/webaudio/DynamicsCompressorNode.cpp`, `dom/media/webcodecs/{VideoDecoder,VideoEncoder,WebCodecsUtils}.cpp`, `dom/media/webrtc/jsapi/DefaultCodecPreferences.cpp`, `dom/media/webrtc/libwebrtcglue/VideoConduit.cpp`, `dom/media/webrtc/libwebrtcglue/WebrtcVideoCodecFactory.cpp`, `dom/media/moz.build`, `gfx/thebes/gfxPlatformGtk.cpp`
+> **Generated:** 2026-07-16
+
+---
+
+## Module Summary
+
+This patch group replaces Firefox's permissive 'try hardware, fall back to software' decode policy with a strict hardware-only H.264 policy enforced at six independent layers (DecoderTraits, MediaSource, MediaCapabilities, PDMFactory, RemoteVideoDecoder, WebCodecs) plus the WebRTC codec-negotiation layer. It also rewires the Web Audio DSP so bass-boost and soft-clipping gains are fixed constants applied per-sample, decoupled from the volume slider (which YouTube pins to 1.0 upstream). The result is enforced VAAPI-only H.264 decode via the RDD process on Intel HD 4000 (i965 driver), with no software-decode fallback path anywhere in the pipeline.
+
+## Architecture
+
+- **Pattern:** Layered soft-enforcement gated by a single runtime pref, `media.gorilla.hardware_only_mode` (`StaticPrefs::media_gorilla_hardware_only_mode()`). Every layer that can construct a decoder or answer a codec-capability query is wrapped in a check against this pref AND the predicate `IsBlockedSoftwareOnlyVideoCodec` for the C++ paths. Blocking is intentionally redundant across six layers: any single layer left un-patched would silently re-open software fallback. The pref defaults ON in this build; turning it OFF reverts every gate to upstream behaviour without a rebuild.
+- **Trust Boundary:** The RDD (Remote Data Decoder) process is where VAAPI actually runs. Everything upstream of it — content process, PDMFactory, DecoderTraits — is a gate; RDD is the executor. GPU process is not involved and must remain ForceDisabled on Wayland (see gfx_thebes_gfxPlatformGtk.cpp patch and CLAUDE.md).
+- **Discrete-GPU assumption:** Reference hardware also has an AMD Radeon HD 7670M (Turks, muxless Enduro) — disabled in BIOS. All GPU-decode paths therefore target Intel HD 4000 exclusively; there is no runtime GPU selection logic in these patches. If deploying to a machine where the discrete GPU is BIOS-enabled, expect undefined behaviour in the compositor path.
+- **Attack Surface:** MIME-type spoofing by malicious pages was already handled upstream; this policy narrows the attack surface further by refusing to instantiate SW decoders whose CVE history is longer than H.264's HW path. Frame-pool cap prevents memory-pressure DoS via crafted streams.
+- **Dependencies:** `libavcodec (FFmpeg) linked at runtime for VAAPI H.264`, `libva1 + i965-va-driver from Debian`, `LIBVA_DRIVER_NAME=i965 in /etc/environment (the iHD driver does NOT support Ivy Bridge)`
+
+## Kill Switches
+
+### `PDMFactory.cpp :: IsBlockedSoftwareOnlyVideoCodec(nsACString mime)` — HARD ⚠️
+
+- **Condition:** Called from PDMFactory::CreateDecoder, PDMFactory::Supports, RemoteVideoDecoderChild construction paths — always active for video/* MIMEs.
+- **Effect:** Returns true for any video codec other than H.264; the caller returns NS_ERROR_DOM_MEDIA_FATAL_ERR('Gorilla hardware-only policy.') before any decoder is instantiated. Explicitly excludes audio MIMEs (audio/aac, audio/opus) from the block — that was BUG C in the media-lessons registry (blocking audio killed all audio playback).
+- **Reversibility:** reversible
+- **Notes:** Single-point-of-truth: adding a new blocked codec is a one-line change here. Do NOT gate on RemoteDecoderModule's DecodeSupport::HardwareDecode — upstream bug 1754239 makes it always return SoftwareDecode; the hardware-enforcement point belongs ONLY in FFmpegVideoDecoder::Init inside the RDD process.
+
+### `DecoderTraits.cpp :: CanHandleContainerType / CanHandleCodecsType` — HARD ⚠️
+
+- **Condition:** Called during MSE type-support probes (SourceBuffer.isTypeSupported, MediaSource.isTypeSupported) — before any decoder is constructed.
+- **Effect:** Returns CANPLAY_NO for video/webm, video/x-webm, video/ogg, and for codecs strings containing vp8/vp9. YouTube observes the NO and negotiates the H.264 (avc1.*) rendition instead. This is the earliest gate — prevents the pipeline from even planning a VP9 playback path.
+- **Reversibility:** reversible
+- **Notes:** Redundant with PDMFactory but intentionally so; if PDMFactory ever regresses, the pipeline still fails to *plan* a VP9 stream and falls back to H.264 cleanly.
+
+### `FFmpegVideoDecoder.cpp :: Init() (RDD process)` — HARD ⚠️
+
+- **Condition:** Executed at decoder init inside the RDD process — the *actual* hardware boundary.
+- **Effect:** If VAAPI init fails for H.264, returns MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR, 'Gorilla policy: H.264 hardware decode required') instead of falling back to libavcodec software decode. Loud failure by design.
+- **Reversibility:** reversible
+- **Notes:** This is the last line of defense — the only place inside the RDD process where enforcement is authoritative. All other layers are advisory relative to this one.
+
+### `FFmpegVideoDecoder.cpp :: mVideoFramePool = MakeUnique<VideoFramePool<LIBAV_VER>>(16)` — RUNTIME_GUARD ⚠️
+
+- **Condition:** At decoder construction, four call sites, all with literal 16.
+- **Effect:** Pins the decoded-frame recycling pool to exactly 16 buffers. No std::max, no dynamic growth. Prevents memory-bus contention on Intel HD 4000 UMA (GPU shares the system RAM bus; the constraint is bandwidth, not raw capacity — the reference machine has 16 GiB but the video decoder, desktop compositor, and browser UI all share one memory controller). Was BUG D in the media-lessons registry.
+- **Reversibility:** reversible
+- **Notes:** 16 is empirically the sweet spot on this hardware — below jitters, above triggers swap contention with the browser UI.
+
+### `AudioStream.{cpp,h} :: mBassBoostGain=1.8f, mXLoudBoost=0.4f (fixed) + FastTanh soft-clipper` — RUNTIME_GUARD ⚠️
+
+- **Condition:** Applied per-sample in the audio callback, unconditionally.
+- **Effect:** Bass emphasis via one-pole HP/LP split at kBassFreq=220Hz with mBassBoostGain=1.8f applied to the bass path, then soft-clipping via FastTanh (Padé approximation) with a hardness knee at ±0.9 for the whole signal. Fixed gains — do NOT track mVolume. mVolume is applied BEFORE the DSP stage (as volScale), which is critical: applying it after would re-couple DSP to the slider and undo the fix.
+- **Reversibility:** reversible
+- **Notes:** Prior code multiplied gains by mVolume; because YouTube (and most pages) pin their internal volume to 1.0 and let the OS/user slider do actual level control, mVolume is effectively always ~1.0 — making the DSP silently near-inert. Decoupling is the entire fix.
+
+### `AudioContext.cpp :: GetSampleRateForAudioContext()` — HARD ⚠️  *(v1.1, 2026-07-10)*
+
+- **Condition:** `StaticPrefs::media_gorilla_hardware_only_mode()` is true.
+- **Effect:** Returns literal `48000.0f` and bypasses `CubebUtils::PreferredSampleRate()`. Eliminates software 44.1→48 kHz resampling on the Realtek ALC269 codec (native rates 44100/48000/96000/192000; PipeWire on this system runs 48 kHz). Adds a 10 ms latency hint alongside.
+- **Reversibility:** toggle the pref to revert.
+- **Notes:** The same file also carries an inherited-Mozilla `TODO(bug 2047321)` about page-resume gating during audio-focus interruption — that TODO is upstream Mozilla work, not ours, and is what precheck P2-001 flagged.
+
+### `AudioDestinationNode.cpp` — FastTanh output limiter — RUNTIME_GUARD ⚠️  *(v1.1, 2026-07-10)*
+
+- **Condition:** Applied per-sample at the graph output when hardware-only mode is active.
+- **Effect:** Second FastTanh soft-knee limiter at the destination node, downstream of AudioStream's own soft-clip. Belt-and-suspenders — catches signals that reach the destination via Web Audio graphs that bypass AudioStream's DSP (e.g., WebAudio-generated content).
+- **Reversibility:** toggle the pref to revert.
+- **Notes:** Together with the AudioContext 48 kHz lock, this is the second of two audio additions that landed after the initial DSP work.
+
+### `DynamicsCompressorNode.cpp` — pass-through under hardware-only — SOFT ⚠️
+
+- **Condition:** `media.gorilla.hardware_only_mode` true.
+- **Effect:** The Web Audio DynamicsCompressorNode becomes a pass-through so its generic compression does not fight the tuned AudioStream DSP and destination-node limiter. Prevents double-compression artefacts.
+- **Reversibility:** toggle the pref to revert.
+- **Notes:** Chose bypass over deletion so pages that explicitly instantiate a `DynamicsCompressorNode` still get an object with the expected interface — just one that does nothing to the signal.
+
+### `DefaultCodecPreferences.cpp / WebrtcVideoCodecFactory.cpp / VideoConduit.cpp (WebRTC)` — HARD ⚠️
+
+- **Condition:** During SDP offer/answer negotiation for peer connections.
+- **Effect:** This build advertises H.264-only in its codec preferences; peers select H.264 automatically. Prevents a video call from negotiating VP9 or AV1 and triggering software decode mid-call.
+- **Reversibility:** reversible
+- **Notes:** Applies to Meet, Jitsi, Element, any WebRTC-based video calling.
+
+## Performance Profile
+
+| Component | Before | After | Mechanism |
+|---|---|---|---|
+| H.264 decode (VAAPI hw path) | not measured | not measured | RDD-process VAAPI via i965 driver — dedicated decode circuit |
+| Attempted VP9 stream (avoided) | 1 CPU core at 100% per stream | not instantiated (returned NS_ERROR at PDMFactory) | IsBlockedSoftwareOnlyVideoCodec gate |
+| Frame-pool memory | unbounded (std::max-driven growth) | capped at 16 buffers | literal 16 at four call sites in FFmpegVideoDecoder.cpp |
+| Audio DSP effectiveness | gains × mVolume(~1.0) → near-inert | fixed gains applied per-sample, decoupled from slider | AudioStream.cpp/h + volScale ordering |
+
+- **CPU:** H.264 decode runs on the HD 4000's dedicated VLD decoder in the RDD process; parent + content processes remain nearly idle during playback (specific numbers for MEDIA topic: not measured — the measured 12.8% parent CPU win recorded in the project belongs to the TELEMETRY topic, not this one). The *avoided* cost is a single software-decoded VP9 stream pinning one CPU core at 100%.
+- **Memory:** Frame pool capped at 16 buffers × NV12 1080p frame ≈ 24 MB steady-state per decoder. Prevents unbounded growth on long playbacks. Not measured as before/after.
+- **I/O:** VAAPI passes NV12 DMABuf handles to compositor without CPU copies — zero-copy path guarded by `mKnowsCompositor && mKnowsCompositor->GetTextureForwarder()` null check in RemoteVideoDecoder.cpp (missing null check dropped ALL frames — BUG F).
+- **Timer Interval:** N/A — event-driven pipeline.
+
+## Security Analysis
+
+### User Profiling
+
+Not applicable to this topic — this is a decode-policy change with no data-collection surface. (See Telemetry topic.)
+
+### Targeting
+
+Narrows attack surface: refuses to instantiate software decoders whose historical CVE count is much higher than H.264's hardware path. A malicious .webm cannot even get a decoder allocated.
+
+### Trust Chain
+
+Trust is placed in libva1 + i965 driver + kernel media subsystem. If any of these is compromised, hardware decode is compromised — but no additional trust in software decoder code is required.
+
+### Abuse Potential
+
+Frame-pool cap prevents crafted-stream memory-exhaustion DoS. Loud failure on VAAPI init failure means a bad stream cannot silently degrade the whole browser.
+
+## Implementation Flow
+
+1. **`DecoderTraits::CanHandleContainerType / CanHandleCodecsType`** — First gate — returns CANPLAY_NO for WebM/Ogg containers and VP8/VP9 codec strings. YouTube observes NO and negotiates H.264 rendition upstream.
+   *Side effects:* None — pure predicate.
+2. **`MediaCapabilities::DecodingInfo / MediaSource::IsTypeSupported`** — Same predicate replayed at capability-query time so JS Promise-based probes get consistent answers.
+   *Side effects:* None.
+3. **`PDMFactory::Supports / PDMFactory::CreateDecoder`** — Calls IsBlockedSoftwareOnlyVideoCodec(mimeType); if true, refuses decoder construction with NS_ERROR_DOM_MEDIA_FATAL_ERR and 'Gorilla hardware-only policy.' error string. Deletes the historical AgnosticDecoderModule (VP8/VP9/Theora/Vorbis) fallback path.
+   *Side effects:* Playback errors surface as media error events on the video element.
+4. **`FFmpegVideoDecoder::Init (RDD process)`** — Actual hardware boundary. Attempts VAAPI init for H.264; on failure, returns MediaResult with fatal error rather than falling back to libav software path.
+   *Side effects:* Frame pool constructed with size=16.
+5. **`RemoteVideoDecoder::ProcessOutput`** — Passes zero-copy DMABuf handles to compositor, guarded by mKnowsCompositor/TextureForwarder null check.
+   *Side effects:* Without the null check, all frames get dropped — this was BUG F.
+6. **`AudioStream::AudioCallback (per-sample DSP)`** — Applies mVolume × CubebUtils::GetVolumeScale() FIRST (volume shaping), THEN mBassBoostGain=1.8f on the LP-split bass path, THEN FastTanh soft-clipping at ±0.9 threshold. Ordering is load-bearing.
+   *Side effects:* Perceptibly warmer bass and higher usable loudness before distortion on tinny laptop speakers.
+7. **`DefaultCodecPreferences / WebrtcVideoCodecFactory`** — Restricts advertised WebRTC codec set to H.264 in SDP negotiation. Peers pick H.264 automatically.
+   *Side effects:* Interoperability preserved — H.264 is universally supported by WebRTC peers.
+
+## Technical Debt
+
+🟡 **LOW** — TODO(bug 2047321) in AudioContext.cpp — page resume() gating during audio-focus interruption is deferred to that upstream bug
+  - *Recommendation:* Track upstream bug 2047321; this is inherited Mozilla debt, not ours. Precheck flagged it as P2 by rule; downgrade context: it's a known-tracked upstream item.
+
+🟡 **LOW** — Blocklist is negative (grows with each new codec) rather than a positive allowlist
+  - *Recommendation:* Accepted trade-off — the negative list documents each block with a real reason. A one-entry allowlist would be shorter but less self-documenting.
+
+🟠 **MEDIUM** — Frame-pool literal 16 duplicated across four call sites in FFmpegVideoDecoder.cpp
+  - *Recommendation:* Extract to a named constant (kIvyBridgeFramePoolSize=16) with a comment explaining the empirical basis. Low priority — the four occurrences are colocated in one file.
+
+🟠 **MEDIUM** — No unit test asserts that IsBlockedSoftwareOnlyVideoCodec returns false for audio MIMEs
+  - *Recommendation:* Add a gtest — BUG C (blocking audio MIMEs killed all audio) is exactly the class of regression a test would catch.
+
+## Impact If Removed / Disabled
+
+Reverting: (1) VP9/AV1/HEVC/VP8 requests would succeed, spawning software decoders that saturate the CPU on this hardware; (2) failed VAAPI H.264 init would silently fall back to software instead of surfacing a diagnostic error; (3) the audio DSP would go silently inert on pages that don't touch the volume slider (which is most of them); (4) the frame pool would grow unbounded and contend with browser-UI allocations on the shared UMA memory bus; (5) WebRTC calls could negotiate VP9 and freeze the browser mid-meeting.
+
+## Testing Notes
+
+Manual verification recipe (no gtests added by this patch group):
+1. `vainfo | grep H264` — expect three VAEntrypointVLD lines. If missing, i965 driver is not installed or LIBVA_DRIVER_NAME is unset.
+2. `grep LIBVA_DRIVER_NAME /etc/environment` — expect `i965`.
+3. YouTube any 1080p H.264 clip; open about:support and verify the media-decoder section shows a hardware-backed decoder. `top` should show RDD process moderate, parent+content near-idle.
+4. Force a VP9 URL (e.g. youtube.com/watch?v=…&vp9=1 or a WebM test URL); expect a media error event, NOT smooth playback via software.
+5. Audio: play any 90 Hz-heavy track; bass should be perceptibly emphasized. Push volume to 100%; expect soft compression rather than crackly clipping.
+6. WebRTC: join a Google Meet room; open about:webrtc and verify the outbound video codec is H.264 (not VP9/VP8/AV1).
+
+## Changelog Notes
+
+Layer-by-layer buildup documented in MEDIA_CODEC_LESSONS.md (bugs A–I). Key milestones: (A) frame-pool cap, (C) audio-MIME exclusion in blocklist, (D) RDD-process VAAPI relocation from GPU-process gate, (F) TextureForwarder null-check for zero-copy, (I) audio-DSP decoupling from mVolume slider. STRICT policy timestamp recorded in PDMFactory comment: 2026-07-05.
+
+**Version history:**
+- **v1.0** — initial six-layer H.264 hardware-only policy + AudioStream DSP + frame-pool cap.
+- **v1.1** (2026-07-10) — added AudioContext 48 kHz native rate lock (eliminates ALC269 44.1→48 resampling) and AudioDestinationNode FastTanh soft limiter (protective second stage).
+
+**Historical DSP bugs fixed by the AudioStream rewrite** (documented in the topic's MASTER_PROJECT_LOG):
+- **D-001** — thread-unsafe static `filterState[64][4]` causing data races.
+- **D-002** — multichannel crosstalk.
+- **D-003** — null-pointer dereference when DSP unavailable.
+- **D-004** — generic audio data-type issues.
+
+**Documentation-vs-reality self-audit (MEDIA_PATCH_DOSSIER.md):** the project ran a claim-by-claim audit of prior narrative docs against the actual source. It found 6 fabricated claims: a fake `kCeiling` identifier (value correct, name wrong), a fake CubebUtils `48000` baseline, a `std::max(sVolumeScale, 4.0)` "historical clamp" that never existed in the source (a reconstructed-memory artifact), a fake 192 kHz reference, etc. All 6 corrected in both docs and, where the error was in a code comment, in the source itself. Doc accuracy 87.5% → 89.7%. That the project publishes its own hallucination list is worth noting; most projects hide theirs.
+
+---
+*Developer Track. Human Track twin: `01-media.LAYMAN.md`.*
+
+
+---
+
+# ═══ MERGED DOCUMENT: 01-media.LAYMAN.md (verbatim · sha256:00e4ac3c45da4155 · merged 2026-08-02) ═══
+
+# 🧍 The Media Overhaul — Making Video and Sound Work on an Old Computer — Plain English Guide
+
+> *Topic `01-media` of the Gorilla Unleashed Firefox 154 build · Written for everyone · 2026-07-16*
+
+---
+
+## 🌍 The Big Picture
+
+Modern web browsers try to be all things to everyone. They speak dozens of video 'languages' (codecs), and if the newest one shows up, they fall back on doing the math in software — using your main processor to decompress every single frame. On a laptop from 2012 with a graphics chip designed for the video codecs of *its* era, that fallback is a death sentence: the fan screams, the battery drains, the video stutters, and everything else on the machine grinds to a crawl.
+
+This patch group replaces 'try everything, fall back to slow' with a strict rule: **only H.264, only in hardware, no exceptions**. H.264 is the one video codec this particular graphics chip (Intel HD 4000) has a dedicated decoding circuit for. When the browser sticks to H.264 and lets that circuit do the work, the main processor is barely involved — video plays smoothly, the machine stays cool, and battery lasts.
+
+### ⚡ Now here's the part nobody tells you
+
+The Intel HD 4000 is **not weak hardware.** When it is used for what it was designed to do — decode H.264 video — it is massively over-provisioned. A single 1080p60 YouTube stream (that is, full-HD video at 60 frames per second, the highest quality most videos come in) barely warms the decoder up. You would need on the order of **twenty such streams playing at once** — twenty simultaneous 1080p60 YouTube tabs — before the chip hit its ceiling. Nobody does that. Nobody has ever needed to. The chip has enormous unused headroom, sitting there, ready to work.
+
+**Saturation** is the technical word for "running as fast as the hardware possibly can and cannot go faster." When people say a CPU is saturated, they mean it is at 100% and any new work has to wait in line. Our HD 4000's H.264 decoder is essentially never saturated by real-world browsing. It has huge unused capacity, sitting idle.
+
+**ASIC** stands for *Application-Specific Integrated Circuit* — a piece of silicon that does exactly one thing and does it ridiculously well. Your CPU is the opposite of an ASIC: it is a generalist, good at everything and brilliant at nothing. Your graphics chip contains several ASICs, and one of them is a dedicated H.264 decoder. That ASIC cannot do anything else — but for H.264, it does the work using roughly *one-hundredth* the electricity a CPU would burn for the same job.
+
+So why does an unmodified Firefox on this hardware stutter and drain the battery? **Because Firefox does not route the video work to the ASIC.** It picks VP9 (a codec the ASIC cannot decode) and does the math on the CPU instead — pinning one whole processor core at 100% per video stream, on a machine that only has four cores to begin with. The ASIC sits idle. The CPU cooks. The fan screams. The user concludes "this laptop is too old for the modern web" and buys a new one.
+
+### 💰 Now the part they *really* don't tell you: who this saves money for
+
+There is an actual reason YouTube, Netflix and the rest push VP9 and AV1 over H.264, and it is worth naming honestly. VP9 and AV1 are, on a technical level, genuinely better codecs than H.264 in one specific way: **they squeeze the same picture into fewer bytes.** A 1080p video encoded in VP9 is roughly 30–40% smaller on disk and on the wire than the same video in H.264. AV1 gets that number closer to 50%.
+
+For a streaming platform delivering a billion hours of video every day, that difference is not a nice-to-have. **It is measured in billions of dollars per year** in reduced bandwidth bills, reduced CDN spend, reduced peering fees, reduced data-centre electricity for their servers. Real money. Every single one of those dollars goes into their pocket. Not yours.
+
+**Because the cost of the trade did not go away — it just moved.** The cost of decoding a more efficient codec is much higher: more math per frame, more CPU cycles, more power drawn. That cost is now paid by **you** — by your CPU, your battery, your electricity meter, your fan's motor bearings, the number of years your laptop keeps working before it retires early. On a new machine you barely notice, because the new machine has its own ASIC for VP9 and AV1 (they got added around 2019 for VP9, around 2022 for AV1). On a laptop from 2012, you notice a lot. You notice all of it.
+
+This is not a conspiracy. Nobody in a boardroom decided to punish old-laptop owners. It is something duller and, in a way, worse: **it is a cost-shift that nobody has to sign off on.** They saved billions. You paid it in electricity, in shortened battery life, in a fan that dies three years early, and eventually in the price of a new laptop you did not actually need. The savings are real, they are one-sided, and the person absorbing the shifted cost was never asked and was never told.
+
+### 🌍 Who this build is actually for
+
+Here is the part that matters — the reason all of the above is worth writing down.
+
+**The people this build exists for did not save six months to buy a laptop so YouTube could save a dollar on bandwidth.**
+
+Somewhere on Earth right now, a family pooled money for months to buy a fifteen-year-old machine. Their kid uses it to attend a Khan Academy lecture. Their mother uses it to video-call a relative who works abroad. Their older brother uses it to fill out a job application on a government portal that only works in a browser. To them, the older, "inefficient" H.264 codec is not a compromise — **it is a lifeline.** It is the difference between the lecture that plays and the one that freezes on frame two. Between the job application that submits and the one that times out.
+
+The corporations pushing the "more efficient" codecs are, in almost all cases, **richer than most countries on Earth.** That is not a rhetorical flourish — it is arithmetic. Look up Alphabet's or Meta's market cap next to the GDP of any country in Africa, most of Central and South America, and much of Asia. You will find they exceed it, often by a wide margin. Go on, look. The tools to check this are one search away.
+
+From their side of the desk, the bandwidth they save by moving to VP9 is a rounding error on a spreadsheet. From your side of the desk — from the bottom of the pyramid — the same decision is a machine that will not play the video, a call that will not connect, a page that will not load. **Their small technical win is your total practical loss.** That is not "progress." That is a handful of trillion-dollar companies designing the modern web exclusively for the newest 20% of hardware, and treating the other 80% of the planet as acceptable collateral damage — mostly by not thinking about them at all.
+
+**We think about them.** This build is not written for someone with a Ryzen 9 and 32 gigabytes of RAM; that person is fine either way, on any browser. It is written for the fifteen-year-old laptop kept alive on love and duct tape, the one that has to work because there is no replacement waiting in the closet. Nothing here is charity — the old chip is genuinely capable of the work; we are just insisting the software let it do the job it was built for. The efficiency their codecs deliver is real; it is just aimed at the wrong problem. Their problem is a bandwidth bill. Your problem is being on the internet at all.
+
+Progress is fine. Progress that quietly evicts most of the world from the internet is not progress — **it is enclosure**, dressed in the language of engineering.
+
+**This is what this patch group refuses to accept.** The hardware is fine. The machine is fine. The problem is a browser that has quietly decided everyone should be running a laptop from the last three years — and a video industry that has moved to codecs designed to require it. Call it what it is: **planned obsolescence dressed up as progress.** Every person on an older laptop who has been told "your computer is too slow for YouTube" was lied to. Their computer is not too slow. Their computer's dedicated video decoder is sitting at a tiny fraction of its capacity while the CPU is dying — because the software decided to route the work to the wrong chip, on purpose, and never told them there was a choice.
+
+That is the fight this build is picking, in one small corner of the internet. The chip works. Let the chip work.
+
+---
+
+A second, smaller overhaul happens to *sound*. Old laptop speakers are tinny — no real bass, and they distort if you push the volume up. The audio pipeline was rewritten to add a small dose of bass enhancement plus a gentle soft-clipper (borrowed from music production) that lets you push louder without the crackly buzz.
+
+## 🎭 The Main Characters
+
+| Name | What It Is | Real-World Comparison |
+|---|---|---|
+| **H.264** | The one video format your graphics chip has a dedicated decoder for | The one shape of key that fits your front door |
+| **VP9 / AV1 / HEVC / VP8** | Newer video formats that require the main processor to decode them frame-by-frame | Different-shaped keys — they don't fit your door, so you'd have to pick the lock every time |
+| **VA-API** | The Linux bridge that lets Firefox hand H.264 video to the graphics chip's built-in decoder | The dedicated dishwasher hookup — bypasses the sink entirely |
+| **PDMFactory** | The bouncer at the door: it decides which video format gets in and which gets turned away | A bouncer with one rule: 'H.264 only, no arguments' |
+| **DecoderTraits** | The bouncer's *first* check — happens before the video even reaches the player | The metal detector at the entrance, before you even reach the bouncer |
+| **Frame Pool** | A tray of reusable memory slots the decoder recycles for each video frame | 16 dinner plates that get washed and reused instead of buying disposables |
+| **FastTanh** | A gentle mathematical curve used to soften loud audio peaks without hard clipping | A gymnast landing softly on a mat vs. hitting concrete — same fall, no injury |
+
+## 🔢 How It Works — Step by Step
+
+### Step 1: The metal detector — DecoderTraits
+
+Before a web page even tries to load a video, the browser asks 'can I play this?' This layer answers a firm NO for anything wrapped in a WebM or Ogg container, and NO for anything advertising itself as VP8 or VP9. YouTube and similar sites see the NO and quietly pick the H.264 version instead, without the user ever noticing a rejection happened.
+
+### Step 2: The bouncer — PDMFactory
+
+If a video makes it past the first check, PDMFactory does a stricter one. It calls a new function called `IsBlockedSoftwareOnlyVideoCodec` and, if the codec isn't H.264, refuses to hand out a decoder. The comment beside it reads: 'STRICT — decision recorded 2026-07-05'. No fallback, no negotiation. This is what makes the policy actually enforced instead of merely wished-for.
+
+### Step 3: The hardware handoff — FFmpegVideoDecoder
+
+For allowed H.264 video, the code hands the work over to the graphics chip via VA-API. If — for any reason — the hardware refuses (bad driver, wrong file, etc.) the decoder does NOT quietly try again in software. It fails loudly with a clear error. Loud failure is a feature: silent software fallback was the original bug.
+
+### Step 4: The dinner-plate trick — Frame Pool of exactly 16
+
+Decoded video frames need memory buffers. The original code let this pool grow as needed. On a laptop where the graphics chip *shares* the same memory as everything else (that's what "UMA" — unified memory architecture — means), that growth doesn't just eat RAM: it clogs the single road that CPU, desktop, and video decoder all have to share. The fix pins the pool to exactly 16 frames — enough for smooth playback, small enough not to hog the road.
+
+### Step 5: The audio makeover — bass and soft-clipping
+
+The audio pipeline was extended with two constants: a bass-boost gain of 1.8× and an 'X-loud' boost of 0.4×. Crucially, these are FIXED — they do NOT change when you drag the volume slider. (The old code accidentally tied them to a slider that YouTube always sets to 1.0, so the boost was silently doing nothing.) A soft-clipper based on the `FastTanh` function catches loud peaks and smooths them instead of letting them crackle.
+
+There's also a **second, quieter soft-limiter** at the very end of the audio chain (in a component called AudioDestinationNode). Think of it as a second gymnast's mat, in case anything slipped past the first one. Belt and suspenders. And the Web Audio system's own generic compressor — which would otherwise fight our carefully-tuned DSP — is politely told to step aside (it becomes a pass-through) whenever hardware-only mode is active.
+
+### Step 5b: The audio pipe gets a direct line to the speakers — 48 kHz
+
+The Realtek audio chip in this class of laptop (the ALC269) runs natively at 48 kHz. YouTube and many web pages send audio at 44.1 kHz (CD-quality). Normally the browser has to *resample* — convert 44.1 to 48 in software, using more CPU and adding a small amount of "graininess" nobody asked for. The patch tells the browser: when hardware-only mode is on, just talk to the chip at 48 kHz directly, and do not touch what comes in. Less CPU, cleaner sound, one less pointless conversion step.
+
+There is a master switch that controls all of the above: a preference called `media.gorilla.hardware_only_mode`. When it is on (which is the default for this build), all the video-blocking and audio-DSP behaviour above is active. When it is off, the browser reverts to standard Firefox behaviour. This is deliberate — nothing here is welded shut, and a curious user can flip the switch and compare.
+
+### Step 6: WebRTC gets the same treatment
+
+Video-call apps (Google Meet, Jitsi) also negotiate codecs. Two files in the WebRTC layer were changed so this browser advertises 'I only speak H.264' in the call setup handshake. Peers pick H.264 for the call automatically. Otherwise, a well-meaning peer offering VP9 would trigger the same software-decode meltdown mid-meeting.
+
+## 🤔 Quirky Things Worth Knowing
+
+### ⚠️ The 'nice' fallback was the bug
+
+For years, Firefox's answer to 'hardware decode failed' was 'try again in software so the user isn't inconvenienced'. On modern hardware, that's kind. On old hardware, it is the difference between a video that plays and a laptop that overheats. Every layer here has been rewired to prefer a loud failure over a silent slow fallback.
+
+### ⚠️ The audio DSP was silently dead for a long time
+
+The bass and loudness code existed but was multiplied by the volume slider — which YouTube pins to 1.0 and does the volume adjustment itself before sending audio to the browser. So the DSP was mathematically active but effectively inert. Decoupling the DSP gains from the slider is the entire fix.
+
+### ⚠️ Sixteen frames — no more, no less
+
+You'll find `MakeUnique<VideoFramePool<LIBAV_VER>>(16)` in four places. That literal 16 is doing real work: below 16, the video jitters; above 16, RAM competition with the browser UI starts causing swap. The comment says 'exactly 16' for a reason.
+
+### ⚠️ The block list is written in negative
+
+Instead of a small allowlist ('accept H.264'), the code is a growing blocklist ('reject VP8, VP9, AV1, HEVC, WebM, Ogg…'). This is defensive: web standards keep inventing new codecs, and the blocklist is the honest record of every one we've had to add.
+
+## 💻 What Does This Mean For YOU?
+
+### 🔋 Battery, Speed & Memory
+
+Not benchmarked as a single number for this topic, but qualitative: H.264 videos on YouTube play through the dedicated hardware decoder rather than the main processor, so the fan behavior and battery drain during video playback move from 'noticeable' to 'barely there'. The 16-frame pool cap prevents memory-bus contention on the shared-memory (UMA) setup.
+
+### ⚡ Speed
+
+Video playback on H.264 content is smooth end-to-end. The measurable win is negative — the *absence* of the multi-second stutters that used to happen when VP9 got selected. Not measured as a specific ms number.
+
+### 🕵️ Your Privacy
+
+No direct privacy angle for this topic — this is about local performance, not data collection. (See the Telemetry topic for privacy.)
+
+### 🌐 Your Internet
+
+YouTube will use a bit more bandwidth per pixel to send you an H.264 stream than a VP9 one — H.264 is a less efficient codec on the wire (see the Big Picture). This is us reversing part of the cost-shift: we hand a rounding-error's worth of bandwidth back to YouTube's servers, and in exchange we get back a huge amount of local CPU and battery. On our side of the deal the trade is obviously worth it; on YouTube's side the extra bytes are so small compared to their global traffic that they will not even notice. **The cost lives where it belongs again.**
+
+## 🔴 The Kill Switch — Explained
+
+**What it is:** One function — `IsBlockedSoftwareOnlyVideoCodec` — is the single point where 'no' is said. It returns true for VP8, VP9, AV1, HEVC, and every non-H.264 video MIME type. Every layer that creates a decoder calls this function first.
+
+**Without it:** Without it, the moment a page offers VP9 (which YouTube does by default when it thinks your machine can handle it), Firefox creates a software VP9 decoder. That decoder pins one CPU core at 100% per stream, and on this hardware there aren't cores to spare.
+
+**Think of it like:** It's the doorman with the list. Not 'we'll try to be selective' — a physical list, and if you're not on it, you don't get in. Simple, unglamorous, and it's the only kind of security that actually holds.
+
+## 🌐 Open Source & Why It Matters To You
+
+The comment in PDMFactory reads 'STRICT — decision recorded 2026-07-05'. That single line is why this matters as open source: the *reason* for the strictness is recorded in the code, visible to anyone. If a future maintainer wonders 'why is this so aggressive?', they see the date and can find the incident. A closed browser would just say 'trust our decode policy'; here you can read it, argue with it, and change it if your hardware is newer.
+
+But there is a bigger reason, and it goes back to the cost-shift story above.
+
+When the software running on your machine is closed — when only Google, Apple, Microsoft, or Mozilla can change how it works — **you have no escape hatch from decisions they make in their own interest.** If they decide tomorrow that your codec is obsolete, or your chip is unsupported, or your device is no longer in the sales tier they care about, that is the end of the conversation. You do not get a vote. You do not even get a warning that a vote happened.
+
+Open source is the only technical arrangement that puts the escape hatch back. It is why this build could be made at all. It is why the changes to make an old chip work again are one hundred and fifty patches to real, readable source code — not a lobbying campaign begging a corporation to please, sir, could you spare a driver update. Every person who reads even one line of the patches in this folder can verify what was done, why, and to what effect. Nobody has to take our word for it. Nobody has to take *their* word for it either.
+
+For the family with the fifteen-year-old laptop, this is not an abstract principle. **It is the difference between a machine that can be maintained and a machine that can only be replaced.**
+
+## 📖 Glossary (Plain English Dictionary)
+
+**Codec** — The 'language' a video is compressed in. H.264, VP9, AV1 are all different codecs.
+
+**Container** — The file wrapper around video+audio. .mp4, .webm, .ogv. A container can hold different codecs; the browser has to peek inside to know what it will find.
+
+**Hardware decode** — The graphics chip has a purpose-built silicon circuit that decompresses certain codecs directly. It's roughly 100× more power-efficient than doing the same math on the CPU.
+
+**Software fallback** — When hardware decode isn't available, doing the decompression on the CPU instead. Historically Firefox did this quietly; this build deliberately does not.
+
+**VA-API** — The Linux standard for handing video decode work to graphics chips. Requires a working driver — on this hardware, the `i965` driver is the only one that supports the Intel HD 4000.
+
+**MSE (Media Source Extensions)** — The mechanism YouTube uses to feed video to the browser piece by piece. It's the layer that asks 'can you play this?' — which is where the blocklist gets consulted.
+
+**WebRTC** — The technology behind video calling in the browser (Meet, Jitsi). It has its own separate codec negotiation, which is why two extra files needed patching.
+
+**Frame pool** — A pre-allocated set of memory buffers that the decoder recycles. Cheaper than allocating memory for every frame.
+
+**Saturation** — The point at which a piece of hardware is running as fast as it possibly can and cannot go faster. A saturated CPU sits at 100%. A saturated network link is passing every bit it can. The HD 4000's H.264 decoder is essentially never saturated during normal web use — that is the whole point of this build.
+
+**ASIC (Application-Specific Integrated Circuit)** — A piece of silicon designed to do exactly one job and do it with extreme power efficiency, often around one-hundredth the electricity a CPU would need for the same task. The H.264 decoder inside your graphics chip is an ASIC. So is the encryption accelerator in a modern phone. ASICs are the reason your phone can play video for eight hours on a small battery.
+
+**Planned obsolescence** — When a product is designed, or supported by its makers, in a way that makes it stop being usable long before it physically wears out — pushing users to buy replacements. The software version of it: dropping support for older hardware, or moving to formats that older hardware cannot handle at speed. Any individual step is usually defensible on technical grounds; the collective effect is a working machine getting declared "too slow" and thrown into a landfill.
+
+**Cost-shifting** — When a company cuts its own bills by pushing those costs onto its users, often invisibly. Streaming services do exactly this when they move to a more efficient codec: their bandwidth and server bills drop (billions of dollars a year), your CPU works harder to decode the more efficient codec, so your electricity bill and your battery drain go up. On new hardware the transfer is small enough that nobody notices. On older hardware it is what makes the machine feel "too slow." The savings are real and one-sided; the person absorbing the shifted cost is never asked and never told.
+
+**Codec efficiency** — How tightly a codec can compress a video without visibly hurting quality. VP9 is roughly 30–40% more efficient than H.264; AV1 is roughly 50% more efficient. "More efficient" means smaller files and less bandwidth to deliver them — which is great for whoever pays the bandwidth bill, and expensive for whoever has to do the decoding math.
+
+**Digital divide** — The gap between people who can fully participate in the modern internet (recent hardware, fast connections, up-to-date software) and people who cannot (older hardware, slower connections, older software). Every "efficiency improvement" that assumes new hardware widens the divide, one release at a time. Most of the software industry acts as if the divide does not exist; this build acts as if it does.
+
+**Enclosure** — Historically, the process of taking common land (which anyone could use to graze animals or gather firewood) and fencing it off as private property. The modern web version: taking capabilities that used to work on any hardware — like playing a video — and quietly making them require new hardware, so the old hardware effectively no longer has access. The land is still there; you just cannot use it any more.
+
+---
+*Human Track. Its Developer Track twin (`01-media.DEVELOPER.md`) covers the same changes in technical detail. Neither is a simplified copy of the other — they are the same truth in two languages.*
+
+
+---
+
+# ═══ ADDENDUM TO THE LAYMAN TRACK — added 2026-08-02 (own text, NOT part of the verbatim merge above) ═══
+
+## 🚪 The Three Doors — how video gets into a browser, and why we guard all of them
+
+*Written after a line-by-line read of all 20 patches on 2026-08-02. This is the
+bird's-eye view the per-patch stories above don't give you.*
+
+Here is the thing nobody tells you: a browser doesn't have **one** way to play
+video. It has **three**, and they are separate buildings with separate doors:
+
+1. **The video player** — YouTube, news sites, anything with a play button.
+2. **The video call** — Meet, Jitsi, anything with your face in it.
+3. **The workshop** — a JavaScript API called WebCodecs that lets a page say
+   "build me a decoder, I'll drive it myself."
+
+Lock two doors and leave the third open, and a website can still walk your CPU
+into the furnace. That is why this patch set is 20 files and not 3: **every door,
+guarded at every depth.**
+
+### Door 1 — the video player (six layers deep)
+
+- **The metal detector** (`DecoderTraits`): when a site asks "can you play
+  VP9?", the answer is a flat NO — *before anything is built*. Sites like
+  YouTube hear NO and quietly serve H.264 instead. No error, no drama; the
+  negotiation mechanism is doing exactly what the web standard designed it to do.
+- **The information desk** (`MediaCapabilities`): the polite API version of the
+  same NO, so well-behaved sites pre-select H.264 without ever hitting a wall.
+- **The trapdoor upstream left in the floor** (`MediaSource`): stock Firefox
+  contains a helper that *force-enables* VP9 precisely when H.264 hardware isn't
+  available — their idea of helping struggling machines is to hand them the most
+  expensive codec in software. On this hardware that logic is upside-down. Welded shut.
+- **The bouncer** (`PDMFactory`): one function — "is it H.264? no? then no
+  decoder exists for you" — checked everywhere decoders are born. And the
+  entire software-decoder staff (the module holding VP8/VP9/Theora software
+  decoders) was not just benched — it was removed from the payroll.
+- **The engine room** (`FFmpegVideoDecoder`): the only place decoding actually
+  happens. If the hardware can't take the H.264 job, the browser says so OUT
+  LOUD with a named error. It never quietly hands the job to the CPU — that
+  quiet handoff *was* the disease. Also here: the decoder's memory tray is
+  pinned at exactly 16 plates, because on this machine the graphics chip and
+  everything else share one memory road, and an unbounded tray jams the road.
+- **The delivery route** (`RemoteVideoDecoder` + `gfxPlatformGtk`): decoded
+  frames travel as *handles* — "the frame is over there, go look" — instead of
+  being photocopied through the CPU. Measured on this machine: memory traffic
+  during video dropped from ~2500 MiB/s to ~500 MiB/s. And when the handle path
+  fails, we drop that frame with a logged warning rather than photocopying
+  forever in silence.
+
+### Door 2 — the video call
+
+The call setup is a handshake: "here are the codecs I speak." This build's
+offer says **H.264, full stop**, so every peer picks H.264 automatically and the
+call just works. And behind that, a second guard: even if some peer's handshake
+tries VP9 anyway, the decoder factory hands back an empty box.
+
+### Door 3 — the workshop
+
+JavaScript asks "can you build me a VP9 encoder?" and gets a clean, standard
+"not supported" — the same answer a phone without that chip would give. Sites
+that feature-detect (all serious ones do) fall back gracefully.
+
+### 🔊 And the sound half, in one paragraph
+
+This laptop's *hardware* volume knob is broken under Linux — there's a dead zone
+where ~80% of the slider does nothing. So the patches weld the hardware knob at
+maximum and do the volume in software, at the right point in the chain, and then
+run a tuned enhancement: bass the little speakers can't naturally make (partly
+*synthesized* as harmonics your ear reconstructs as bass), a treble lift, a
+gentle mathematical cushion so loud peaks compress instead of crackle. And the
+whole audio path runs at 48 kHz end-to-end — the sound chip's native rate — so
+the CPU never wastes cycles converting sample rates. None of it tracks the
+YouTube volume slider, because YouTube pins that slider at 1.0 and the old code
+that tracked it was therefore doing *nothing* for years.
+
+### 🧾 The honest fine print (found by reading every line, recorded so nobody "fixes" it)
+
+- **WebM audio is blocked along with WebM video.** Consequence: YouTube sends
+  AAC audio instead of Opus. Everything plays; it costs a few percent more
+  audio bandwidth. This is a *consequence, not a bug*.
+- **The master switch is ~80% of the story, not 100%.** Flipping
+  `media.gorilla.hardware_only_mode` off restores the runtime gates — but three
+  things are compile-time and stay: the WebRTC offer list, the removed software
+  decoder module, and the CPU-specific build flags. A true full revert needs a
+  rebuild.
+- **Web pages can see the 48 kHz pin.** A page asking for a 44.1 kHz audio
+  context gets 48 kHz and can read that back. Deliberate trade: correctness of
+  a hint vs. never resampling on the CPU.
+- **Web Audio content gets softened twice** (once at the graph output, once in
+  the speaker DSP). Deliberate belt-and-suspenders; it adds a touch of warmth,
+  and it is compression, not just protection — recorded here so it's a choice,
+  not a mystery.
+- Cosmetic: the DSP pipeline comments number their stages 1, 2, 3, 5. There is
+  no Stage 4. It fell in the same hole as Windows 9.
+
+### The philosophy, one line
+
+Every failure in this pipeline is designed to be **seen** — a named error, a
+logged drop — because the alternative, the quiet fallback that slowly cooks the
+CPU, is precisely the disease this build exists to cure. The chip works.
+Let the chip work.
+
+
+---
+
+# ═══ MERGED DOCUMENT: 01-media.PRECHECK.json (verbatim · sha256:bbd3a9779c544eac · merged 2026-08-02) ═══
+
+```json
+[
+  {
+    "id": "P2-001",
+    "severity": "P2",
+    "track_a": "A sticky note saying 'finish this later' was left inside the machine.",
+    "track_b": "dom_media_webaudio_AudioContext.cpp.patch: added lines contain 1 TODO/FIXME markers.",
+    "remediation": "Resolve or convert to a tracked item in PATCH.READINESS.txt."
+  }
+]
+```
+
+
+---
+
+# ═══ MERGED DOCUMENT: 01-media.PRECHECK.md (verbatim · sha256:eeb36c696171f2e6 · merged 2026-08-02) ═══
+
+# Offline Pre-Check: 01-media
+
+*Generated 2026-07-16 19:33:48 by doc_audit.py (rule-based, no model involved).*
+
+## File Inventory
+
+| File | Lang | Lines | Complexity | SHA256 (16) |
+|---|---|---|---|---|
+| dom_media_AudioStream.cpp.patch | patch | 263 | 25 | `5f2c409d9cb8af62` |
+| dom_media_AudioStream.h.patch | patch | 21 | 3 | `805df79bfd479119` |
+| dom_media_CubebUtils.cpp.patch | patch | 28 | 4 | `ee45504effcb9ec2` |
+| dom_media_DecoderTraits.cpp.patch | patch | 103 | 19 | `e174a0b284dcf9d6` |
+| dom_media_ipc_RemoteVideoDecoder.cpp.patch | patch | 82 | 13 | `1f052c8f9797d73c` |
+| dom_media_mediacapabilities_MediaCapabilities.cpp.patch | patch | 34 | 9 | `83dd09febd24234e` |
+| dom_media_mediasource_MediaSource.cpp.patch | patch | 15 | 2 | `491d1f41c3d3e242` |
+| dom_media_moz.build.patch | patch | 13 | 3 | `20caf84e87b9ac0f` |
+| dom_media_platforms_PDMFactory.cpp.patch | patch | 214 | 33 | `73b023c3dd25b5e1` |
+| dom_media_platforms_ffmpeg_FFmpegVideoDecoder.cpp.patch | patch | 72 | 10 | `6003c42f11b6da8a` |
+| dom_media_webaudio_AudioContext.cpp.patch | patch | 73 | 12 | `22d3b13f56ea6e64` |
+| dom_media_webaudio_AudioDestinationNode.cpp.patch | patch | 36 | 8 | `fbd32688e586afd0` |
+| dom_media_webaudio_DynamicsCompressorNode.cpp.patch | patch | 28 | 3 | `86291ff29395ae3d` |
+| dom_media_webcodecs_VideoDecoder.cpp.patch | patch | 26 | 4 | `c05353e81b989d38` |
+| dom_media_webcodecs_VideoEncoder.cpp.patch | patch | 26 | 4 | `16fbed5eb7400362` |
+| dom_media_webcodecs_WebCodecsUtils.cpp.patch | patch | 13 | 5 | `88b177c1b50afde2` |
+| dom_media_webrtc_jsapi_DefaultCodecPreferences.cpp.patch | patch | 24 | 3 | `521f4dc4d07b98fe` |
+| dom_media_webrtc_libwebrtcglue_VideoConduit.cpp.patch | patch | 21 | 1 | `6b53a0c8ce5dff6a` |
+| dom_media_webrtc_libwebrtcglue_WebrtcVideoCodecFactory.cpp.patch | patch | 95 | 15 | `6f0a73c6268d1d35` |
+| gfx_thebes_gfxPlatformGtk.cpp.patch | patch | 28 | 4 | `dc7625ca9de2994e` |
+
+## Rule Findings (1)
+
+### 🟡 P2-001 — P2
+- **Track A:** A sticky note saying 'finish this later' was left inside the machine.
+- **Track B:** dom_media_webaudio_AudioContext.cpp.patch: added lines contain 1 TODO/FIXME markers.
+- **Remediation:** Resolve or convert to a tracked item in PATCH.READINESS.txt.
+

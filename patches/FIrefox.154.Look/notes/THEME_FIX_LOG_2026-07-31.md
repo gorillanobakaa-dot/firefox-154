@@ -818,3 +818,293 @@ User-directed full recursive reconciliation. Results (all computed):
    github.com/gorillanobakaa-dot/firefox.154 master — the poisoned public
    copies are replaced; the repo now carries the repaired masters, the
    repairs snapshot, and this ledger.
+
+## 28. 2026-07-31 (22:48) — sweep round 2: verdicts + four adjustments
+
+CONFIRMED by user (22:18–22:42 screenshots): about:robots strings live
+("Welcome Morons!", "Don't you DARE…"); about:translations Bergamot rant
+live; about:webrtc gorilla evicted; about:studies text readable.
+
+Four adjustments (all deployed, snapshot → 50 files):
+1. **about:addons watermark 800px → 650px** (common-shared, Look + tree).
+   User recalled 650px from trial-and-error; **brain search came up EMPTY**
+   (no lesson records the tuning; only the 800px value existed anywhere) —
+   Author_Memory_Is_A_Recovery_Tier applied again, value NOW recorded here.
+2. **about:telemetry**: `fixed center bottom 10px / 450px` — "way lower"
+   per author; `fixed` pins to the VIEWPORT so tall tabs
+   (#general-data-tab) keep it at the bottom instead of mid-content.
+3. **about:studies**: gorilla was never added in §24 (only text colors) —
+   added now via the telemetry mechanism (fixed bottom, 450px). If the SVG
+   still fails to load HERE specifically, suspect that page's CSP/principal
+   — sibling pages provably load chrome://branding.
+4. **about:robots icon**: stock aboutRobots-icon.png → about-logo.svg with
+   background-size: contain (browser/base/content/aboutRobots.css:6).
+Verify after restart: addons watermark proportionate; telemetry gorilla
+pinned low on all tabs; studies gorilla present; robots gorilla icon.
+
+**§28 addendum (23:02) — round-3 verdicts + 2 tweaks**: telemetry CONFIRMED
+("now the gorilla looks all right"); addons 650px CONFIRMED right by author.
+1. about:robots title gorilla 48px → **400px** (author: "say 400x"):
+   background-size 400px / left center, min-height 400px, padding-inline-start
+   420px, flex-centered heading (aboutRobots.css).
+2. addons watermark pushed DOWN (author delegated the how):
+   `top 80px` → **`fixed right calc(10% - 39px) bottom 50px / 650px`** —
+   bottom-anchored beats larger top offsets (holds on any window height);
+   `fixed` keeps it visible on long add-on lists instead of below the fold.
+Snapshot refreshed in place (50 files).
+
+## 29. 2026-08-01 — verdict: about:studies CLOSED
+
+Author confirmed visually: about:studies displays the intended message
+("We do not do studies… We refuse to be test subjects.") with the §28
+fixes in place. No further action. This closes the last open item from
+the §23 punch list's studies row (§24 text colors + §28 gorilla).
+No code changed for this entry — verdict only.
+
+Still open after this: default-browser popup blank body (§13, needs
+drag-select diagnostic when it reappears); about:profiling black page
+(page-local palette, uninvestigated); agenda items 4 (upstream changelog
+check) and 14 (Necko Glean strip); ~40 old-format 08.Look XML migrations;
+fresh IBM audit after next full build.
+
+**§29 addendum (2026-08-01)** — author reopened **about:preferences** as an
+open item. Symptom not yet specified in this entry; to be captured verbatim
+(screenshot or description) when investigation starts. Prior related work,
+for whoever picks this up: §§ on the appearance.mjs duplicate
+sidebar.verticalTabs registration (crash — fixed by vault rebase) and the
+One-PNG design doctrine (Preferences_One_PNG_Design_FF154 lesson). Check
+those before assuming a new cause.
+
+## 30. 2026-08-01 — about:preferences unselected sidebar labels forced cyan
+
+Symptom (author): "the hidden side bar entries problem still hasn't been
+sorted. I think you will notice that turning the letters from black to
+cyan will solve the problem." The §26-era color-scheme:dark fix made body
+text readable but the UNSELECTED #categories labels still resolve
+near-black: vanilla `#categories > .category` is `color: inherit`
+(common-shared.css:576) and the inherited chain stays dark on this page.
+
+Fix — appended to common-shared.css, BOTH copies, byte-identical
+(pre: a699be14…, post: c5e30c01… on tree AND Look master):
+
+    #categories > .category:not([selected]):not(.selected) {
+      color: #00FFFF !important;
+    }
+
+Design notes:
+- Scoped to :not([selected]):not(.selected) so the active pane keeps
+  var(--color-accent-primary) (line 617) and stays visually distinct.
+- Sidebar icons follow automatically: `fill: currentColor` (line 595).
+- Known accepted side effect: hover text stays cyan (our !important
+  outranks the non-important :hover color rule, line 604) — background
+  still changes on hover, so affordance survives.
+
+Deployed: `env -u CLAUDECODE ./mach build faster` (5.7s, successful) +
+startupCache flushed. Snapshot refresh DEFERRED until author verdict.
+Verify: open about:preferences → every sidebar entry readable in cyan,
+selected entry still accent-colored, icons cyan.
+
+**§30 addendum (2026-08-01) — round 2: the REAL sidebar.** Author verdict
+on the §30 fix: "no change" + screenshot of about:preferences#etpCustomize
+showing the "Same Gorilla settings, new look!" banner. Root cause of the
+no-op: FF154's REDESIGNED settings page replaced the old #categories
+richlist with the moz-page-nav WEB COMPONENT — labels/icons are inside
+shadow DOM, unreachable by document selectors. §30's rule targeted markup
+that no longer exists on this page (left in place: harmless, and still
+correct for any page keeping the old richlist).
+
+Round-2 fix — custom properties INHERIT through shadow boundaries, and an
+unlayered document rule on the host element beats the widget's @layer
+:host token rules (moz-page-nav.tokens.css:28-31). Appended to
+browser/themes/shared/preferences/preferences.css (tree + Look master,
+pre dd9e6930… identical, post 684719c1… identical):
+
+    moz-page-nav {
+      --page-nav-button-text-color: #00FFFF;
+      --page-nav-button-text-color-hover: #00FFFF;
+      --page-nav-button-text-color-active: #00FFFF;
+      --icon-color: #00FFFF;   /* nav-subtree only — page icons untouched */
+    }
+
+- selected entry NOT pinned: keeps var(--page-nav-button-text-color-selected)
+  = --color-accent-primary (accent provably resolves visible here — the
+  toggles/Got-it button render cyan in the author's screenshot).
+- scoped to preferences.css (NOT common-shared) — about:addons also uses
+  moz-page-nav and is approved as-is; zero blast radius there.
+- ui.systemUsesDarkTheme=1 verified still present (user.js:60) — the
+  invisibility persists DESPITE the dark pref: widget tokens on this page
+  do not resolve through the color scheme. Hard pins, not scheme fixes.
+
+KNOWN REMAINING (same defect class, next round): main-content labels of
+the redesigned widgets (moz-checkbox/moz-toggle/setting-group) are also
+invisible in the author's screenshot — needs its own token trace.
+Deployed: mach build faster + startupCache flush. Snapshot still deferred.
+Verify: restart → about:preferences sidebar entries cyan text + cyan icons.
+
+## 31. 2026-08-01 — settings round 3: body text + promo art (sidebar SOLVED)
+
+VERDICT on §30 round 2: CONFIRMED by author ("remember the trick, because
+it worked") — sidebar entries + icons render cyan, selected keeps accent.
+Author-reported remaining: (a) #search pane near-blank — widget labels
+black on dark grey card ("dark grey overlay"); (b) #privacy pane giant
+art "underneath the letters", author-estimated 1024px.
+
+MEASURED CORRECTION (a): the invisible labels are shadow-DOM widget text;
+preferences.css:56 already forces label/description to #f9f9fb but
+CANNOT reach inside shadow roots — moz-checkbox.css has ZERO color rules
+(pure color:inherit), so host-pinning flows through.
+MEASURED CORRECTION (b): the art is OUR May-era rule (moz-promo img
+content:about-logo.png, width 480px "for maximum impact");
+about-logo.png is 500x500 intrinsic (identify), rule said 480px,
+screenshot renders ~610px wide — not 1024. The §-era overflow:hidden
+clip decapitates it to a cap-slice on the slim redesigned card.
+
+Three fixes, preferences.css, tree + Look master byte-identical
+(post-append sha256 488e750e02c8…):
+1. line 34: moz-promo img width 480px → 200px; line 37: margin
+   20px auto → 0 0 0 auto (inline-end aligned, whole logo visible
+   BESIDE the text instead of a clipped slab under it).
+2. line 57: legacy high-contrast #f9f9fb → #00FFFF (theme harmonize).
+3. Appended shadow-host text block:
+     body#preferences-body { color:#00FFFF !important; --text-color:#00FFFF; }
+     + host-element pin (color + --text-color cyan, NO !important needed —
+     document host rules beat shadow :host rules) on: setting-group,
+     setting-control, setting-pane, moz-fieldset, moz-checkbox, moz-toggle,
+     moz-radio-group, moz-radio, moz-select, moz-input-text,
+     moz-input-search, moz-box-item, moz-box-group, moz-box-link,
+     moz-message-bar, moz-promo, moz-support-link.
+   Deemphasized descriptions keep their own token (stay dim grey by design).
+
+Deployed: mach build faster + startupCache flush. Snapshot still deferred.
+Lesson atom written + ingested: Shadow_DOM_Host_Pin_Pierces_Widget_Styles
+(author mandate: "remember the trick").
+Verify: restart → #search pane labels/engine names readable cyan;
+#privacy promo shows the WHOLE 200px logo beside its text; body text cyan.
+
+## 32. 2026-08-01 — REJECTION RECORDED: privacy promo gorilla removed
+
+Author verdict (explicit choice): REMOVE ENTIRELY. Backstory, author's
+account: a 2026-05-30-era Gemini prompt produced a per-page "theming
+opportunities" plan; parts were approved, parts REJECTED (pages too
+text-dense for art) — but rejections were never marked, so the rejected
+privacy-pane injection got applied anyway ("the plan resurrected").
+Process lesson: an unrecorded rejection is indistinguishable from an
+approval to every later agent. Verdicts must be written down.
+
+Change: preferences.css (tree + Look master) — deleted the
+`moz-promo img` content-replacement block AND the companion `moz-promo`
+container styling (overflow:hidden/#121214 card, the cap-slice culprit).
+Replaced in place with a GORILLA REJECTED marker comment naming the
+verdict, the date, and DO NOT RE-ADD — the anti-resurrection device.
+Promo card reverts to stock form (text-only). Round-3 cyan host-pins
+unaffected (separate appended block).
+
+Also ruled by author: general sweep for surviving plan artifacts is a GO,
+with the standing caveat that the era ALSO contained a LEGITIMATE
+de-brand/re-brand campaign (author's learning exercise: how to fully
+re-theme a browser for a hypothetical employer). Sweep must inventory,
+not bulk-delete — author rules on each item.
+Deployed: mach build faster + startupCache flush. Snapshot still deferred.
+
+## 33. 2026-08-01 — ROOT CAUSE of the privacy giant: warning.svg (restored)
+
+Author post-restart: cap art STILL on #privacy, two bands, behind cards.
+Diagnosis chain, with corrections to §§31-32 on the record:
+- moz-promo was the WRONG suspect: its img lives in the widget's SHADOW
+  ROOT (moz-promo.mjs:65) — the May-era `moz-promo img` width rules and
+  §31's 200px "resize" NEVER reached it. Its actual asset kit-concerned.svg
+  is vanilla (8.9KB fox, vault-restore date Jul 10). §32's removal of the
+  Gemini promo blocks remains CORRECT (rejected-plan artifact) but did not
+  and could not affect the giant.
+- The redesigned page has NO id="content" (grep: only tests + an aiFeatures
+  dialog template) — so BOTH the common-shared #content watermark AND the
+  May-era #content disable rule are inert here. Neither painted the cap.
+- Painter found by asset, not selector: **toolkit/themes/shared/icons/
+  warning.svg was a REBRAND SURVIVOR — 1,540,440 bytes, 800x800 embedded
+  raster cap portrait (file date Jul 15, i.e. survived the Jul-10 vault
+  restore window)**. The new security-privacy-card widget injects it via
+  `content: url(warning.svg)` (security-privacy-card.css:20) → content:url
+  renders at INTRINSIC size → an 800px billboard behind the security rows.
+  Same file feeds account-sync errors, update-state, translations download
+  warnings, privacy.css:279 — every warning glyph decoded a 1.5MB PNG.
+- svg_hitlist.xml had ALREADY ruled on this file: "warning.svg … Safe to
+  restore to default unbranded 1.2KB SVG" (Branding → Optimize or Restore).
+  Executed that recorded verdict.
+
+Fix: cp vault (SafetyVault.Firefox, VANILLA) warning.svg → tree:
+1,540,440 → 1,223 bytes. mach build faster (4.1s, successful) +
+startupCache flush. Served copy verified 1,223 bytes at 07:48.
+Sweep: NO other svg >100k remains under toolkit/themes, browser/themes,
+toolkit/components (find -size +100k) — background.svg already vanilla.
+Only branding/content/about-logo.svg (3.1MB, INTENTIONAL master) stands.
+
+Diagnostic gotcha for future agents, learned mid-hunt: `grep -r` does NOT
+follow symlinks during recursion, and the faster-build dist/bin tree is
+symlinks — recursive greps there return silently empty. Use `grep -R` or
+`find -L`.
+Verify: restart → #privacy security rows show a small vanilla warning
+triangle, no cap; warning icons elsewhere (sync error, update state)
+normal-sized.
+
+## 34. 2026-08-01 — snapshot cut (ss30-33) + anti-resurrection overlay
+
+Author verdict via about:config screenshot: vanilla warning triangle
+renders where the cap portrait was — warning.svg restore CONFIRMED
+working globally (about:config's caution hero is one of the file's
+biggest consumers).
+
+RESURRECTION RISK found and closed: the 2026-07-16 tarball's
+08_look snapshot CONTAINS the fat warning.svg (verified: tar -tzf |
+grep) — a future tree restore would re-install the 1.5MB billboard at
+step 2 of the procedure. Mitigation honoring append-only history: the
+historical tarball is UNTOUCHED; the vanilla 1,223-byte warning.svg is
+added to the REPAIRS tarball, which the restore procedure overlays LAST
+(step 6) — restores now self-heal.
+
+REPAIRS tarball refreshed in place (payload 50 -> 51 files):
+- toolkit/themes/shared/icons/warning.svg  NEW  sha256 16b99103…
+- browser/themes/shared/preferences/preferences.css  UPDATED  aa0a0922…
+  (matches s32 post-state, tree = Look master)
+- toolkit/themes/shared/in-content/common-shared.css  UPDATED  c5e30c01…
+  (matches s30 post-state, tree = Look master)
+MANIFEST.txt + README.txt updated with the additions and the
+anti-resurrection rationale. Pre-refresh tarball kept this session at
+scratchpad/REPAIRS.pre-0801.bak.tar.gz (session-lived, not archived).
+Still welcome: author glance at about:preferences#privacy (small
+triangle by security rows) — expected pass given the about:config proof.
+
+## 35. 2026-08-01 — about:profiling black-on-black pinned
+
+Author report + screenshot 08:29: about:profiling unreadable, black on
+black (radios/sliders/checkboxes visible, ALL text invisible). This was
+the long-open §13 item, pre-flagged by Page_Local_Palettes_Outside_Token_Flow.
+
+Anatomy: the page loads ONLY global.css + in-content common.css +
+devtools/skin/aboutprofiling.css (index.html:17-31); its body carries
+class="theme-body" but NO devtools variables.css is loaded, so the class
+defines nothing — the page rides the in-content token chain and resolved
+the near-black light branch over black backgrounds. common.css DOES
+import common-shared (verified: served common.css line 5) so the :root
+color-scheme rule reaches it, but the page text still rendered dark —
+pinned rather than re-litigated (same judgment call as §31 body pin).
+
+Fix — appended to devtools/client/themes/aboutprofiling.css (tree; NOT
+a Look-master file — snapshot refresh owed after verdict):
+    :root { color-scheme: dark !important; }
+    body.theme-body { background-color:#000000 !important;
+                      color:#00FFFF !important; }
+No shadow DOM on this page (plain React divs under #root) — body pin
+inherits everywhere; --text-color-deemphasized keeps its token and
+resolves the readable dark-branch grey under the forced scheme.
+Deployed: mach build faster (4.0s, successful) + startupCache flush;
+served copy verified carrying the override (grep count 1).
+Verify: about:profiling → settings text cyan on black, section headers
+readable, deemphasized feature notes dim-grey-readable.
+
+**§35 addendum (2026-08-01 08:33) — VERDICT: CONFIRMED.** Author screenshot:
+"Profiler Settings" fully readable — cyan headings/labels on black,
+deemphasized preset descriptions dim-grey-readable, radio states visible.
+This closes the LAST known broken about: page (§13's final open visual).
+Snapshot debt paid: aboutprofiling.css added to REPAIRS tarball
+(payload 51 -> 52, MANIFEST + README updated). Lesson atom:
+About_Profiling_Ghost_Theme_Class_Body_Pin (ingested).

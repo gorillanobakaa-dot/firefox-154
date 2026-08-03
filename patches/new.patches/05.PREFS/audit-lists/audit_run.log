@@ -1,0 +1,24 @@
+[17:42:31] extracted 1613 unique prefs from /home/gorilla/Documents/FIREFOX.WORK/FIrefox.154.Work/config/firefox.js
+[17:42:31] 382 namespaces to enumerate
+[17:42:31]   ...25/382 namespaces
+[17:42:31]   ...50/382 namespaces
+[17:42:31]   ...75/382 namespaces
+[17:42:31]   ...100/382 namespaces
+[17:42:31]   ...125/382 namespaces
+[17:42:31]   ...150/382 namespaces
+[17:42:31]   ...175/382 namespaces
+[17:42:31]   ...200/382 namespaces
+[17:42:31]   ...225/382 namespaces
+[17:42:31]   ...250/382 namespaces
+[17:42:31]   ...275/382 namespaces
+[17:42:31]   ...300/382 namespaces
+[17:42:31]   ...325/382 namespaces
+[17:42:31]   ...350/382 namespaces
+[17:42:31]   ...375/382 namespaces
+[17:42:31] batch pass: REAL=1504  misses=109 -> per-pref text: rescue
+[17:42:31]   ...20/109 rescue checks
+[17:42:35]   ...40/109 rescue checks
+[17:42:35]   ...60/109 rescue checks
+[17:42:45]   ...80/109 rescue checks
+[17:42:45]   ...100/109 rescue checks
+[17:42:45] DONE: REAL=1525 (1504 batch + 21 rescued)  ABSENT=88 (in-local-build: 23)

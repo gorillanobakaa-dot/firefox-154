@@ -1,5 +1,5 @@
 --- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/themes/shared/in-content/common-shared.css	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/toolkit/themes/shared/in-content/common-shared.css	2026-07-31 21:03:30.268754510 +0100
++++ /home/gorilla/firefox-main/toolkit/themes/shared/in-content/common-shared.css	2026-07-31 23:02:37.809975466 +0100
 @@ -666,8 +666,8 @@
  }
  
@@ -98,7 +98,7 @@
 +
 +/* 🦍 Gorilla Unleashed 800px watermark — right-aligned, vertically offset */
 +#content {
-+  background: url("chrome://branding/content/about-logo.svg") no-repeat right calc(10% - 39px) top 80px / 800px !important; /* GORILLA 2026-07-31: svg (1200px raster) — the 500px png at 800px was UPSCALED = blurry (Crisp_Logo rule) */
++  background: url("chrome://branding/content/about-logo.svg") no-repeat fixed right calc(10% - 39px) bottom 50px / 650px !important; /* 650px author-recalled; bottom-anchored + viewport-fixed 2026-07-31 (beats growing top offsets: holds on any window height, stays visible on long lists) */ /* GORILLA 2026-07-31: svg (1200px raster) — the 500px png at 800px was UPSCALED = blurry (Crisp_Logo rule) */
 +}
 +
 +/* ==========================================================================

@@ -1,0 +1,157 @@
+diff --git a/browser/base/content/browser.xhtml b/browser/base/content/browser.xhtml
+index 5fd311b..09e445e 100644
+--- a/browser/base/content/browser.xhtml
++++ b/browser/base/content/browser.xhtml
+@@ -100,7 +100,6 @@
+   <link rel="localization" href="preview/interventions.ftl" />
+   <link rel="localization" href="preview/onboarding.ftl"/>
+   <link rel="localization" href="preview/smartTabGroups.ftl"/>
+-  <link rel="localization" href="preview/genai.ftl"/>
+   <link rel="localization" href="browser/aiWindow.ftl" />
+ 
+   <title data-l10n-id="browser-main-window-default-title"></title>
+diff --git a/browser/components/sidebar/sidebar-customize.html b/browser/components/sidebar/sidebar-customize.html
+index 39bb750..3996bae 100644
+--- a/browser/components/sidebar/sidebar-customize.html
++++ b/browser/components/sidebar/sidebar-customize.html
+@@ -14,7 +14,6 @@
+     <title data-l10n-id="sidebar-customize-title"></title>
+     <link rel="localization" href="branding/brand.ftl" />
+     <link rel="localization" href="browser/sidebar.ftl" />
+-    <link rel="localization" href="preview/genai.ftl" />
+     <link
+       rel="stylesheet"
+       href="chrome://browser/content/sidebar/sidebar.css"
+diff --git a/browser/components/tabbrowser/content/tabgroup-menu.js b/browser/components/tabbrowser/content/tabgroup-menu.js
+index 1043e70..f957a1e 100644
+--- a/browser/components/tabbrowser/content/tabgroup-menu.js
++++ b/browser/components/tabbrowser/content/tabgroup-menu.js
+@@ -17,12 +17,8 @@
+     "moz-src:///browser/components/contentsharing/ContentSharingUtils.sys.mjs"
+   );
+ 
+-  ChromeUtils.importESModule(
+-    "chrome://browser/content/genai/content/model-optin.mjs",
+-    {
+-      global: "current",
+-    }
+-  );
++  // GORILLA OVERRIDE: genai excised — model-optin component import removed
++  // (was a boot-time load failure; the smart-tab-grouping optin path is dead).
+ 
+   class MozTabbrowserTabGroupMenu extends MozXULElement {
+     static COLORS = [
+@@ -647,91 +643,8 @@
+       if (!this.smartTabGroupsEnabled || this.#smartTabGroupsInitiated) {
+         return;
+       }
+-      const { SmartTabGroupingManager } = ChromeUtils.importESModule(
+-        "moz-src:///browser/components/tabbrowser/SmartTabGrouping.sys.mjs"
+-      );
+-      this.#smartTabGroupingManager = new SmartTabGroupingManager();
+-
+-      // Init Suggestion Button
+-      this.#suggestionButton = this.querySelector(
+-        "#tab-group-suggestion-button"
+-      );
+-      this.#suggestionButton.iconSrc = this.smartTabGroupsEnabled
+-        ? MozTabbrowserTabGroupMenu.AI_ICON
+-        : "";
+-
+-      // If user has not opted in, show the optin flow
+-      this.#suggestionButton.addEventListener("click", () => {
+-        !this.smartTabGroupsOptin
+-          ? this.#initSmartTabGroupsOptin()
+-          : this.#handleSmartSuggest();
+-      });
+-
+-      // Init Suggestions UI
+-      this.#suggestionsHeading = this.querySelector(
+-        "#tab-group-editor-title-suggest"
+-      );
+-      this.#suggestionsContainer = this.querySelector(
+-        "#tab-group-suggestions-container"
+-      );
+-      this.#suggestions = this.querySelector("#tab-group-suggestions");
+-      this.#selectSuggestionsCheckbox = this.querySelector(
+-        "#tab-group-select-checkbox"
+-      );
+-      this.#selectSuggestionsCheckbox.addEventListener("change", e => {
+-        if (e.target.checked) {
+-          this.#handleSelectAll();
+-        } else {
+-          this.#handleDeselectAll();
+-        }
+-      });
+-      this.#suggestionsMessageContainer = this.querySelector(
+-        "#tab-group-suggestions-message-container"
+-      );
+-      this.#suggestionsMessage = this.querySelector(
+-        "#tab-group-suggestions-message"
+-      );
+-      this.#suggestionsMessage.iconSrc = this.smartTabGroupsEnabled
+-        ? MozTabbrowserTabGroupMenu.AI_ICON
+-        : "";
+-      this.#createSuggestionsButton = this.querySelector(
+-        "#tab-group-create-suggestions-button"
+-      );
+-      this.#createSuggestionsButton.addEventListener("click", () => {
+-        this.#handleMlTelemetry("save");
+-        this.activeGroup.addTabs(this.#selectedSuggestedTabs);
+-        this.close(true);
+-      });
+-      this.#cancelSuggestionsButton = this.querySelector(
+-        "#tab-group-cancel-suggestions-button"
+-      );
+-      this.#cancelSuggestionsButton.addEventListener("click", () => {
+-        this.#handleMlTelemetry("cancel");
+-        this.#suggestionsRunToken = null;
+-        this.close();
+-      });
+-      this.#suggestionsSeparator = this.querySelector(
+-        "#tab-group-suggestions-separator"
+-      );
+-      this.#suggestionsOptinContainer = this.querySelector(
+-        "#tab-group-suggestions-optin-container"
+-      );
+-
+-      // Init Loading UI
+-      this.#suggestionsLoading = this.querySelector(
+-        "#tab-group-suggestions-loading"
+-      );
+-      this.#suggestionsLoadActions = this.querySelector(
+-        "#tab-group-suggestions-load-actions"
+-      );
+-      this.#suggestionsLoadCancel = this.querySelector(
+-        "#tab-group-suggestions-load-cancel"
+-      );
+-      this.#suggestionsLoadCancel.addEventListener("click", () => {
+-        this.#suggestionsRunToken = null;
+-        this.#handleLoadSuggestionsCancel();
+-      });
+-      this.#smartTabGroupsInitiated = true;
++      // GORILLA: SmartTabGrouping excised (AI). Smart suggestions unavailable.
++      return;
+     }
+ 
+     #populateSwatches() {
+diff --git a/browser/themes/shared/customizableui/customizeMode.css b/browser/themes/shared/customizableui/customizeMode.css
+index c71c8ed..7d99706 100644
+--- a/browser/themes/shared/customizableui/customizeMode.css
++++ b/browser/themes/shared/customizableui/customizeMode.css
+@@ -25,6 +25,15 @@ toolbar[overflowable][customizing] > .customization-target {
+   overflow: clip;
+ }
+ 
++/* GORILLA OVERRIDE: the CustomizeMode constructor clones this container into
++ * the DOM hidden — but the ID rule below out-specifies the generic [hidden]
++ * rule, so the clone rendered as a dead "phantom customize" panel whenever
++ * anything touched the lazy gCustomizeMode getter (e.g. the toolbar context
++ * menu's popupshowing destructure). Hidden must always win. */
++#customization-container[hidden] {
++  display: none !important;
++}
++
+ #customization-container {
+   display: flex;
+   flex-direction: column;

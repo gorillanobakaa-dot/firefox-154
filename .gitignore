@@ -1,0 +1,81 @@
+# Ignore Firefox source code and archives
+mozilla-central-24949d57b331/
+mozilla-central-24949d57b331.zip
+
+# Ignore Python runtime files and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local system/IDE metadata
+.DS_Store
+.vscode/
+.idea/
+
+# Ignore build outputs and archives
+build/
+*.zip
+*.tar.xz
+*.deb
+temp_font_extract/
+
+# =============================================================================
+#  Added 2026-07-16 — public-repo hygiene + font licensing
+#  This repo is PUBLIC by design (see patches/00.Open.Source.Philosophy (2).md).
+#  These rules only strip NOISE and exclude binaries we may USE but not
+#  REDISTRIBUTE. The messy history/mistakes stay public on purpose.
+# =============================================================================
+
+# --- editor / AI-tool droppings (noise, not knowledge) ---
+.aider*
+*.swp
+*.swo
+*~
+
+# --- raw AI scratch payloads (distilled lessons ARE committed) ---
+**/PROMPT_PAYLOAD.txt
+
+# --- doc-audit artifacts: LAYMAN + DEVELOPER docs are PUBLIC; the AUDIT +
+#     PRECHECK are INTERNAL (readiness %, blockers, stage tracking — for us,
+#     not the repo) ---
+**/*.PRECHECK.json
+**/*.AUDIT.md
+
+# --- local scratch / tooling / logs — NEVER publish to a public repo ---
+.mcp.json
+.claude/
+config/
+*.pid
+perf.data
+perf.data.old
+*.error.txt
+BUILD*.txt
+software.hardware.decoding.txt
+
+# --- MICROSOFT FONTS: obtained legally (Win11 Enterprise 90-day eval ISO,
+#     the ttf-ms-win11-auto method; see Second.Brain/microsoft_fonts.xml),
+#     but the EULA licenses USE, not REDISTRIBUTION. So we commit the
+#     extraction SCRIPT, never the .ttf/.ttc binaries. Run the script to fetch
+#     identical fonts from Microsoft yourself.
+#     (TwemojiMozilla.ttf is CC-BY, shipped by Mozilla — safe to include.) ---
+*.ttf
+*.ttc
+!TwemojiMozilla.ttf
+
+# =============================================================================
+#  Added 2026-08-03 — pre-commit sensitivity-scan findings (AI-excision wrap-up)
+#  Path layer only; the CONTENT layer is .git-hooks/pre-commit (activate once:
+#  git config core.hooksPath <abs-path>/.git-hooks). gitignore cannot see file
+#  contents and never affects already-tracked files.
+# =============================================================================
+# build logs: machine paths + cargo crate-author emails
+**/build_logs/
+# doc-backup tarballs: can smuggle INTERNAL *.AUDIT.md/*.PRECHECK.json past review
+*.tar.gz
+# second-brain dumps: custom-kernel fingerprints + captured CLI session
+# transcripts carrying account identity (Antigravity gmail)
+Icon.app.grid.Dash/GATHERED_BRAIN_LESSONS/
+Icon.app.grid.Dash/MEGA_LESSONS/
+# the pre-commit gate itself lists the patterns it blocks — never publish it
+.git-hooks/

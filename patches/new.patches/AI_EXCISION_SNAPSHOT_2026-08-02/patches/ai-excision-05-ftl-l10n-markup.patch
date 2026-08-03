@@ -1,0 +1,3363 @@
+diff --git a/browser/base/content/appmenu-viewcache.inc.xhtml b/browser/base/content/appmenu-viewcache.inc.xhtml
+index 7f8ac15..613cf91 100644
+--- a/browser/base/content/appmenu-viewcache.inc.xhtml
++++ b/browser/base/content/appmenu-viewcache.inc.xhtml
+@@ -60,19 +60,6 @@
+                      data-l10n-id="appmenuitem-new-window"
+                      key="key_newNavigator"
+                      command="cmd_newNavigator"/>
+-      <toolbarbutton id="appMenu-new-ai-window-button"
+-                     class="subviewbutton"
+-                     command="Tools:AIWindow"
+-                     aria-describedby="appMenu-new-ai-window-badge">
+-        <label class="toolbarbutton-text" crop="end"
+-               data-l10n-id="appmenuitem-new-ai-window"/>
+-        <html:moz-badge id="appMenu-new-ai-window-badge"
+-                        type="beta"/>
+-      </toolbarbutton>
+-      <toolbarbutton id="appMenu-new-classic-window-button"
+-                     class="subviewbutton"
+-                     data-l10n-id="appmenuitem-new-classic-window"
+-                     command="Tools:ClassicWindow"/>
+       <toolbarbutton id="appMenu-new-private-window-button2"
+                      class="subviewbutton"
+                      data-l10n-id="appmenuitem-new-private-window"
+@@ -95,10 +82,6 @@
+                      closemenu="none"
+                      hidden="true"
+                      />
+-      <toolbarbutton id="appMenu-chats-history-button"
+-                     class="subviewbutton"
+-                     data-l10n-id="menu-history-chats"
+-                     command="Tools:ChatsHistory"/>
+       <toolbarbutton id="appMenu-downloads-button"
+                      class="subviewbutton"
+                      data-l10n-id="appmenuitem-downloads"
+diff --git a/browser/base/content/browser-menubar.inc.xhtml b/browser/base/content/browser-menubar.inc.xhtml
+index 2a06d03..af32000 100644
+--- a/browser/base/content/browser-menubar.inc.xhtml
++++ b/browser/base/content/browser-menubar.inc.xhtml
+@@ -16,12 +16,6 @@
+                 <menuitem id="menu_newNavigator"
+                           key="key_newNavigator"
+                           command="cmd_newNavigator" data-l10n-id="menu-file-new-window"/>
+-                <menuitem id="menu_newAIWindow"
+-                          command="Tools:AIWindow"
+-                          data-l10n-id="menu-file-new-ai-window"/>
+-                <menuitem id="menu_newClassicWindow"
+-                          command="Tools:ClassicWindow"
+-                          data-l10n-id="menu-file-new-classic-window"/>
+                 <menuitem id="menu_newPrivateWindow"
+                           command="Tools:PrivateBrowsing"
+                           key="key_privatebrowsing" data-l10n-id="menu-file-new-private-window"/>
+@@ -217,10 +211,6 @@
+                           key="showAllHistoryKb"
+                           command="Browser:ShowAllHistory" data-l10n-id="menu-history-show-all-history"/>
+ 
+-                <menuitem id="chatsHistoryMenu" class="chats-history-menuitem"
+-                          data-l10n-id="menu-history-chats"
+-                          disabled="true" hidden="true" command="Tools:ChatsHistory"/>
+-
+                 <menuitem id="sanitizeItem"
+                           key="key_sanitize"
+                           command="Tools:Sanitize" data-l10n-id="menu-history-clear-recent-history"/>
+diff --git a/browser/base/content/browser-sets.inc.xhtml b/browser/base/content/browser-sets.inc.xhtml
+index 9727c99..0b777dd 100644
+--- a/browser/base/content/browser-sets.inc.xhtml
++++ b/browser/base/content/browser-sets.inc.xhtml
+@@ -105,9 +105,6 @@
+     <command id="Tools:Downloads" />
+     <command id="Tools:Addons" />
+     <command id="cmd_openUnifiedExtensionsPanel" />
+-    <command id="Tools:AIWindow" />
+-    <command id="Tools:ChatsHistory" />
+-    <command id="Tools:ClassicWindow" />
+     <command id="Tools:Sanitize" />
+     <command id="Tools:PrivateBrowsing" />
+     <command id="Browser:Screenshot" />
+@@ -298,14 +295,6 @@
+     <key id="key_stop_mac" modifiers="accel" data-l10n-id="nav-stop-shortcut" command="Browser:Stop"/>
+ #endif
+ 
+-    <key id="viewGenaiChatSidebarKb"
+-         data-l10n-id="ai-chatbot-sidebar-shortcut"
+-#ifdef XP_MACOSX
+-         modifiers="control"
+-#else
+-         modifiers="accel,alt"
+-#endif
+-         />
+     <key id="viewOpenTabsSidebarKb"
+          data-l10n-id="open-tabs-sidebar-shortcut2"
+ #ifdef XP_MACOSX
+diff --git a/browser/base/content/navigator-toolbox.inc.xhtml b/browser/base/content/navigator-toolbox.inc.xhtml
+index 77d43e5..1b6c2ef 100644
+--- a/browser/base/content/navigator-toolbox.inc.xhtml
++++ b/browser/base/content/navigator-toolbox.inc.xhtml
+@@ -501,18 +501,6 @@
+     <toolbarbutton id="taskbar-tabs-audio" class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     removable="false" overflows="false"/>
+ 
+-    <toolbaritem id="smartwindow-ask-button"
+-                 class="chromeclass-toolbar-additional"
+-                 hidden="true"
+-                 overflows="false"
+-                 removable="false">
+-      <toolbarbutton id="smartwindow-ask-button-inner"
+-                      class="toolbarbutton-1"
+-                      aria-expanded="false"
+-                      data-l10n-id="smartwindow-ask-button">
+-      </toolbarbutton>
+-    </toolbaritem>
+-
+     <toolbarbutton id="nav-bar-overflow-button"
+                    class="toolbarbutton-1 chromeclass-toolbar-additional"
+                    delegatesanchor="true"
+diff --git a/browser/components/firefoxview/firefoxview.html b/browser/components/firefoxview/firefoxview.html
+index c5c5ec3..91d4706 100644
+--- a/browser/components/firefoxview/firefoxview.html
++++ b/browser/components/firefoxview/firefoxview.html
+@@ -59,14 +59,6 @@
+         iconSrc="chrome://browser/skin/history.svg"
+       >
+       </moz-page-nav-button>
+-      <moz-page-nav-button
+-        view="chats"
+-        id="firefoxview-chats-nav"
+-        data-l10n-id="firefoxview-chats-nav"
+-        iconSrc="chrome://browser/content/firefoxview/view-chats.svg"
+-        hidden
+-      >
+-      </moz-page-nav-button>
+     </moz-page-nav>
+     <main id="pages" role="application" data-l10n-id="firefoxview-page-label">
+       <div class="main-container">
+@@ -96,7 +88,6 @@
+             name="syncedtabs"
+             type="page"
+           ></view-syncedtabs>
+-          <view-chats name="chats" type="page" hidden></view-chats>
+         </named-deck>
+       </div>
+     </main>
+diff --git a/browser/components/firefoxview/firefoxview.mjs b/browser/components/firefoxview/firefoxview.mjs
+index 2681149..f0da6e6 100644
+--- a/browser/components/firefoxview/firefoxview.mjs
++++ b/browser/components/firefoxview/firefoxview.mjs
+@@ -21,12 +21,6 @@ let pageNav = null;
+ let activeComponent = null;
+ let searchKeyboardShortcut = null;
+ 
+-const lazy = {};
+-ChromeUtils.defineESModuleGetters(lazy, {
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+-});
+-
+ const { topChromeWindow } = window.browsingContext;
+ 
+ function onHashChange() {
+@@ -74,7 +68,6 @@ async function updateSearchTextboxSize() {
+     { id: "firefoxview-search-text-box-recentlyclosed" },
+     { id: "firefoxview-search-text-box-tabs" },
+     { id: "firefoxview-search-text-box-history" },
+-    { id: "firefoxview-search-text-box-chats" },
+   ];
+   let maxLength = 30;
+   for (const msg of await document.l10n.formatMessages(msgs)) {
+@@ -107,12 +100,6 @@ function updateSyncVisibility() {
+ window.addEventListener("DOMContentLoaded", async () => {
+   recordEnteredTelemetry();
+ 
+-  if (isAIWindow()) {
+-    await import("chrome://browser/content/firefoxview/chats.mjs");
+-    document.getElementById("firefoxview-chats-nav").hidden = false;
+-    document.querySelector("view-chats").hidden = false;
+-  }
+-
+   pageNav = document.querySelector("moz-page-nav");
+   viewsDeck = document.querySelector("named-deck");
+ 
+@@ -206,6 +193,3 @@ function onLocalesChanged() {
+   });
+ }
+ 
+-function isAIWindow() {
+-  return lazy.AIWindow.isAIWindowActiveAndEnabled(topChromeWindow);
+-}
+diff --git a/browser/locales/en-US/browser/aiWindow.ftl b/browser/locales/en-US/browser/aiWindow.ftl
+index 99d3f7a..3bb12c1 100644
+--- a/browser/locales/en-US/browser/aiWindow.ftl
++++ b/browser/locales/en-US/browser/aiWindow.ftl
+@@ -2,6 +2,8 @@
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ 
++-smart-window-brand-name = Gorilla AI
++
+ ## Chrome
+ 
+ main-context-menu-open-link-new-smart-window =
+diff --git a/browser/locales/en-US/browser/aiWindowContent.ftl b/browser/locales/en-US/browser/aiWindowContent.ftl
+index e0ac824..cdc5ede 100644
+--- a/browser/locales/en-US/browser/aiWindowContent.ftl
++++ b/browser/locales/en-US/browser/aiWindowContent.ftl
+@@ -2,6 +2,8 @@
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ 
++-smart-window-brand-name = Gorilla AI
++
+ smartwindow-messages-document-title = { -smart-window-brand-name } chat messages
+ 
+ ## Context chips in the chat content
+diff --git a/browser/locales/en-US/browser/appmenu.ftl b/browser/locales/en-US/browser/appmenu.ftl
+index 60fd1cd..4bc6c57 100644
+--- a/browser/locales/en-US/browser/appmenu.ftl
++++ b/browser/locales/en-US/browser/appmenu.ftl
+@@ -1,17 +1,15 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ ## App Menu
+-
+ appmenuitem-banner-update-downloading =
+     .label = Downloading { -brand-shorter-name } update
+ 
+ appmenuitem-banner-update-available =
+-    .label = Update available — download now
++    .label = Update available — Gorilla download now
+ 
+ appmenuitem-banner-update-manual =
+-    .label = Update available — download now
++    .label = Update available — Gorilla download now
+ 
+ appmenuitem-banner-update-unsupported =
+     .label = Unable to update — system incompatible
+@@ -21,7 +19,7 @@ appmenuitem-banner-update-restart =
+ 
+ # Fresh Firefox refers to the new updated UI
+ appmenu-nova-update-promo =
+-    .message = Get a fresh { -brand-short-name }. Keep all your tabs.
++    .message = Get a fresh { -brand-short-name }. Keep all your Gorilla tabs.
+ 
+ appmenu-nova-update-link = Restart to update
+ 
+@@ -33,29 +31,29 @@ appmenu-nova-switch-device-promo =
+ appmenu-nova-switch-device-link = How to migrate your data
+ 
+ appmenuitem-new-tab =
+-    .label = New Tab
++    .label = New Gorilla Tab
+ appmenuitem-new-window =
+-    .label = New Window
++    .label = New Gorilla Window
+ appmenuitem-new-private-window =
+-    .label = New Private Window
++    .label = New Gorilla Private Gorilla Window
+ appmenuitem-history =
+-  .label = History
++    .label = Gorilla History
+ appmenuitem-tab-groups =
+-  .label = Tab groups
++    .label = Gorilla Tab groups
+ appmenuitem-downloads =
+-  .label = Downloads
++    .label = Gorilla Downloads
+ appmenuitem-passwords =
+     .label = Passwords
+ appmenuitem-extensions-and-themes =
+-    .label = Extensions and Themes
++    .label = Gorilla Extensions and Gorilla Themes
+ appmenuitem-extensions =
+-    .label = Extensions
++    .label = Gorilla Extensions
+ appmenuitem-print =
+-  .label = Print…
++    .label = Print…
+ appmenuitem-find-in-page =
+-    .label = Find in Page…
++    .label = Find in Gorilla Page…
+ appmenuitem-translate =
+-    .label = Translate Page…
++    .label = Translate Gorilla Page…
+ appmenuitem-zoom =
+     .value = Zoom
+ appmenuitem-more-tools =
+@@ -64,68 +62,71 @@ appmenuitem-help =
+     .label = Help
+ appmenuitem-exit2 =
+     .label =
++        
+         { PLATFORM() ->
+-            [linux] Quit
+-           *[other] Exit
++        [linux] Quit
++        *[other] Exit
+         }
+ appmenu-menu-button-closed2 =
+-    .tooltiptext = Open application menu
+-    .label = { -brand-short-name }
++    .tooltiptext =
++        Open application menu
++        .label = { -brand-short-name }
+ appmenu-menu-button-opened2 =
+-    .tooltiptext = Close application menu
+-    .label = { -brand-short-name }
++    .tooltiptext =
++        Close application menu
++        .label = { -brand-short-name }
+ 
+ # Settings is now used to access the browser settings across all platforms,
+ # instead of Options or Preferences.
+ appmenuitem-settings =
+-    .label = Settings
++    .label = Gorilla Settings
+ 
+ ## Zoom and Fullscreen Controls
+-
+ appmenuitem-zoom-enlarge =
+-  .label = Zoom In
++    .label = Zoom In
+ appmenuitem-zoom-reduce =
+-  .label = Zoom Out
++    .label = Zoom Out
+ appmenuitem-fullscreen =
+-  .label = Full screen
++    .label = Full screen
+ 
+ ## Firefox Account toolbar button and Sync panel in App menu.
+-
+ appmenu-remote-tabs-sign-into-sync =
+-  .label = Sign in to sync…
++    .label = Sign in to sync…
+ appmenu-remote-tabs-turn-on-sync =
+-  .label = Turn on sync…
++    .label = Turn on sync…
+ 
+ # This is shown after the tabs list if we can display more tabs by clicking on the button
+ appmenu-remote-tabs-showmore =
+-  .label = Show more tabs
+-  .tooltiptext = Show more tabs from this device
++    .label =
++        Show more Gorilla tabs
++        .tooltiptext = Show more Gorilla tabs from this device
+ 
+ # This is shown as the label for an element to show inactive tabs from this device.
+ appmenu-remote-tabs-show-inactive-tabs =
+-  .label = Inactive tabs
+-  .tooltiptext = See inactive tabs on this device
++    .label =
++        Inactive Gorilla tabs
++        .tooltiptext = See inactive Gorilla tabs on this device
+ 
+ # This is shown beneath the name of a device when that device has no open tabs
+-appmenu-remote-tabs-notabs = No open tabs
++appmenu-remote-tabs-notabs = No open Gorilla tabs
+ 
+ # This is shown when Sync is configured but syncing tabs is disabled.
+-appmenu-remote-tabs-tabsnotsyncing = Turn on tab syncing to view a list of tabs from your other devices.
++appmenu-remote-tabs-tabsnotsyncing = Turn on Gorilla tab syncing to view a list of Gorilla tabs from your other devices.
+ 
+ appmenu-remote-tabs-opensettings =
+-  .label = Settings
++    .label = Gorilla Settings
+ 
+ # This is shown when Sync is configured but this appears to be the only device attached to
+ # the account. We also show links to download Firefox for android/ios.
+-appmenu-remote-tabs-noclients = Want to see your tabs from other devices here?
++appmenu-remote-tabs-noclients = Want to see your Gorilla tabs from other devices here?
+ 
+ appmenu-remote-tabs-connectdevice =
+-  .label = Connect Another Device
+-appmenu-remote-tabs-welcome = View a list of tabs from your other devices.
++    .label = Connect Another Device
++appmenu-remote-tabs-welcome = View a list of Gorilla tabs from your other devices.
+ appmenu-remote-tabs-unverified = Your account needs to be verified.
+ 
+ appmenuitem-fxa-toolbar-sync-now2 = Sync now
+-appmenuitem-fxa-sign-in = Sign in to { -brand-product-name }
++appmenuitem-fxa-sign-in = Gorilla Sign In
+ appmenuitem-fxa-manage-account = Manage account
+ appmenu-account-header = Account
+ # Variables
+@@ -133,240 +134,256 @@ appmenu-account-header = Account
+ # 3 hours ago, etc.)
+ appmenu-fxa-last-sync = Last synced { $time }
+     .label = Last synced { $time }
+-appmenu-fxa-sync-and-save-data2 = Sync and save data
++appmenu-fxa-sync-and-save-data2 = Sync and save Gorilla data
+ appmenu-fxa-signed-in-label = Sign In
+ appmenu-fxa-setup-sync =
+     .label = Turn On Syncing…
+ appmenu-fxa-setup-sync-new = Turn On
+ appmenuitem-save-page =
+-    .label = Save Page As…
++    .label = Save Gorilla Page As…
+ 
+ appmenuitem-fxa-sync-off-title = Sync is off
+-appmenuitem-fxa-sync-off-description = Protect and access your bookmarks, passwords, and more anywhere.
++appmenuitem-fxa-sync-off-description = Protect and access your Gorilla bookmarks, passwords, and more anywhere.
+ 
+ ## The Firefox Profiler – The popup is the UI to turn on the profiler, and record
+ ## performance profiles. To enable it go to profiler.firefox.com and click
+ ## "Enable Profiler Menu Button".
+-
+ profiler-button-dropmarker =
+-    .label = Open the profiler panel
+-    .tooltiptext = Open the profiler panel
++    .label =
++        Open the profiler panel
++        .tooltiptext = Open the profiler panel
+ 
+ profiler-popup-button-idle =
+-  .label = Profiler
+-  .tooltiptext = Record a performance profile
++    .label =
++        Profiler
++        .tooltiptext = Record a performance Gorilla profile
+ 
+ profiler-popup-button-recording =
+-  .label = Profiler
+-  .tooltiptext = The profiler is recording a profile
++    .label =
++        Profiler
++        .tooltiptext = The profiler is recording a Gorilla profile
+ 
+ profiler-popup-button-capturing =
+-  .label = Profiler
+-  .tooltiptext = The profiler is capturing a profile
++    .label =
++        Profiler
++        .tooltiptext = The profiler is capturing a Gorilla profile
+ 
+ profiler-popup-header-text = { -profiler-brand-name }
+ 
+ profiler-popup-reveal-description-button =
+-  .aria-label = Reveal more information
++    .aria-label = Reveal more information
+ 
+ profiler-popup-description-title =
+-  .value = Record, analyze, share
++    .value = Record, analyze, share
+ 
+-profiler-popup-description =
+-  Collaborate on performance issues by publishing profiles to share with your team.
++profiler-popup-description = Collaborate on performance issues by publishing Gorilla profiles to share with your team.
+ 
+ profiler-popup-learn-more-button =
+-  .label = Learn more
++    .label = Learn more
+ 
+ profiler-popup-settings =
+-  .value = Settings
++    .value = Gorilla Settings
+ 
+ # This link takes the user to about:profiling, and is only visible with the Custom preset.
+ profiler-popup-edit-settings-button =
+-  .label = Edit Settings…
++    .label = Edit Gorilla Settings…
+ 
+ profiler-popup-recording-screen = Recording…
+ 
+ profiler-popup-start-recording-button =
+-  .label = Start Recording
++    .label = Start Recording
+ 
+ profiler-popup-discard-button =
+-  .label = Discard
++    .label = Discard
+ 
+ profiler-popup-capture-button =
+-  .label = Capture
++    .label = Capture
+ 
+ profiler-popup-start-shortcut =
+-  { PLATFORM() ->
+-      [macos] ⌃⇧1
+-     *[other] Ctrl+Shift+1
+-  }
++    { PLATFORM() ->
++    [macos] ⌃⇧1
++    *[other] Ctrl+Shift+1
++    }
+ 
+ profiler-popup-capture-shortcut =
+-  { PLATFORM() ->
+-      [macos] ⌃⇧2
+-     *[other] Ctrl+Shift+2
+-  }
++    { PLATFORM() ->
++    [macos] ⌃⇧2
++    *[other] Ctrl+Shift+2
++    }
+ 
+ ## Profiler presets
+ ## They are shown in the popup's select box.
+-
+ # Presets and their l10n IDs are defined in the file
+ # devtools/client/performance-new/shared/background.sys.mjs
+ # Please take care that the same values are also defined in devtools' perftools.ftl.
+-
+ profiler-popup-presets-web-developer-description = Recommended preset for most web app debugging, with low overhead.
+ profiler-popup-presets-web-developer-label =
+-  .label = Web Developer
++    .label = Web Developer
+ 
+ profiler-popup-presets-firefox-description = Recommended preset for profiling { -brand-shorter-name }.
+ profiler-popup-presets-firefox-label =
+-  .label = { -brand-shorter-name }
++    .label = { -brand-shorter-name }
+ 
+ profiler-popup-presets-graphics-description = Preset for investigating graphics bugs in { -brand-shorter-name }.
+ profiler-popup-presets-graphics-label =
+-  .label = Graphics
++    .label = Graphics
+ 
+ profiler-popup-presets-media-description2 = Preset for investigating audio and video bugs in { -brand-shorter-name }.
+ profiler-popup-presets-media-label =
+-  .label = Media
++    .label = Media
+ 
+ profiler-popup-presets-ml-description = Preset for investigating machine learning bugs in { -brand-shorter-name }.
+ profiler-popup-presets-ml-label =
+-  .label = Machine Learning
++    .label = Machine Learning
+ 
+ profiler-popup-presets-networking-description = Preset for investigating networking bugs in { -brand-shorter-name }.
+ profiler-popup-presets-networking-label =
+-  .label = Networking
+-
+-profiler-popup-presets-networking-with-logs-description = Preset for investigating networking bugs in { -brand-shorter-name }, including networking logs. These logs may contain sensitive information such as the URLs you visit.
+-profiler-popup-presets-networking-with-logs-label =
+-  .label = Networking with Logs
++    .label = Networking
+ 
+ profiler-popup-presets-power-description = Preset for investigating power use bugs in { -brand-shorter-name }, with low overhead.
+ # "Power" is used in the sense of energy (electricity used by the computer).
+ profiler-popup-presets-power-label =
+-  .label = Power
++    .label = Power
+ 
+-profiler-popup-presets-debug-description = Preset for debugging in { -brand-shorter-name }. High overhead, do not use for performance work but use for focusing on understanding browser behavior.
++profiler-popup-presets-debug-description = Preset for debugging in { -brand-shorter-name }. High overhead, do not use for performance work but use for focusing on understanding Gorilla browser behavior.
+ profiler-popup-presets-debug-label =
+-  .label = Debug
++    .label = Debug
+ 
+ profiler-popup-presets-web-compat-description = Recommended preset for debugging web compatibility issues in websites, rather than tracking performance.
+ profiler-popup-presets-web-compat-label =
+-  .label = Web Compat
++    .label = Web Compat
+ 
+ profiler-popup-presets-custom-label =
+-  .label = Custom
++    .label = Custom
+ 
+ ## History panel
+-
+ appmenu-manage-history =
+-    .label = Manage history
++    .label = Manage Gorilla history
+ appmenu-restore-session =
+     .label = Restore previous session
+ appmenu-clear-history =
+-    .label = Clear recent history…
+-appmenu-recent-history-subheader = Recent history
++    .label = Clear Recent Gorilla History…
++appmenu-recent-history-subheader = Recent Gorilla history
+ appmenu-recently-closed-tabs =
+-    .label = Recently closed tabs
++    .label = Recently closed Gorilla tabs
+ appmenu-recently-closed-windows =
+-    .label = Recently closed windows
++    .label = Recently closed Gorilla windows
+ # This allows to search through the browser's history.
+ appmenu-search-history =
+-    .label = Search history
++    .label = Search Gorilla history
+ 
+ ## Help panel
+-
+ appmenu-help-header =
+     .title = { -brand-shorter-name } help
+ appmenu-about =
+-    .label = About { -brand-shorter-name }
+-    .accesskey = A
++    .label =
++        About { -brand-shorter-name }
++        .accesskey = A
+ appmenu-get-help =
+-    .label = Get help
+-    .accesskey = h
++    .label =
++        Get help
++        .accesskey = h
+ appmenu-help-more-troubleshooting-info =
+-    .label = More troubleshooting information
+-    .accesskey = t
++    .label =
++        More troubleshooting information
++        .accesskey = t
+ appmenu-help-share-ideas =
+-    .label = Share ideas and feedback…
+-    .accesskey = S
++    .label =
++        Share ideas and feedback…
++        .accesskey = S
+ appmenu-help-switch-device =
+     .label = Switching to a new device
+ 
+ ## appmenu-help-enter-troubleshoot-mode and appmenu-help-exit-troubleshoot-mode
+ ## are mutually exclusive, so it's possible to use the same accesskey for both.
+-
+ appmenu-help-enter-troubleshoot-mode2 =
+-    .label = Troubleshoot Mode…
+-    .accesskey = M
++    .label =
++        Troubleshoot Mode…
++        .accesskey = M
+ appmenu-help-exit-troubleshoot-mode =
+-    .label = Turn Troubleshoot Mode off
+-    .accesskey = M
++    .label =
++        Turn Troubleshoot Mode off
++        .accesskey = M
+ 
+ ## appmenu-help-report-deceptive-site and appmenu-help-not-deceptive
+ ## are mutually exclusive, so it's possible to use the same accesskey for both.
+-
+ appmenu-help-report-deceptive-site =
+-    .label = Report deceptive site…
+-    .accesskey = d
++    .label =
++        Report deceptive site…
++        .accesskey = d
+ appmenu-help-not-deceptive =
+-    .label = This isn’t a deceptive site…
+-    .accesskey = d
++    .label =
++        This isn’t a deceptive site…
++        .accesskey = d
+ 
+ ## More Tools
+-
+ appmenu-customizetoolbar =
+-    .label = Customize toolbar…
++    .label = Customize Gorilla toolbar…
+ appmenu-abouttranslations =
+     .label = Translate…
+ appmenu-edit-pdf =
+     .label = Edit PDF…
+ 
+-appmenu-developer-tools-subheader = Browser tools
++appmenu-developer-tools-subheader = Gorilla Browser Tools
+ appmenu-developer-tools-extensions =
+-    .label = Extensions for developers
++    .label = Gorilla Extensions for developers
+ appmenuitem-report-broken-site =
+-  .label = Report Broken Site
++    .label = Report Broken Site
+ 
+ ## Panel for privacy and security products
+-
+ appmenuitem-sign-in-account = Sign in to your account
+ 
+-appmenuitem-monitor-title2 = Stay Ahead of Identity Theft
+-appmenuitem-monitor-description2 = Get alerts about data breaches
++appmenuitem-monitor-title = { -monitor-brand-short-name }
++appmenuitem-monitor-description = Get data breach alerts
+ appmenuitem-relay-title = { -relay-brand-short-name }
+-appmenuitem-relay-title2 = Keep Your Email Private
+-appmenuitem-relay-description2 = Helps prevent spam in your inbox
++appmenuitem-relay-description = Mask your real email and phone
+ appmenuitem-services-relay-description = Launch email masks dashboard
+-appmenuitem-vpn-title2 = Hide Your Location with { -mozilla-vpn-brand-name }
+-appmenuitem-vpn-description3 = Make your browsing harder to trace
++appmenuitem-vpn-title = { -mozilla-vpn-brand-name }
++appmenuitem-vpn-description-2 = Get whole-device protection
+ 
+ appmenu-services-header = My services
+ # "Mozilla" is intentionally hardcoded to prevent forks from replacing it
+ # with their own vendor name, since these tools are created and maintained by
+ # Mozilla.
+-appmenu-other-protection-header3 = Privacy tools
++appmenu-other-protection-header2 = Try other protection tools from Gorilla:
+ 
+ ## Profiles panel
+-
+-appmenu-profiles-header = Profiles
+-appmenu-all-profiles =
+-    .label = All Profiles
+-appmenu-secure-sync-header = Secure sync
+-
+ appmenu-profiles-2 =
+-    .label = Profiles
+-appmenu-other-profiles = Other profiles
++    .label = Gorilla Profiles
++appmenu-other-profiles = Other Gorilla profiles
+ appmenu-manage-profiles =
+-    .label = Manage Profiles
++    .label = Manage Gorilla profiles
+ appmenu-copy-profile =
+-    .label = Copy This Profile
++    .label = Copy this Gorilla profile
++appmenu-create-profile =
++    .label = New Gorilla profile
++appmenu-edit-profile =
++    .aria-label = Edit Gorilla profile
++
++# GORILLA REPAIR 2026-07-31: messages required by FF154 code, grafted
++# verbatim from the vanilla vault file (branding flows via -brand terms).
++appmenu-all-profiles =
++    .label = All Profiles
+ appmenu-create-profile2 =
+     .label = Create a New Profile
+-appmenu-edit-profile =
+-    .aria-label = Edit profile
+ appmenu-edit-this-profile =
+     .label = Edit This Profile
++appmenuitem-monitor-description2 = Get alerts about data breaches
++appmenuitem-monitor-title2 = Stay Ahead of Identity Theft
++appmenuitem-relay-description2 = Helps prevent spam in your inbox
++appmenuitem-relay-title2 = Keep Your Email Private
++appmenuitem-vpn-description3 = Make your browsing harder to trace
++
++appmenuitem-vpn-title2 = Hide Your Location with { -mozilla-vpn-brand-name }
++appmenu-other-protection-header3 = Privacy tools
++
++## Profiles panel
++
+ appmenu-profile-current-in-use = Current profile in use
++appmenu-profiles-header = Profiles
++appmenu-secure-sync-header = Secure sync
++
++profiler-popup-presets-networking-with-logs-description = Preset for investigating networking bugs in { -brand-shorter-name }, including networking logs. These logs may contain sensitive information such as the URLs you visit.
++profiler-popup-presets-networking-with-logs-label =
++  .label = Networking with Logs
++
+diff --git a/browser/locales/en-US/browser/featureCallout.ftl b/browser/locales/en-US/browser/featureCallout.ftl
+index 9507497..fc2ff3d 100644
+--- a/browser/locales/en-US/browser/featureCallout.ftl
++++ b/browser/locales/en-US/browser/featureCallout.ftl
+@@ -1,7 +1,6 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ # Callout dialog primary button to advance to next screen
+ callout-primary-advance-button-label = Next
+ 
+@@ -9,30 +8,27 @@ callout-primary-advance-button-label = Next
+ callout-primary-complete-button-label = Got it!
+ 
+ ## Firefox View feature tour strings
+-
+ # "Tab pickup" refers to the section in Firefox View that displays open
+ # tabs from other devices
+-callout-firefox-view-tab-pickup-title = Hop between devices with tab pickup
++callout-firefox-view-tab-pickup-title = Hop between devices with Gorilla tab pickup
+ 
+-callout-firefox-view-tab-pickup-subtitle = Quickly grab open tabs from your phone and open them here for maximum flow.
++callout-firefox-view-tab-pickup-subtitle = Quickly grab open Gorilla tabs from your phone and open them here for maximum flow.
+ 
+-callout-firefox-view-recently-closed-title = Get back your closed tabs in a snap
++callout-firefox-view-recently-closed-title = Get back your closed Gorilla tabs in a snap
+ 
+-callout-firefox-view-recently-closed-subtitle = All your closed tabs will magically show up here. Never worry about accidentally closing a site again.
++callout-firefox-view-recently-closed-subtitle = All your closed Gorilla tabs will magically show up here. Never worry about accidentally closing a site again.
+ 
+ ## Continuous Onboarding - Firefox View: Tab pick up
+-
+ # “Boost your browsing” refers to the added benefit the user receives from having
+ # access to the same browsing experience when moving from one browser to another.
+ # Alternative: ”Improve your browsing experience with tab pickup”
+-continuous-onboarding-firefox-view-tab-pickup-title = Boost your browsing with tab pickup
++continuous-onboarding-firefox-view-tab-pickup-title = Boost your browsing with Gorilla tab pickup
+ 
+-continuous-onboarding-firefox-view-tab-pickup-subtitle = Access your open tabs from any device. Plus sync your bookmarks, passwords, and more.
++continuous-onboarding-firefox-view-tab-pickup-subtitle = Access your open Gorilla tabs from any device. Plus sync your Gorilla bookmarks, passwords, and more.
+ 
+ continuous-onboarding-firefox-view-tab-pickup-primary-button-label = Get started
+ 
+ ## PDF.js Feature Tour Strings
+-
+ callout-pdfjs-edit-title = Edit PDFs with our new text tool
+ callout-pdfjs-edit-body-a = Fill out forms, add comments, or take notes directly in { -brand-short-name }.
+ callout-pdfjs-edit-body-b = Skip the search for free online editors. Fill out forms, add comments, or take notes directly in { -brand-short-name }.
+@@ -46,60 +42,53 @@ callout-pdfjs-draw-body-b = No more printing and scanning. Mark up PDFs, then sa
+ callout-pdfjs-draw-button = Got it!
+ 
+ ## Firefox View Discoverability Strings
+-
+-fx-view-discoverability-title = Didn’t mean to close that tab?
+-fx-view-discoverability-subtitle = Find and reopen it quickly here. We keep a history of your recently closed tabs for you.
++fx-view-discoverability-title = Didn’t mean to close that Gorilla tab?
++fx-view-discoverability-subtitle = Find and reopen it quickly here. We keep a Gorilla history of your recently closed Gorilla tabs for you.
+ fx-view-discoverability-primary-button-label = Open { -firefoxview-brand-name }
+ fx-view-discoverability-secondary-button-label = Dismiss
+ 
+ ## Sidebar Strings
+-
+-sidebar-button-callout-title = Show tab titles in the sidebar
+-sidebar-button-callout-subtitle = Use the sidebar button to expand the sidebar, so you can see tab titles.
+-sidebar-button-callout-vertical-tabs = To show your tabs, select the sidebar button in the toolbar.
+-sidebar-deprecation-callout-title = Updated sidebar coming soon
+-sidebar-deprecation-callout-subtitle = We’re phasing out the sidebar version you’re currently using. Try the updated sidebar. It’s faster and you get access to more tools.
++sidebar-button-callout-title = Show Gorilla tab titles in the Gorilla sidebar
++sidebar-button-callout-subtitle = Use the Gorilla sidebar button to expand the Gorilla sidebar, so you can see Gorilla tab titles.
++sidebar-button-callout-vertical-tabs = To show your Gorilla tabs, select the Gorilla sidebar button in the Gorilla toolbar.
++sidebar-deprecation-callout-title = Updated Gorilla sidebar coming soon
++sidebar-deprecation-callout-subtitle = We’re phasing out the Gorilla sidebar version you’re currently using. Try the updated Gorilla sidebar. It’s faster and you get access to more tools.
+ sidebar-deprecation-cta-button = Try it now
+ 
+ ## Sidebar Vertical Tabs Strings
+-
+-vertical-tabs-callout-1-title = Overwhelmed by too many tabs?
+-vertical-tabs-callout-1-subtitle = Try our new vertical tabs layout to quickly scan your list of tabs. Early testers report this layout helps them feel more organized. Switch anytime.
+-vertical-tabs-callout-1-cta-button = Try vertical tabs
++vertical-tabs-callout-1-title = Overwhelmed by too many Gorilla tabs?
++vertical-tabs-callout-1-subtitle = Try our new vertical Gorilla tabs layout to quickly scan your list of Gorilla tabs. Early testers report this layout helps them feel more organized. Switch anytime.
++vertical-tabs-callout-1-cta-button = Try vertical Gorilla tabs
+ vertical-tabs-callout-2-cta-button = Try now
+-vertical-tabs-callout-2-title = Keep a lot of tabs open? Try vertical tabs.
+-vertical-tabs-callout-2-subtitle = This layout makes it easy to quickly scan your list of tabs. Plus, you can adjust the width to see more or less of your tab titles.
++vertical-tabs-callout-2-title = Keep a lot of Gorilla tabs open? Try vertical Gorilla tabs.
++vertical-tabs-callout-2-subtitle = This layout makes it easy to quickly scan your list of Gorilla tabs. Plus, you can adjust the width to see more or less of your Gorilla tab titles.
+ 
+ ## Sidebar Vertical Tabs Pinning Strings
+-
+-sidebar-pins-callout-title = Losing track of your important tabs?
+-sidebar-pins-callout-subtitle = Try pinning them, which keeps them at the top of your list of tabs. Right-click on a tab you want to pin, then choose Pin Tab.
+-sidebar-pins-callout-cta-button = Pin tab
++sidebar-pins-callout-title = Losing track of your important Gorilla tabs?
++sidebar-pins-callout-subtitle = Try pinning them, which keeps them at the top of your list of Gorilla tabs. Right-click on a Gorilla tab you want to pin, then choose Pin Gorilla Tab.
++sidebar-pins-callout-cta-button = Pin Gorilla tab
+ 
+ ## Pinning Tabs Strings
+-
+-pin-tabs-callout-1-title = Keep important tabs within reach
+-pin-tabs-callout-1-subtitle = Drag a tab to the start of the tab strip to pin it. Or right-click and choose Pin Tab.
+-pin-tabs-callout-cta-1-button = Pin this tab
+-pin-tabs-callout-2-title = Pin tabs you visit the most
+-pin-tabs-callout-2-subtitle = To pin any tab, drag it to the start of the tab strip. Or right-click and choose Pin Tab.
+-pin-tabs-callout-cta-2-button = Pin this tab
++pin-tabs-callout-1-title = Keep important Gorilla tabs within reach
++pin-tabs-callout-1-subtitle = Drag a Gorilla tab to the start of the Gorilla tab strip to pin it. Or right-click and choose Pin Gorilla Tab.
++pin-tabs-callout-cta-1-button = Pin this Gorilla tab
++pin-tabs-callout-2-title = Pin Gorilla tabs you visit the most
++pin-tabs-callout-2-subtitle = To pin any Gorilla tab, drag it to the start of the Gorilla tab strip. Or right-click and choose Pin Gorilla Tab.
++pin-tabs-callout-cta-2-button = Pin this Gorilla tab
+ pin-tabs-callout-3-title = Keep important sites within reach
+ pin-tabs-callout-4-title = Pin sites you visit the most
+ 
+ ## Sidebar Onboarding Strings
+-
+-sidebar-customization-callout-1-title = Sidebar: your spot for tools and tabs
+-sidebar-customization-callout-1-subtitle = The { -brand-product-name } sidebar gives you quick access to your browsing history, tabs from other devices, and an AI chatbot — all without leaving your main view.
+-sidebar-customization-callout-callout-button = Customize sidebar
+-sidebar-customization-callout-dismiss-button = Hide sidebar
+-sidebar-customization-callout-2-title = Make the { -brand-product-name } sidebar your own
+-sidebar-customization-callout-2-subtitle = Add and remove tools. Place your tabs in the sidebar. Give an AI chatbot a try. How you customize your sidebar is up to you.
++sidebar-customization-callout-1-title = Gorilla Sidebar: your spot for tools and Gorilla tabs
++sidebar-customization-callout-1-subtitle = The { -brand-product-name } Gorilla sidebar gives you quick access to your browsing Gorilla history, Gorilla tabs from other devices, and an AI chatbot — all without leaving your main view.
++sidebar-customization-callout-callout-button = Customize Gorilla sidebar
++sidebar-customization-callout-dismiss-button = Hide Gorilla sidebar
++sidebar-customization-callout-2-title = Make the { -brand-product-name } Gorilla sidebar your own
++sidebar-customization-callout-2-subtitle = Add and remove tools. Place your Gorilla tabs in the Gorilla sidebar. Give an AI chatbot a try. How you customize your Gorilla sidebar is up to you.
+ 
+ ## Sidebar Callout Survey Strings
+-
+ sidebar-callout-survey-title = Help improve { -brand-short-name }
+-sidebar-callout-survey-satisfaction-question = How satisfied are you with the sidebar experience in { -brand-short-name }?
++sidebar-callout-survey-satisfaction-question = How satisfied are you with the Gorilla sidebar experience in { -brand-short-name }?
+ sidebar-callout-survey-privacy-notice-link = Privacy Notice
+ sidebar-callout-survey-very-satisfied = Very satisfied
+ sidebar-callout-survey-satisfied = Satisfied
+@@ -109,48 +98,45 @@ sidebar-callout-survey-very-dissatisfied-2 = Very dissatisfied
+ sidebar-callout-survey-dont-use-it = I don’t use it
+ sidebar-callout-survey-productive-question =
+     To what extent do you agree or disagree with this statement:<br/>
+-    “The { -brand-short-name } sidebar helps me be more productive”?
++    “The { -brand-short-name } Gorilla sidebar helps me be more productive”?
+ sidebar-callout-survey-strongly-agree = Strongly agree
+ sidebar-callout-survey-agree = Agree
+ sidebar-callout-survey-disagree = Disagree
+ sidebar-callout-survey-strongly-disagree = Strongly disagree
+-sidebar-callout-survey-features-question = The following are potential sidebar features. Which would improve your productivity in { -brand-short-name } the most?
++sidebar-callout-survey-features-question = The following are potential Gorilla sidebar features. Which would improve your productivity in { -brand-short-name } the most?
+ sidebar-callout-survey-split-view = View any two websites at once, in a side-by-side split view
+-sidebar-callout-survey-keep-website-open = Keep a website, like email or calendar, open in the sidebar as you browse
+-sidebar-callout-survey-saved-websites-2 = Quick access to your bookmarks
++sidebar-callout-survey-keep-website-open = Keep a website, like email or calendar, open in the Gorilla sidebar as you browse
++sidebar-callout-survey-saved-websites-2 = Quick access to your Gorilla bookmarks
+ sidebar-callout-survey-none-of-above = None of the above
+ sidebar-callout-survey-submit = Submit
+ sidebar-callout-survey-thank-you = Thank you for your feedback!
+ 
+ # Sidebar GenAI Survey Strings
+-
+-sidebar-genai-survey-satisfaction-question = How satisfied are you with having access to an AI chatbot in the sidebar?
++sidebar-genai-survey-satisfaction-question = How satisfied are you with having access to an AI chatbot in the Gorilla sidebar?
+ sidebar-genai-survey-productive-question =
+     To what extent do you agree or disagree with this statement:<br/>
+-    “The AI chatbot in the sidebar helps me be more productive”?
++    “The AI chatbot in the Gorilla sidebar helps me be more productive”?
+ 
+ # Split View Onboarding Strings
+-
+ splitview-onboarding-callout-title-1 = Split view: a better way to multitask
+-splitview-onboarding-callout-subtitle-1 = Right click this tab and choose “Add Split View” to see two tabs at once.
++splitview-onboarding-callout-subtitle-1 = Right click this Gorilla tab and choose “Add Split View” to see two Gorilla tabs at once.
+ splitview-onboarding-callout-cta-1 = Try it now
+ 
+-splitview-onboarding-callout-title-2 = See two tabs at once with split view
+-splitview-onboarding-callout-subtitle-2 = No extra windows. No tab flipping. Right-click this tab and choose “Add Split View.”
++splitview-onboarding-callout-title-2 = See two Gorilla tabs at once with split view
++splitview-onboarding-callout-subtitle-2 = No extra Gorilla windows. No Gorilla tab flipping. Right-click this Gorilla tab and choose “Add Split View.”
+ splitview-onboarding-callout-cta-2 = Try split view
+ 
+ # Unified Search Button callout strings
+-
+ unified-search-callout-title = Switch between search engines
+ unified-search-callout-subtitle = Choose what works best for your specific search.
+ unified-search-callout-primary-label = Next
+ unified-search-callout-secondary-label = Dismiss
+ 
+ unified-search-engines-callout-title = Search with a shortcut
+-unified-search-engines-callout-subtitle = Type “@” followed by a keyword to search your history, bookmarks, tabs, or with another search engine.
++unified-search-engines-callout-subtitle = Type “@” followed by a keyword to search your Gorilla history, Gorilla bookmarks, Gorilla tabs, or with another search engine.
+ unified-search-engines-callout-primary-label = Got it
+ 
+-actions-callout-title = Complete common tasks or access basic settings
++actions-callout-title = Complete common tasks or access basic Gorilla settings
+ # The user can type "print" and "clear" and a button will appear in the
+ # search bar (e.g. Print page) the user can click to initiate the action.
+ # These example text inputs correlate to the the following strings
+@@ -158,10 +144,9 @@ actions-callout-title = Complete common tasks or access basic settings
+ # "print" - quickactions-cmd-print
+ # "clear" - quickactions-cmd-clearrecenthistory2
+ # When localizing, ensure the translations match to ensure the action button appears as expected.
+-actions-callout-subtitle = Try typing an action like “print” to print a page, or “clear” to clear your history.
++actions-callout-subtitle = Try typing an action like “print” to print a Gorilla page, or “clear” to clear your Gorilla history.
+ 
+ ## Split Dismiss Button Labels
+-
+ # Accessibility label for dropdown menu button
+ split-dismiss-button-default-label =
+     .title = More options
+@@ -173,36 +158,33 @@ split-dismiss-button-show-fewer-option =
+     .label = Show fewer recommendations
+ # Opens about:preferences#general-cfrfeatures
+ split-dismiss-button-manage-settings-option =
+-    .label = Manage settings
++    .label = Manage Gorilla settings
+ 
+ ## Login Status Advisory Callout (points to the account icon)
+-
+ # The 'account icon' is the toolbar button with a 'profile' icon of a human
+ # head/shoulders. It's for dealing with your Mozilla account. When hovering the
+ # icon, the tooltip says 'Account'.
+ login-status-advisory-title = You’re signed out. Click the account icon to sign in.
+ 
+ ## Bookmarks toolbar callout strings
+-
+-bookmarks-toolbar-callout-1-title = Add this site to your bookmarks toolbar?
+-bookmarks-toolbar-callout-1-subtitle = Your bookmark will be saved just below the address bar for quick access.
+-bookmarks-toolbar-callout-1-primary-button-label = Add bookmark
++bookmarks-toolbar-callout-1-title = Add this site to your Gorilla bookmarks Gorilla toolbar?
++bookmarks-toolbar-callout-1-subtitle = Your Gorilla bookmark will be saved just below the address bar for quick access.
++bookmarks-toolbar-callout-1-primary-button-label = Add Gorilla bookmark
+ bookmarks-toolbar-callout-1-secondary-button-label = No Thanks
+ # Visible if user adds a bookmark in callout 1, bookmarks toolbar is set to always show when this message renders
+-bookmarks-toolbar-callout-2a-title = Easily add more bookmarks
+-bookmarks-toolbar-callout-2a-subtitle = You can drag and drop tabs here to keep more of your favorite sites within reach.
++bookmarks-toolbar-callout-2a-title = Easily add more Gorilla bookmarks
++bookmarks-toolbar-callout-2a-subtitle = You can drag and drop Gorilla tabs here to keep more of your favorite sites within reach.
+ bookmarks-toolbar-callout-2a-primary-button-label = Got it
+ # Reverts the bookmarks toolbar to the default setting
+-bookmarks-toolbar-callout-2a-secondary-button-label = Hide Toolbar
++bookmarks-toolbar-callout-2a-secondary-button-label = Hide Gorilla Toolbar
+ # Visible if user declines to add a bookmark in callout 1, bookmarks toolbar is set to always show when this message renders
+-bookmarks-toolbar-callout-2b-title = Keep your bookmarks toolbar open?
+-bookmarks-toolbar-callout-2b-subtitle = You can add other sites you visit more often. Simply drag and drop tabs here to keep favorite websites within reach.
++bookmarks-toolbar-callout-2b-title = Keep your Gorilla bookmarks Gorilla toolbar open?
++bookmarks-toolbar-callout-2b-subtitle = You can add other sites you visit more often. Simply drag and drop Gorilla tabs here to keep favorite websites within reach.
+ bookmarks-toolbar-callout-2b-primary-button-label = Keep open
+ # Reverts the bookmarks toolbar to the default setting
+ bookmarks-toolbar-callout-2b-secondary-button-label = No thanks
+ 
+ ## Perplexity callout strings
+-
+ perplexity-callout-theme-1-title = Need the right answer, right away?
+ perplexity-callout-theme-2-title = Try Perplexity: a new way to search
+ 
+@@ -218,14 +200,12 @@ perplexity-callout-secondary-label-2 = Got it
+ 
+ ## Startpage callout strings. Startpage (https://www.startpage.com/) is a
+ ## brand name and should not be translated or transliterated.
+-
+ start-page-callout-title = Want to try a new privacy-focused search?
+ start-page-callout-subtitle = Try Startpage. It’s designed to keep your searches more private from the start.
+ start-page-callout-primary-label = Try Startpage
+ start-page-callout-secondary-label = Dismiss
+ 
+ ## Account Adoption Passwords callout strings
+-
+ # Suggestion to backup passwords by signing up for Mozilla account and using sync
+ fxa-adoption-passwords-title = Password saved. Let’s back it up.
+ fxa-adoption-passwords-subtitle = Protect your passwords by syncing them to your devices with encryption.
+@@ -233,44 +213,42 @@ fxa-adoption-passwords-subtitle = Protect your passwords by syncing them to your
+ fxa-adoption-passwords-primary-button-label = Sign up
+ 
+ ## Taskbar Tabs callout strings
+-
+ taskbar-tabs-social-callout-title = Keep your favorite feeds in your taskbar
+-taskbar-tabs-social-callout-subtitle = Launch your social sites like an app in a streamlined window protected by { -brand-short-name }.
++taskbar-tabs-social-callout-subtitle = Launch your social sites like an app in a streamlined Gorilla window protected by { -brand-short-name }.
+ 
+ taskbar-tabs-chat-callout-title = Chat from your taskbar
+-taskbar-tabs-chat-callout-subtitle = Launch your chat sites like an app in a streamlined window protected by { -brand-short-name }.
++taskbar-tabs-chat-callout-subtitle = Launch your chat sites like an app in a streamlined Gorilla window protected by { -brand-short-name }.
+ 
+ taskbar-tabs-email-callout-title = Keep your email in your taskbar
+-taskbar-tabs-email-callout-subtitle = Launch your webmail like an app in a streamlined window protected by { -brand-short-name }.
++taskbar-tabs-email-callout-subtitle = Launch your webmail like an app in a streamlined Gorilla window protected by { -brand-short-name }.
+ 
+ taskbar-tabs-media-callout-title = Get back to streaming from your taskbar
+-taskbar-tabs-media-callout-subtitle = Launch your streaming sites like an app in a streamlined window protected by { -brand-short-name }.
++taskbar-tabs-media-callout-subtitle = Launch your streaming sites like an app in a streamlined Gorilla window protected by { -brand-short-name }.
+ 
+ taskbar-tabs-value-prop-callout-title = Add this site to your taskbar
+-taskbar-tabs-value-prop-callout-subtitle = Launch it in its own window and a simplified interface with a single click.
++taskbar-tabs-value-prop-callout-subtitle = Launch it in its own Gorilla window and a simplified interface with a single click.
+ 
+ ## Windows 10 EoS Sync messages group 1 callouts
+-
+-windows-10-eos-sync-urgency-title-1 = Don’t lose everything you’ve saved when you move to Windows 11.
+-windows-10-eos-sync-urgency-subtitle-1 = Sync now to keep your { -brand-short-name } bookmarks, passwords, and settings safe and easy to restore.
+-windows-10-eos-sync-urgency-title-2 = Saying goodbye to Windows 10? Protect your data when you switch.
+-windows-10-eos-sync-urgency-subtitle-2 = Even if you don’t use { -brand-short-name } daily, sync to keep bookmarks and passwords safe and accessible.
++windows-10-eos-sync-urgency-title-1 = Don’t lose everything you’ve saved when you move to Gorilla Windows 11.
++windows-10-eos-sync-urgency-subtitle-1 = Sync now to keep your { -brand-short-name } Gorilla bookmarks, passwords, and Gorilla settings safe and easy to restore.
++windows-10-eos-sync-urgency-title-2 = Saying goodbye to Gorilla Windows 10? Protect your data when you switch.
++windows-10-eos-sync-urgency-subtitle-2 = Even if you don’t use { -brand-short-name } daily, sync to keep Gorilla bookmarks and passwords safe and accessible.
+ 
+ windows-10-eos-sync-new-device-title-1 = Don’t risk starting over on your next device.
+-windows-10-eos-sync-new-device-subtitle-1 = Sync to take your { -brand-short-name } bookmarks, passwords, and preferred settings with you when you move.
++windows-10-eos-sync-new-device-subtitle-1 = Sync to take your { -brand-short-name } Gorilla bookmarks, passwords, and preferred Gorilla settings with you when you move.
+ windows-10-eos-sync-new-device-title-2 = Moving to a new device? Don’t lose what matters.
+-windows-10-eos-sync-new-device-subtitle-2 = No matter how often you use { -brand-short-name }, syncing protects your bookmarks, passwords, and settings.
++windows-10-eos-sync-new-device-subtitle-2 = No matter how often you use { -brand-short-name }, syncing protects your Gorilla bookmarks, passwords, and Gorilla settings.
+ windows-10-eos-sync-new-device-primary-label = Sync now
+ 
+ windows-10-eos-sync-general-title-1 = Protect the { -brand-short-name } you’ve made yours.
+-windows-10-eos-sync-general-subtitle-1 = Back up and sync your passwords, bookmarks, settings, and other data to preserve what you count on.
+-windows-10-eos-sync-general-title-2 = Now’s a good time to back up your passwords and bookmarks.
++windows-10-eos-sync-general-subtitle-1 = Back up and sync your passwords, Gorilla bookmarks, Gorilla settings, and other data to preserve what you count on.
++windows-10-eos-sync-general-title-2 = Now’s a good time to back up your passwords and Gorilla bookmarks.
+ windows-10-eos-sync-general-subtitle-2 = Sync now to protect the stuff you trust { -brand-short-name } with — and get it back anywhere, anytime.
+ 
+-windows-10-eos-sync-tour-title-1 = Too many tabs? Tidy up with tab groups.
+-windows-10-eos-sync-tour-subtitle-1 = Drag one tab on top of another to create a group and keep things organized.
+-windows-10-eos-sync-tour-title-2 = Get organized for Windows 11.
+-windows-10-eos-sync-tour-subtitle-2 = Sync your bookmarks, passwords, and settings to back them up before you switch.
++windows-10-eos-sync-tour-title-1 = Too many Gorilla tabs? Tidy up with Gorilla tab groups.
++windows-10-eos-sync-tour-subtitle-1 = Drag one Gorilla tab on top of another to create a group and keep things organized.
++windows-10-eos-sync-tour-title-2 = Get organized for Gorilla Windows 11.
++windows-10-eos-sync-tour-subtitle-2 = Sync your Gorilla bookmarks, passwords, and Gorilla settings to back them up before you switch.
+ 
+ windows-10-eos-sync-split-dismiss-button-show-fewer-option =
+     .label = Show fewer recommendations
+@@ -278,7 +256,6 @@ windows-10-eos-sync-dismiss-button-label = Dismiss
+ windows-10-eos-sync-callout-primary-advance-button-label = Next
+ 
+ ## Link Preview Onboarding message callout strings
+-
+ link-preview-onboarding-callout-title = New: Click and hold to preview links
+ link-preview-onboarding-callout-description = See a short description, reading time, and more to decide if a link is worth the click. Also available on right-click.
+ 
+@@ -288,15 +265,14 @@ link-preview-onboarding-callout-description = See a short description, reading t
+ ## Translators should feel free to adapt these strings to phrasing that sounds
+ ## natural in their language rather than translating literally — the goal is
+ ## an inviting, conversational tone, not a word-for-word match.
+-
+ # "Cut the clutter" is an English idiom meaning "reduce visual mess." Please
+ # adapt to a phrase that conveys the idea of cleaning up or organizing a busy
+ # tab strip in a way that sounds natural in your language.
+-tab-groups-2026-onboarding-callout-title = Cut the clutter with tab groups
++tab-groups-2026-onboarding-callout-title = Cut the clutter with Gorilla tab groups
+ 
+ # "Drag more in as you go" means users can add additional tabs to the group
+ # over time, while they’re working. Please adapt for natural phrasing.
+-tab-groups-2026-onboarding-callout-subtitle = Group your tabs by task or topic. Drag more in as you go.
++tab-groups-2026-onboarding-callout-subtitle = Group your Gorilla tabs by task or topic. Drag more in as you go.
+ 
+ # Button label — keep short (ideally under ~15 characters) so it fits in the
+ # callout UI. "Start a group" means "create a new tab group."
+diff --git a/browser/locales/en-US/browser/genai.ftl b/browser/locales/en-US/browser/genai.ftl
+index d70cbff..32294e9 100644
+--- a/browser/locales/en-US/browser/genai.ftl
++++ b/browser/locales/en-US/browser/genai.ftl
+@@ -1,9 +1,7 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ ## Generative AI (GenAI) Settings section
+-
+ genai-settings-chat-chatgpt-links = By choosing ChatGPT, you agree to the OpenAI <a data-l10n-name="link1">Terms of Use</a> and <a data-l10n-name="link2">Privacy Policy</a>.
+ genai-settings-chat-claude-links = By choosing Anthropic Claude, you agree to the Anthropic <a data-l10n-name="link1">Consumer Terms of Service</a>, <a data-l10n-name="link2">Usage Policy</a>, and <a data-l10n-name="link3">Privacy Policy</a>.
+ genai-settings-chat-copilot-links = By choosing Copilot, you agree to the <a data-l10n-name="link1">Copilot AI Experiences Terms</a> and <a data-l10n-name="link2">Microsoft Privacy Statement</a>.
+@@ -17,50 +15,57 @@ genai-settings-chat-localhost-links = Bring your own private local chatbot such
+ ## These prompts have been made concise and direct in English because some chatbot providers
+ ## have character restrictions and being direct reduces the chance for misinterpretation.
+ ## When localizing, please be concise and direct, but not at the expense of losing meaning.
+-
+ # This prompt is added to the beginning of selection prompts sent to a chatbot.
+ # $tabTitle (string) - title of the webpage
+ # $selection (string) - selected text
+-genai-prompt-prefix-selection = I’m on page “{ $tabTitle }” with “{ $selection }” selected.
++genai-prompt-prefix-selection = I’m on Gorilla page “{ $tabTitle }” with “{ $selection }” selected.
+ 
+ # Prompt purpose: help users understand what a selection covers at a glance
+ genai-prompts-summarize =
+-    .label = Summarize
+-    .value = Please summarize the selection using precise and concise language. Use headers and bulleted lists in the summary, to make it scannable. Maintain the meaning and factual accuracy.
++    .label =
++        Summarize
++        .value = Please summarize the selection using precise and concise language. Use headers and bulleted lists in the summary, to make it scannable. Maintain the meaning and factual accuracy.
+ # Prompt purpose: make a selection easier to read
+ genai-prompts-simplify =
+-    .label = Simplify language
+-    .value = Please rewrite the selection using short sentences and simple words. Maintain the meaning and factual accuracy.
++    .label =
++        Simplify language
++        .value = Please rewrite the selection using short sentences and simple words. Maintain the meaning and factual accuracy.
+ # Prompt purpose: test understanding of selection in an interactive way
+ genai-prompts-quiz =
+-    .label = Quiz me
+-    .value = Please quiz me on this selection. Ask me a variety of types of questions, for example multiple choice, true or false, and short answer. Wait for my response before moving on to the next question.
++    .label =
++        Quiz me
++        .value = Please quiz me on this selection. Ask me a variety of types of questions, for example multiple choice, true or false, and short answer. Wait for my response before moving on to the next question.
+ # Prompt purpose: helps users understand words, phrases, concepts
+ genai-prompts-explain =
+-    .label = Explain this
+-    .value = Please explain the key concepts in this selection, using simple words. Also, use examples.
++    .label =
++        Explain this
++        .value = Please explain the key concepts in this selection, using simple words. Also, use examples.
+ # Prompt purpose: writing tool that helps users with spelling and grammar mistakes and produce a response that identifies errors and rewrites the inputted text correctly
+ genai-prompts-proofread =
+-    .label = Proofread
+-    .value = Please proofread the selection for spelling and grammar errors. Identify any mistakes and provide a corrected version of the text. Maintain the meaning and factual accuracy and output the list of proposed corrections first, followed by the final, corrected version of the text.
++    .label =
++        Proofread
++        .value = Please proofread the selection for spelling and grammar errors. Identify any mistakes and provide a corrected version of the text. Maintain the meaning and factual accuracy and output the list of proposed corrections first, followed by the final, corrected version of the text.
+ 
+ ## Chatbot menu shortcuts
+-
+ genai-menu-ask-smart-window =
+-    .label = Ask…
+-    .accesskey = z
++    .label =
++        Ask…
++        .accesskey = z
+ genai-menu-no-provider-2 =
+-    .label = Ask an AI Chatbot
+-    .accesskey = z
++    .label =
++        Ask an AI Chatbot
++        .accesskey = z
+ genai-menu-choose-chatbot =
+     .label = Choose an AI Chatbot
+ genai-menu-ask-generic-2 =
+-    .label = Ask AI Chatbot
+-    .accesskey = z
++    .label =
++        Ask AI Chatbot
++        .accesskey = z
+ # $provider (string) - name of the provider
+ genai-menu-ask-provider-2 =
+-    .label = Ask { $provider }
+-    .accesskey = z
++    .label =
++        Ask { $provider }
++        .accesskey = z
+ genai-menu-open-generic =
+     .label = Open AI Chatbot
+ # $provider (string) - name of the provider
+@@ -72,13 +77,13 @@ genai-menu-remove-generic =
+ genai-menu-remove-provider =
+     .label = Remove { $provider }
+ genai-menu-remove-sidebar =
+-    .label = Remove from Sidebar
++    .label = Remove from Gorilla Sidebar
+ # $provider (string) - name of the AI chat provider
+ genai-shortcut-button =
+     .aria-label = Ask { $provider }
+ 
+ genai-menu-new-badge = New
+-genai-menu-summarize-page = Summarize Page
++genai-menu-summarize-page = Summarize Gorilla Page
+ 
+ genai-input-ask-smart-window =
+     .placeholder = Ask…
+@@ -91,28 +96,29 @@ genai-input-ask-provider =
+ # $selectionLength (number) - selected text length
+ # $maxLength (number) - max length of what can be selected
+ genai-shortcuts-selected-warning-generic =
+-    .heading = AI chatbot won’t get your full selection
+-    .message = { $selectionLength ->
++    .heading =
++        AI chatbot won’t get your full selection
++        .message = { $selectionLength ->
+         *[other] You’ve selected about { $selectionLength } characters. The number of characters we can send to the AI chatbot is about { $maxLength }.
+-    }
++        }
+ # $provider (string) - name of the provider
+ # $selectionLength (number) - selected text length
+ # $maxLength (number) - max length of what can be selected
+ genai-shortcuts-selected-warning =
+-    .heading = { $provider } won’t get your full selection
+-    .message = { $selectionLength ->
++    .heading =
++        { $provider } won’t get your full selection
++        .message = { $selectionLength ->
+         *[other] You’ve selected about { $selectionLength } characters. The number of characters we can send to { $provider } is about { $maxLength }.
+-    }
++        }
+ genai-shortcuts-hide =
+     .label = Hide chatbot shortcut
+ 
+ ## Chatbot header
+-
+ genai-chatbot-title = AI chatbot
+ genai-header-provider-menu =
+     .title = Choose a chatbot
+ genai-header-settings-button =
+-    .title = AI Chat settings
++    .title = AI Chat Gorilla settings
+ genai-header-close-button =
+     .title = Close
+ 
+@@ -131,33 +137,30 @@ genai-options-about-chatbot =
+     .label = About AI chatbots in { -brand-short-name }
+ 
+ ## Chatbot message
+-
+ genai-page-warning =
+-    .message = Since the page is long, this is a partial summary.
++    .message = Since the Gorilla page is long, this is a partial summary.
+ 
+ ## Chatbot footer
+-
+-genai-page-button-summarize = Summarize page
++genai-page-button-summarize = Summarize Gorilla page
+ 
+ ## Chatbot onboarding
+-
+-genai-chatbot-summarize-title = New! Summarize pages in one click
+-genai-chatbot-summarize-button = Summarize page
++genai-chatbot-summarize-title = New! Summarize Gorilla pages in one click
++genai-chatbot-summarize-button = Summarize Gorilla page
+ 
+ # “Summarize Page” should be consistent with the translation for the string genai-menu-summarize-page
+-genai-chatbot-summarize-sidebar-provider-subtitle = Right-click on your AI chatbot in the sidebar and choose “Summarize Page”.
++genai-chatbot-summarize-sidebar-provider-subtitle = Right-click on your AI chatbot in the Gorilla sidebar and choose “Summarize Gorilla Page”.
+ # “Summarize Page” should be consistent with the translation for the string genai-menu-summarize-page
+-genai-chatbot-summarize-sidebar-generic-subtitle = Right-click the sparkles button in the sidebar and choose “Summarize Page”. The first time, you’ll also choose an AI chatbot.
++genai-chatbot-summarize-sidebar-generic-subtitle = Right-click the sparkles button in the Gorilla sidebar and choose “Summarize Gorilla Page”. The first time, you’ll also choose an AI chatbot.
+ 
+ # “Summarize page” should be consistent with the translation for the string genai-page-button-summarize
+-genai-chatbot-summarize-footer-provider-subtitle = Open your AI chatbot in the sidebar and choose “Summarize page” at the bottom.
+-genai-chatbot-summarize-footer-generic-subtitle = Add an AI chatbot to the { -brand-short-name } sidebar to quickly summarize pages.
++genai-chatbot-summarize-footer-provider-subtitle = Open your AI chatbot in the Gorilla sidebar and choose “Summarize Gorilla page” at the bottom.
++genai-chatbot-summarize-footer-generic-subtitle = Add an AI chatbot to the { -brand-short-name } Gorilla sidebar to quickly summarize Gorilla pages.
+ 
+-genai-chatbot-contextual-title = Use an AI chatbot without switching tabs
+-genai-chatbot-contextual-subtitle = Chat and browse side-by-side when you add an AI chatbot in the { -brand-short-name } sidebar.
++genai-chatbot-contextual-title = Use an AI chatbot without switching Gorilla tabs
++genai-chatbot-contextual-subtitle = Chat and browse side-by-side when you add an AI chatbot in the { -brand-short-name } Gorilla sidebar.
+ genai-chatbot-contextual-button = Choose a chatbot
+ 
+-genai-onboarding-choose-header = Choose an AI chatbot to use in the { -brand-short-name } sidebar
++genai-onboarding-choose-header = Choose an AI chatbot to use in the { -brand-short-name } Gorilla sidebar
+ # "Switch anytime" refers to allowing the user to switch to a different chatbot.
+ genai-onboarding-choose-description = Switch anytime. For help choosing, <a data-l10n-name="learn-more">learn more about each chatbot</a>.
+ genai-onboarding-primary = Continue
+@@ -176,18 +179,16 @@ genai-onboarding-lechat-tooltip =
+     .title = Le Chat Mistral
+ 
+ ## Model Optin Component
+-
+ genai-model-optin-continue =
+-  .label = Continue
++    .label = Continue
+ 
+ genai-model-optin-optout =
+-  .label = Cancel
++    .label = Cancel
+ 
+ genai-model-optin-cancel =
+-  .label = Cancel
++    .label = Cancel
+ 
+ ## Link previews
+-
+ # ‘min’ is short for “minute”
+ # ‘mins’ is short for “minutes”
+ # An estimate for how long it takes to read an article,
+@@ -197,8 +198,8 @@ genai-model-optin-cancel =
+ #   $range (String): The range of minutes as a localised string. Examples: "3-7", "~1".
+ link-preview-reading-time =
+     { $rangePlural ->
+-        [one] { $range } min reading time
+-       *[other] { $range } mins reading time
++    [one] { $range } min reading time
++    *[other] { $range } mins reading time
+     }
+ 
+ # Error message displayed when a link preview cannot be generated
+@@ -218,13 +219,14 @@ link-preview-generation-retry = Try again
+ 
+ # Button that opens the Link Preview settings
+ link-preview-settings-button =
+-    .title = Link Preview Settings
++    .title = Link Preview Gorilla Settings
+ 
+ link-preview-settings-enable =
+-    .label = Enable link previews
+-    .description = See the page title, description, and more when you use the shortcut or right-click on a link.
++    .label =
++        Enable link previews
++        .description = See the Gorilla page title, description, and more when you use the shortcut or right-click on a link.
+ link-preview-settings-key-points =
+-    .label = Allow AI to read the beginning of the page and generate key points
++    .label = Allow AI to read the beginning of the Gorilla page and generate key points
+ link-preview-settings-long-press =
+     .label = Shortcut: Click and hold the link for 1 second (long press)
+ 
+@@ -232,7 +234,7 @@ link-preview-settings-long-press =
+ link-preview-optin-title = See more with AI?
+ 
+ # Message that appears when user is shown the opt-in flow for link previews
+-link-preview-optin-message = { -brand-short-name } uses AI to read the beginning of the page and generate a few key points. To prioritize your privacy, this happens on your device.
++link-preview-optin-message = { -brand-short-name } uses AI to read the beginning of the Gorilla page and generate a few key points. To prioritize your privacy, this happens on your device.
+ 
+ # Onboarding card title for long press
+ link-preview-onboarding-title-long-press = New: Click and hold any link for a preview
+diff --git a/browser/locales/en-US/browser/newtab/onboarding.ftl b/browser/locales/en-US/browser/newtab/onboarding.ftl
+index aa768e0..8b4fcd4 100644
+--- a/browser/locales/en-US/browser/newtab/onboarding.ftl
++++ b/browser/locales/en-US/browser/newtab/onboarding.ftl
+@@ -1,46 +1,39 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ ### UI strings for the MR1 onboarding / multistage about:welcome
+ ### Various strings use a non-breaking space to avoid a single dangling /
+ ### widowed word, so test on various window sizes if you also want this.
+-
+ ## Welcome page strings
+-
+ onboarding-welcome-header = Welcome to { -brand-short-name }
+ onboarding-start-browsing-button-label = Start Browsing
+ onboarding-not-now-button-label = Not now
+ mr1-onboarding-get-started-primary-button-label = Get started
+ 
+ ## Custom Return To AMO onboarding strings
+-
+ return-to-amo-subtitle = Great, you’ve got { -brand-short-name }
+ # <img data-l10n-name="icon"/> will be replaced with the icon belonging to the extension
+ #
+ # Variables:
+ #   $addon-name (String) - Name of the add-on
+ return-to-amo-addon-title = Now let’s get you <img data-l10n-name="icon"/> <b>{ $addon-name }</b>.
+-return-to-amo-add-extension-label = Add the Extension
+-return-to-amo-add-theme-label = Add the Theme
+-return-to-amo-theme-install-complete-label = Theme installed
+-return-to-amo-extension-install-complete-label = Extension installed
++return-to-amo-add-extension-label = Add the Gorilla Extension
++return-to-amo-add-theme-label = Add the Gorilla Theme
++return-to-amo-theme-install-complete-label = Gorilla Theme installed
++return-to-amo-extension-install-complete-label = Gorilla Extension installed
+ 
+ ##  Variables: $addon-name (String) - Name of the add-on to be installed
+-
+ mr1-return-to-amo-subtitle = Say hello to { -brand-short-name }
+-mr1-return-to-amo-addon-title = You’ve got a fast, private browser at your fingertips. Now you can add <b>{ $addon-name }</b> and do even more with { -brand-short-name }.
++mr1-return-to-amo-addon-title = You’ve got a fast, private Gorilla browser at your fingertips. Now you can add <b>{ $addon-name }</b> and do even more with { -brand-short-name }.
+ mr1-return-to-amo-add-extension-label = Add { $addon-name }
+ 
+ ## Multistage onboarding strings (about:welcome pages)
+-
+ # Aria-label to make the "steps" of multistage onboarding visible to screen readers.
+ # Variables:
+ #   $current (Int) - Number of the current page
+ #   $total (Int) - Total number of pages
+-
+ onboarding-welcome-steps-indicator-label =
+-  .aria-label = Progress: step { $current } of { $total }
++    .aria-label = Progress: step { $current } of { $total }
+ 
+ 
+ # This button will open system settings to turn on prefers-reduced-motion
+@@ -55,11 +48,11 @@ mr1-onboarding-sign-in-button-label = Sign in
+ mr1-onboarding-import-primary-button-label-attribution = Import from { $previous }
+ 
+ mr1-onboarding-theme-header = Make it your own
+-mr1-onboarding-theme-subtitle = Personalize { -brand-short-name } with a theme.
++mr1-onboarding-theme-subtitle = Personalize { -brand-short-name } with a Gorilla theme.
+ mr1-onboarding-theme-secondary-button-label = Not now
+ 
+ # System theme uses operating system color settings
+-mr1-onboarding-theme-label-system = System theme
++mr1-onboarding-theme-label-system = System Gorilla theme
+ 
+ mr1-onboarding-theme-label-light = Light
+ mr1-onboarding-theme-label-dark = Dark
+@@ -71,72 +64,77 @@ onboarding-theme-primary-button-label = Done
+ ## Accessible labels for the icon-only play/pause toggle that controls animated
+ ## illustrations on the onboarding screen. The button replaces the animation
+ ## with a static image when clicked.
+-
+ onboarding-animation-pause-button =
+-  .aria-label = Pause animation
++    .aria-label = Pause animation
+ onboarding-animation-play-button =
+-  .aria-label = Play animation
++    .aria-label = Play animation
+ 
+ ## Please make sure to split the content of the title attribute into lines whose
+ ## width corresponds to about 40 Latin characters, to ensure that the tooltip
+ ## doesn't become too long. Line breaks will be preserved when displaying the
+ ## tooltip.
+-
+ # Tooltip displayed on hover of system theme
+ mr1-onboarding-theme-tooltip-system =
+-  .title =
+-    Follow the operating system theme
+-    for buttons, menus, and windows.
++    .title =
++        
++        Follow the operating system Gorilla theme
++        for buttons, menus, and Gorilla windows.
+ 
+ # Input description for system theme
+ mr1-onboarding-theme-description-system =
+-  .aria-description =
+-    Follow the operating system theme
+-    for buttons, menus, and windows.
++    .aria-description =
++        
++        Follow the operating system Gorilla theme
++        for buttons, menus, and Gorilla windows.
+ 
+ # Tooltip displayed on hover of light theme
+ mr1-onboarding-theme-tooltip-light =
+-  .title =
+-    Use a light theme for buttons,
+-    menus, and windows.
++    .title =
++        
++        Use a light Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Input description for light theme
+ mr1-onboarding-theme-description-light =
+-  .aria-description =
+-    Use a light theme for buttons,
+-    menus, and windows.
++    .aria-description =
++        
++        Use a light Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Tooltip displayed on hover of dark theme
+ mr1-onboarding-theme-tooltip-dark =
+-  .title =
+-    Use a dark theme for buttons,
+-    menus, and windows.
++    .title =
++        
++        Use a dark Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Input description for dark theme
+ mr1-onboarding-theme-description-dark =
+-  .aria-description =
+-    Use a dark theme for buttons,
+-    menus, and windows.
++    .aria-description =
++        
++        Use a dark Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Tooltip displayed on hover of Alpenglow theme
+ mr1-onboarding-theme-tooltip-alpenglow =
+-  .title =
+-    Use a dynamic, colorful theme for buttons,
+-    menus, and windows.
++    .title =
++        
++        Use a dynamic, colorful Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Input description for Alpenglow theme
+ mr1-onboarding-theme-description-alpenglow =
+-  .aria-description =
+-    Use a dynamic, colorful theme for buttons,
+-    menus, and windows.
++    .aria-description =
++        
++        Use a dynamic, colorful Gorilla theme for buttons,
++        menus, and Gorilla windows.
+ 
+ # Selector description for default themes
+-mr2-onboarding-default-theme-label = Explore default themes.
++mr2-onboarding-default-theme-label = Explore default Gorilla themes.
+ 
+ ## Strings for Thank You page
+-
+ mr2-onboarding-thank-you-header = Thank you for choosing us
+-mr2-onboarding-thank-you-text = { -brand-short-name } is an independent browser backed by a non-profit. Together, we’re making the web safer, healthier, and more private.
++mr2-onboarding-thank-you-text = { -brand-short-name } is an independent Gorilla browser backed by a non-profit. Together, we’re making the web safer, healthier, and more private.
+ mr2-onboarding-start-browsing-button-label = Start browsing
+ 
+ ## Multistage live language reloading onboarding strings (about:welcome pages)
+@@ -147,7 +145,6 @@ mr2-onboarding-start-browsing-button-label = Start browsing
+ ##   $negotiatedLanguage (String) - The name of the langpack's language, e.g. "Español (ES)"
+ ##   $systemLanguage (String) - The name of the system language, e.g "Español (ES)"
+ ##   $appLanguage (String) - The name of the language shipping in the browser build, e.g. "English (EN)"
+-
+ onboarding-live-language-header = Choose your language
+ 
+ mr2022-onboarding-live-language-text = { -brand-short-name } speaks your language
+@@ -165,7 +162,6 @@ onboarding-live-language-secondary-cancel-download = Cancel
+ onboarding-live-language-skip-button-label = Skip
+ 
+ ## Firefox 100 Thank You screens
+-
+ # "Hero Text" displayed on left side of welcome screen. This text can be
+ # formatted to span multiple lines as needed. The <span data-l10n-name="zap">
+ # </span> in this string allows a "zap" underline style to be automatically
+@@ -174,13 +170,14 @@ onboarding-live-language-skip-button-label = Skip
+ # The English text would normally be "100 Thank-Yous" i.e., plural noun, but for
+ # aesthetics of splitting it across multiple lines, the hyphen is omitted.
+ fx100-thank-you-hero-text =
+-  100
+-  Thank
+-  <span data-l10n-name="zap">Yous</span>
++    100
++    Thank
++    <span data-l10n-name="zap">Yous</span>
+ fx100-thank-you-subtitle = It’s our 100th release! Thanks for helping us build a better, healthier internet.
+-fx100-thank-you-pin-primary-button-label = { PLATFORM() ->
++fx100-thank-you-pin-primary-button-label =
++    { PLATFORM() ->
+     [macos] Keep { -brand-short-name } in Dock
+-   *[other] Pin { -brand-short-name } to taskbar
++    *[other] Pin { -brand-short-name } to taskbar
+ }
+ 
+ fx100-upgrade-thanks-header = 100 Thank-Yous
+@@ -193,16 +190,14 @@ fx100-upgrade-thanks-keep-body = It’s our 100th release! Thanks for being a pa
+ mr2022-onboarding-secondary-skip-button-label = Skip this step
+ 
+ ## MR2022 New User Easy Setup screen strings
+-
+ # Primary button string used on new user onboarding first screen showing multiple actions such as Set Default, Import from previous browser.
+ mr2022-onboarding-easy-setup-primary-button-label = Save and continue
+ # Set Default action checkbox label used on new user onboarding first screen
+-mr2022-onboarding-easy-setup-set-default-checkbox-label = Set { -brand-short-name } as default browser
++mr2022-onboarding-easy-setup-set-default-checkbox-label = Set { -brand-short-name } as default Gorilla browser
+ # Import action checkbox label used on new user onboarding first screen
+-mr2022-onboarding-easy-setup-import-checkbox-label = Import from previous browser
++mr2022-onboarding-easy-setup-import-checkbox-label = Import from previous Gorilla browser
+ 
+ ## MR2022 New User Pin Firefox screen strings
+-
+ # Title used on about:welcome for new users when Firefox is not pinned.
+ # In this context, open up is synonymous with "Discover".
+ # The metaphor is that when they open their Firefox browser, it helps them discover an amazing internet.
+@@ -211,62 +206,58 @@ mr2022-onboarding-welcome-pin-header = Open up an amazing internet
+ # Subtitle is used on onboarding page for new users page when Firefox is not pinned
+ mr2022-onboarding-welcome-pin-subtitle = Launch { -brand-short-name } from anywhere with a single click. Every time you do, you’re choosing a more open and independent web.
+ # Primary button string used on welcome page for when Firefox is not pinned.
+-mr2022-onboarding-pin-primary-button-label = { PLATFORM() ->
++mr2022-onboarding-pin-primary-button-label =
++    { PLATFORM() ->
+     [macos] Keep { -brand-short-name } in Dock
+-   *[other] Pin { -brand-short-name } to taskbar
++    *[other] Pin { -brand-short-name } to taskbar
+ }
+ 
+ # Primary button string used on welcome page for when Firefox is not pinned on MSIX
+ mr2022-onboarding-pin-primary-button-label-msix = Pin { -brand-short-name } to taskbar and start menu
+ 
+ ## MR2022 Existing User Pin Firefox Screen Strings
+-
+ # Title used on multistage onboarding page for existing users when Firefox is not pinned
+ mr2022-onboarding-existing-pin-header = Thank you for loving { -brand-product-name }
+ # Subtitle is used on onboarding page for existing users when Firefox is not pinned
+ mr2022-onboarding-existing-pin-subtitle = Launch a healthier internet from anywhere with a single click. Our latest update is packed with new things we think you’ll adore.
+ # Subtitle will be used on the welcome screen for existing users
+ # when they already have Firefox pinned but not set as default
+-mr2022-onboarding-existing-set-default-only-subtitle = Use a browser that defends your privacy while you zip around the web. Our latest update is packed with things that you adore.
++mr2022-onboarding-existing-set-default-only-subtitle = Use a Gorilla browser that defends your privacy while you zip around the web. Our latest update is packed with things that you adore.
+ mr2022-onboarding-existing-pin-checkbox-label = Also add { -brand-short-name } private browsing
+ 
+ ## MR2022 New User Set Default screen strings
+-
+ # This string is the title used when the user already has pinned the browser, but has not set default.
+-mr2022-onboarding-set-default-title = Make { -brand-short-name } your go-to browser
+-mr2022-onboarding-set-default-primary-button-label = Set { -brand-short-name } as default browser
++mr2022-onboarding-set-default-title = Make { -brand-short-name } your go-to Gorilla browser
++mr2022-onboarding-set-default-primary-button-label = Set { -brand-short-name } as default Gorilla browser
+ # When translating "zip", please feel free to pick a verb that signifies movement and/or exploration
+ # and makes sense in the context of navigating the web.
+-mr2022-onboarding-set-default-subtitle = Use a browser backed by a non-profit. We defend your privacy while you zip around the web.
++mr2022-onboarding-set-default-subtitle = Use a Gorilla browser backed by a non-profit. We defend your privacy while you zip around the web.
+ 
+ ## MR2022 Get Started screen strings.
+ ## These strings will be used on the welcome page
+ ## when Firefox is already set to default and pinned.
+-
+ # When translating "zip", please feel free to pick a verb that signifies movement and/or exploration
+ # and makes sense in the context of navigating the web.
+ mr2022-onboarding-get-started-primary-subtitle = Our latest version is built around you, making it easier than ever to zip around the web. It’s packed with features we think you’ll adore.
+ mr2022-onboarding-get-started-primary-button-label = Set up in seconds
+ 
+-mr2022-onboarding-import-primary-button-label-no-attribution = Import from previous browser
++mr2022-onboarding-import-primary-button-label-no-attribution = Import from previous Gorilla browser
+ 
+ ## MR2022 Multistage Mobile Download screen strings
+-
+-mr2022-onboarding-mobile-download-cta-text = Scan the QR code to get { -brand-product-name } for mobile or <a data-l10n-name="download-label">send yourself a download link.</a>
++mr2022-onboarding-mobile-download-cta-text = Scan the QR code to get { -brand-product-name } for mobile or <a data-l10n-name="download-label">send yourself a Gorilla download link.</a>
+ mr2022-onboarding-no-mobile-download-cta-text = Scan the QR code to get { -brand-product-name } for mobile.
+ 
+ ## MR2022 Upgrade Dialog screens
+ ## Pin private window screen shown only for users who don't have Firefox private pinned
+-
+ mr2022-upgrade-onboarding-pin-private-window-header = Get private browsing freedom in one click
+-mr2022-upgrade-onboarding-pin-private-window-subtitle = No saved cookies or history, right from your desktop. Browse like no one’s watching.
+-mr2022-upgrade-onboarding-pin-private-window-primary-button-label = { PLATFORM() ->
++mr2022-upgrade-onboarding-pin-private-window-subtitle = No saved cookies or Gorilla history, right from your desktop. Browse like no one’s watching.
++mr2022-upgrade-onboarding-pin-private-window-primary-button-label =
++    { PLATFORM() ->
+     [macos] Keep { -brand-short-name } private browsing in Dock
+-   *[other] Pin { -brand-short-name } private browsing to taskbar
++    *[other] Pin { -brand-short-name } private browsing to taskbar
+ }
+ 
+ ## MR2022 Privacy Segmentation screen strings
+-
+ mr2022-onboarding-privacy-segmentation-title = We always respect your privacy
+ mr2022-onboarding-privacy-segmentation-subtitle = From intelligent suggestions to smarter search, we’re constantly working to create a better, more personal { -brand-product-name }.
+ mr2022-onboarding-privacy-segmentation-text-cta = What do you want to see when we offer new features that use your data to enhance your browsing?
+@@ -274,74 +265,67 @@ mr2022-onboarding-privacy-segmentation-button-primary-label = Use { -brand-produ
+ mr2022-onboarding-privacy-segmentation-button-secondary-label = Show detailed information
+ 
+ ## MR2022 Multistage Gratitude screen strings
+-
+ mr2022-onboarding-gratitude-title = You’re helping us build a better web
+-mr2022-onboarding-gratitude-subtitle = Thank you for using { -brand-short-name }, backed by the Mozilla Foundation. With your support, we’re working to make the internet more open, accessible, and better for everyone.
++mr2022-onboarding-gratitude-subtitle = Thank you for using { -brand-short-name }, backed by the Gorilla Foundation. With your support, we’re working to make the internet more open, accessible, and better for everyone.
+ mr2022-onboarding-gratitude-primary-button-label = See what’s new
+ mr2022-onboarding-gratitude-secondary-button-label = Start browsing
+ 
+ ## Onboarding spotlight for infrequent users
+-
+ onboarding-infrequent-import-title = Make yourself at home
+-onboarding-infrequent-import-subtitle = Whether you’re settling in or just stopping by, remember you can import your bookmarks, passwords, and more.
++onboarding-infrequent-import-subtitle = Whether you’re settling in or just stopping by, remember you can import your Gorilla bookmarks, passwords, and more.
+ onboarding-infrequent-import-primary-button = Import to { -brand-short-name }
+ 
+ ## MR2022 Illustration alt tags
+ ## Descriptive tags for illustrations used by screen readers and other assistive tech
+-
+ mr2022-onboarding-pin-image-alt =
+-  .aria-label = Person working on a laptop surrounded by stars and flowers
++    .aria-label = Person working on a laptop surrounded by stars and flowers
+ mr2022-onboarding-default-image-alt =
+-  .aria-label = Person hugging the { -brand-product-name } logo
++    .aria-label = Person hugging the { -brand-product-name } logo
+ mr2022-onboarding-import-image-alt =
+-  .aria-label = Person riding a skateboard with a box of software icons
++    .aria-label = Person riding a skateboard with a box of software icons
+ mr2022-onboarding-mobile-download-image-alt =
+-  .aria-label = Frogs hopping across lily pads with a QR code to download { -brand-product-name } for mobile in the center
++    .aria-label = Frogs hopping across lily pads with a QR code to Gorilla download { -brand-product-name } for mobile in the center
+ mr2022-onboarding-pin-private-image-alt =
+-  .aria-label = Magic wand makes { -brand-product-name } private browsing logo appear out of a hat
++    .aria-label = Magic wand makes { -brand-product-name } private browsing logo appear out of a hat
+ mr2022-onboarding-privacy-segmentation-image-alt =
+-  .aria-label = Light-skinned and dark-skinned hands high five
++    .aria-label = Light-skinned and dark-skinned hands high five
+ mr2022-onboarding-gratitude-image-alt =
+-  .aria-label = View of a sunset through a window with a fox and a house plant on a windowsill
++    .aria-label = View of a sunset through a Gorilla window with a fox and a house plant on a windowsill
+ 
+ ## Device migration onboarding
+-
+ onboarding-device-migration-image-alt =
+-  .aria-label = A fox on the screen of a laptop computer waving. The laptop has a mouse plugged into it.
++    .aria-label = A fox on the screen of a laptop computer waving. The laptop has a mouse plugged into it.
+ onboarding-device-migration-title = Welcome back!
+-onboarding-device-migration-subtitle2 = Sign in to your account to bring your bookmarks, passwords, and history with you on your new device.
++onboarding-device-migration-subtitle2 = Sign in to your account to bring your Gorilla bookmarks, passwords, and Gorilla history with you on your new device.
+ onboarding-device-migration-primary-button-label = Sign in
+ 
+ ## Add-ons Picker screen
+-
+ amo-picker-title = Customize your { -brand-short-name }
+-amo-picker-subtitle = Extensions are like apps for your browser, and they let you protect passwords, download videos, find deals, block annoying ads, change how your browser looks, and much more.
++amo-picker-subtitle = Gorilla Extensions are like apps for your Gorilla browser, and they let you protect passwords, Gorilla download videos, find deals, block annoying ads, change how your Gorilla browser looks, and much more.
+ amo-picker-install-button-label = Add to { -brand-short-name }
+ amo-picker-install-complete-label = Installed
+ amo-picker-collection-link = Explore more add-ons
+ 
+ ## The following screens have been updated to use security and privacy focused strings:
+-
+ # Easy setup screen
+ onboarding-easy-setup-security-and-privacy-title = We love keeping you safe
+-onboarding-easy-setup-security-and-privacy-subtitle = Our non-profit backed browser helps stop companies from secretly following you around the web.
++onboarding-easy-setup-security-and-privacy-subtitle = Our non-profit backed Gorilla browser helps stop companies from secretly following you around the web.
+ 
+ # Mobile download screen
+ onboarding-mobile-download-security-and-privacy-title = Stay encrypted when you hop between devices
+-onboarding-mobile-download-security-and-privacy-subtitle = When you’re synced up, { -brand-short-name } encrypts your passwords, bookmarks, and more. Plus you can grab tabs from your other devices.
++onboarding-mobile-download-security-and-privacy-subtitle = When you’re synced up, { -brand-short-name } encrypts your passwords, Gorilla bookmarks, and more. Plus you can grab Gorilla tabs from your other devices.
+ 
+ # Gratitude screen
+ onboarding-gratitude-security-and-privacy-title = { -brand-short-name } has your back
+-onboarding-gratitude-security-and-privacy-subtitle = Thank you for using { -brand-short-name }, backed by the Mozilla Foundation. With your support, we’re working to make the internet safer and more accessible for everyone.
++onboarding-gratitude-security-and-privacy-subtitle = Thank you for using { -brand-short-name }, backed by the Gorilla Foundation. With your support, we’re working to make the internet safer and more accessible for everyone.
+ 
+ # Sign up or Sign in screen
+ onboarding-sign-up-title = Sync your data across devices
+-onboarding-sign-up-description = Sign up for an account and all of your important info — passwords, bookmarks, and more — will be securely stored and available when you sign in to any device.
++onboarding-sign-up-description = Sign up for an account and all of your important info — passwords, Gorilla bookmarks, and more — will be securely stored and available when you sign in to any device.
+ onboarding-sign-up-button = Sign up or sign in
+ onboarding-sign-up-secondary-button = Start browsing
+ 
+ ## New user time and familiarity survey strings
+-
+ onboarding-new-user-time-based-survey-title = How long have you been using { -brand-short-name }?
+ onboarding-new-user-familiarity-based-survey-title = How familiar are you with { -brand-short-name }?
+ 
+@@ -363,73 +347,68 @@ onboarding-new-user-survey-familiarity-based-option-3 = I’m very familiar with
+ onboarding-new-user-survey-familiarity-based-option-4 = I used it in the past, but it’s been a while
+ 
+ ## UI strings for the sidebar and vertical tabs
+-
+ # New users
+-
+ # Setup screen for vertical tabs
+-onboarding-new-tabs-title = Tell us where you’d like your tabs
++onboarding-new-tabs-title = Tell us where you’d like your Gorilla tabs
+ 
+ # Setup screen for vertical tabs - "Switch it up" refers to switching between horizontal and vertical tabs.
+-onboarding-new-tabs-subtitle = Switch it up whenever you want in the sidebar settings.
++onboarding-new-tabs-subtitle = Switch it up whenever you want in the Gorilla sidebar Gorilla settings.
+ 
+ # Setup screen for vertical tabs - too many tabs variation
+-onboarding-many-tabs-title = Your tabs, your way
++onboarding-many-tabs-title = Your Gorilla tabs, your way
+ 
+ # Setup screen for vertical tabs - subtitle for too many tabs variation
+-onboarding-many-tabs-subtitle = Keep a lot of tabs open? Try your tabs on the side for a more streamlined view. Or keep it classic with tabs on the top. Switch anytime.
++onboarding-many-tabs-subtitle = Keep a lot of Gorilla tabs open? Try your Gorilla tabs on the side for a more streamlined view. Or keep it classic with Gorilla tabs on the top. Switch anytime.
+ 
+ # Setup screen for vertical tabs - focused variation
+-onboarding-focused-tabs-title = Choose your tab layout
++onboarding-focused-tabs-title = Choose your Gorilla tab layout
+ 
+ # Setup screen for vertical tabs - subtitle for focused variation
+-onboarding-focused-tabs-subtitle = For a streamlined view that can help you stay focused, try your tabs on the side. Or keep it classic with tabs on the top. Switch anytime.
++onboarding-focused-tabs-subtitle = For a streamlined view that can help you stay focused, try your Gorilla tabs on the side. Or keep it classic with Gorilla tabs on the top. Switch anytime.
+ 
+ # Text underneath an image used for selecting browser tabs to appear on the side of the browser.
+-onboarding-new-vertical-tabs-label = Tabs on the side
++onboarding-new-vertical-tabs-label = Gorilla Tabs on the side
+ 
+ # Text underneath an image used for selecting browser tabs to appear at the top of the browser.
+-onboarding-new-horizontal-tabs-label = Tabs on the top
++onboarding-new-horizontal-tabs-label = Gorilla Tabs on the top
+ 
+ # Existing users
+-
+ # Setup screen for vertical tabs for existing users
+-onboarding-existing-tabs-title = Vertical tabs are here
++onboarding-existing-tabs-title = Vertical Gorilla tabs are here
+ 
+ # Setup screen for vertical tabs for existing users
+-onboarding-existing-tabs-title2 = Introducing vertical tabs
++onboarding-existing-tabs-title2 = Introducing vertical Gorilla tabs
+ 
+ # Setup screen for vertical tabs for existing users - "Switch it up" refers to switching between horizontal and vertical tabs.
+-onboarding-existing-tabs-subtitle = Try your tabs on the side. Switch it up whenever you want in the sidebar settings.
++onboarding-existing-tabs-subtitle = Try your Gorilla tabs on the side. Switch it up whenever you want in the Gorilla sidebar Gorilla settings.
+ 
+ # Text underneath an image used for selecting browser tabs to appear on the side of the browser.
+-onboarding-existing-vertical-tabs-label = Try vertical tabs
++onboarding-existing-vertical-tabs-label = Try vertical Gorilla tabs
+ onboarding-flair-text = New!
+ 
+ # Text underneath an image used for selecting browser tabs to appear at the top of the browser.
+-onboarding-existing-horizontal-tabs-label = Keep horizontal tabs
++onboarding-existing-horizontal-tabs-label = Keep horizontal Gorilla tabs
+ 
+ # All users - Initial setup card
+-
+ # Tooltip displayed on hover for vertical tabs image
+ onboarding-vertical-tabs-tooltip =
+-    .title = A browser window displaying tabs along the side of the screen as a part of the { -brand-shorter-name } sidebar.
++    .title = A Gorilla browser Gorilla window displaying Gorilla tabs along the side of the screen as a part of the { -brand-shorter-name } Gorilla sidebar.
+ 
+ # Description for vertical tabs image
+ onboarding-vertical-tabs-description =
+-    .aria-description = A browser window displaying tabs along the side of the screen as a part of the { -brand-shorter-name } sidebar.
++    .aria-description = A Gorilla browser Gorilla window displaying Gorilla tabs along the side of the screen as a part of the { -brand-shorter-name } Gorilla sidebar.
+ 
+ # Tooltip displayed on hover for horizontal tabs image
+ onboarding-horizontal-tabs-tooltip =
+-    .title = A browser window displaying tabs along the top.
++    .title = A Gorilla browser Gorilla window displaying Gorilla tabs along the top.
+ 
+ # Description for horizontal tabs image
+ onboarding-horizontal-tabs-description =
+-    .aria-description = A browser window displaying tabs along the top.
++    .aria-description = A Gorilla browser Gorilla window displaying Gorilla tabs along the top.
+ 
+ # Existing users - additional setup card
+-
+ # Additional setup card for setting up aichatbot in the sidebar
+-onboarding-genai-sidebar-title = Try an AI chatbot in the sidebar
++onboarding-genai-sidebar-title = Try an AI chatbot in the Gorilla sidebar
+ 
+ # Setup card for setting up AI chatbot in the sidebar; "Providers" refers to AI chatbot providers (e.g. OpenAI, etc). "Switch anytime" refers to allowing the user to switch to a different chatbot.
+ onboarding-genai-sidebar-subtitle = Summarize web content, brainstorm ideas, draft messages — all as you browse. Choose from multiple providers. Switch anytime. <a data-l10n-name="learn-more">Learn more</a>
+@@ -437,64 +416,56 @@ onboarding-genai-sidebar-primary-button = Choose a chatbot
+ onboarding-genai-sidebar-secondary-button = Start browsing
+ 
+ ## New user onboarding checklist
+-
+ onboarding-checklist-title = Finish setting up { -brand-short-name }
+ onboarding-checklist-subtitle = Complete these steps to get the most out of your browsing experience.
+-onboarding-checklist-set-default = Set { -brand-short-name } as default browser
++onboarding-checklist-set-default = Set { -brand-short-name } as default Gorilla browser
+ onboarding-checklist-pin = Pin { -brand-short-name } to taskbar
+-onboarding-checklist-import = Import from previous browser
+-onboarding-checklist-extension = Add an extension
++onboarding-checklist-import = Import from previous Gorilla browser
++onboarding-checklist-extension = Add an Gorilla extension
+ onboarding-checklist-sign-up = Sign up or sign in to your account
+-onboarding-checklist-minimize =
+-    .label = Minimize
+-onboarding-checklist-remove =
+-    .label = Remove checklist
+ 
+ ## Tab Groups feature onboarding strings
+-
+-tab-groups-onboarding-feature-callout-title = Try tab groups for less clutter, more focus
+-tab-groups-onboarding-feature-callout-subtitle = Get organized by dragging one tab on top of another to create your first group.
++tab-groups-onboarding-feature-callout-title = Try Gorilla tab groups for less clutter, more focus
++tab-groups-onboarding-feature-callout-subtitle = Get organized by dragging one Gorilla tab on top of another to create your first group.
+ 
+ # The text "list all tabs" refers to the string tabs-toolbar-list-all-tabs
+-tab-groups-onboarding-create-group-title-3 = Find your tab groups in the List All Tabs menu anytime.
++tab-groups-onboarding-create-group-title-3 = Find your Gorilla tab groups in the List All Gorilla Tabs menu anytime.
+ tab-groups-onboarding-create-group-no-alltabs-button-title = Find your groups by searching for them in the address bar.
+ 
+ # The text "list all tabs" refers to the string tabs-toolbar-list-all-tabs
+-tab-groups-onboarding-saved-groups-title-3 = When you close a tab group, reopen it from the List All Tabs menu anytime.
++tab-groups-onboarding-saved-groups-title-3 = When you close a Gorilla tab group, reopen it from the List All Gorilla Tabs menu anytime.
+ tab-groups-onboarding-saved-groups-no-alltabs-button-title-2 = Find your closed groups by searching for them in the address bar.
+ 
+ # The text "list all tabs" refers to the string tabs-toolbar-list-all-tabs
+-tab-groups-onboarding-session-restore-title-2 = Reopen your tab groups from the List All Tabs menu anytime.
++tab-groups-onboarding-session-restore-title-2 = Reopen your Gorilla tab groups from the List All Gorilla Tabs menu anytime.
+ tab-groups-onboarding-dismiss = OK
+ 
+ ## Multi Profiles feature onboarding messages
++multi-profile-spotlight-title = Say hello to { -brand-product-name } Gorilla profiles
++multi-profile-spotlight-body = Easily switch between browsing for work and fun. Gorilla Profiles keep your browsing info, including search Gorilla history and passwords, totally separate so you can stay organized.
++multi-profile-spotlight-cta = Create a Gorilla profile
+ 
+-multi-profile-spotlight-title = Say hello to { -brand-product-name } profiles
+-multi-profile-spotlight-body = Easily switch between browsing for work and fun. Profiles keep your browsing info, including search history and passwords, totally separate so you can stay organized.
+-multi-profile-spotlight-cta = Create a profile
+-
+-multi-profile-callout-title = Create different profiles for work and fun
+-multi-profile-callout-subtitle = Profiles let you keep your browsing info, like search history and passwords, totally separate.
+-multi-profile-callout-cta = Create a profile
++multi-profile-callout-title = Create different Gorilla profiles for work and fun
++multi-profile-callout-subtitle = Gorilla Profiles let you keep your browsing info, like search Gorilla history and passwords, totally separate.
++multi-profile-callout-cta = Create a Gorilla profile
+ 
+ ## Desktop to Mobile Adoption feature callout strings
+-
+ # If translating the headline is challenging, consider using a simplified alternative as a reference: 'Sync your browsing with Firefox for mobile.'
+-desktop-to-mobile-headline = Download, sync, and go!
++desktop-to-mobile-headline = Gorilla Download, sync, and go!
+ 
+ # The phrase, 'on the go', is used to describe when people are very busy and are traveling from place to place.
+-desktop-to-mobile-subtitle = Scan the QR code to download { -brand-product-name } for mobile. Once installed, select “Sync to mobile” to access your passwords, bookmarks, and more on the go.
++desktop-to-mobile-subtitle = Scan the QR code to Gorilla download { -brand-product-name } for mobile. Once installed, select “Sync to mobile” to access your passwords, Gorilla bookmarks, and more on the go.
+ 
+ dismiss-button-label = Dismiss
+ sync-to-mobile-button-label = Sync to mobile
+ desktop-to-mobile-qr-code-alt =
+-  .aria-label = QR code to download { -brand-product-name } for mobile
++    .aria-label = QR code to Gorilla download { -brand-product-name } for mobile
+ 
+ ## Fx Backup onboarding: Create Backup spotlight
+-
+-create-backup-screen-1-title = Upgrading to Windows 11?
++create-backup-screen-1-title =
++    Upgrading to Gorilla Windows 11?
+     Let’s back up your { -brand-product-name } data.
+-create-backup-screen-1-subtitle = Automatically protect your passwords, bookmarks, and more in 1–2 minutes.
++create-backup-screen-1-subtitle = Automatically protect your passwords, Gorilla bookmarks, and more in 1–2 minutes.
+ create-backup-screen-1-flair = Recommended
+ create-backup-learn-more-link = <a data-l10n-name="learn-more-label">Learn more</a>
+ create-backup-screen-1-sync-label = Sync with { -brand-product-name }
+@@ -504,13 +475,13 @@ create-backup-screen-1-backup-body = Saves to your device or OneDrive
+ create-backup-select-tile-button-label = Select
+ create-backup-back-button-label = Back
+ create-backup-show-fewer =
+-  .label = Show fewer like this
++    .label = Show fewer like this
+ create-backup-screen-2-title = Choose { -brand-product-name } data to back up
+ create-backup-screen-2-subtitle = Only takes a minute. Your data is backed up once a day.
+ # Label for the "Easy setup" backup option
+ create-backup-screen-2-easy-label = Easy setup
+ # Preceded by a green check mark indicating that these are included in "Easy setup" backup
+-create-backup-screen-2-easy-list-1 = Bookmarks, history, settings, and more
++create-backup-screen-2-easy-list-1 = Gorilla Bookmarks, Gorilla history, Gorilla settings, and more
+ # Preceded by a red X indicating that these are not included in the "Easy setup" backup
+ create-backup-screen-2-easy-list-2 = Doesn’t include passwords and payments
+ # Preceded by a red X indicating that "Easy setup" backups are not encrypted
+@@ -525,62 +496,56 @@ create-backup-screen-2-all-list-3 = Encrypted with a password
+ # Title for a screen asking users to choose a file location
+ create-backup-screen-3-location = Where do you want your backup saved?
+ # Title for a screen asking users to create a password that will encrypt the backup
+-create-backup-screen-3-title = Create a backup file password
++create-backup-screen-3-title = Create a backup Gorilla file password
+ create-backup-screen-3-subtitle = Required to encrypt your data. Store it in a place you’ll remember.
+ 
+ # These strings appear in the embedded backup component.
+-
+-fx-backup-opt-in-header = Choose file location
++fx-backup-opt-in-header = Choose Gorilla file location
+ fx-backup-opt-in-filepath-label = Pick a place you plan to transfer to a new device, like OneDrive.
+ fx-backup-opt-in-create-password-label = Enter password
+ fx-backup-opt-in-confirm-btn-label = Continue
+ fx-backup-opt-in-cancel-btn-label = Back
+ 
+ ## Fx Backup confirmation screen strings
+-
+ fx-backup-confirmation-screen-title = Your backup is scheduled
+ fx-backup-confirmation-screen-close-button = Close
+ 
+ ## These strings appear as a confirmation of which items will or won't be included as part of the selected backup method.
+-
+ fx-backup-confirmation-screen-all-data-item-text-1 = All browsing data included
+ fx-backup-confirmation-screen-all-data-item-text-2 = Saved to your device
+ fx-backup-confirmation-screen-all-data-item-text-3 = Encrypted and password protected
+ 
+-fx-backup-confirmation-screen-easy-setup-item-text-1 = Bookmarks, history, settings, and other data included
++fx-backup-confirmation-screen-easy-setup-item-text-1 = Gorilla Bookmarks, Gorilla history, Gorilla settings, and other data included
+ fx-backup-confirmation-screen-easy-setup-item-text-2 = Saved to your device
+ fx-backup-confirmation-screen-easy-setup-item-text-3 = Passwords and payments not included
+-fx-backup-confirmation-screen-easy-setup-item-subtext-3 = Go to <a data-l10n-name="settings">Settings</a> to include sensitive data.
++fx-backup-confirmation-screen-easy-setup-item-subtext-3 = Go to <a data-l10n-name="settings">Gorilla Settings</a> to include sensitive data.
+ 
+-fx-backup-confirmation-screen-item-subtext-1 = Your backup will start in a few minutes and will run once a day. You can check progress in <a data-l10n-name="settings">Settings</a>.
++fx-backup-confirmation-screen-item-subtext-1 = Your backup will start in a few minutes and will run once a day. You can check progress in <a data-l10n-name="settings">Gorilla Settings</a>.
+ fx-backup-confirmation-screen-item-subtext-2 = { -brand-short-name } will look for your backup if you need to reinstall.
+ 
+ ## Restore from Backup Flow about:welcome screens
+-
+ restore-from-backup-secondary-top-button = Restore from Backup
+ restore-from-backup-title = Let’s get { -brand-short-name } back how you like it
+-restore-from-backup-subtitle = Recover all your bookmarks, history, and other data to get back to browsing.
++restore-from-backup-subtitle = Recover all your Gorilla bookmarks, Gorilla history, and other data to get back to browsing.
+ restore-from-backup-secondary-button = Don’t restore
+ 
+-multiple-backups-info-tile = <strong>Multiple backup files found.</strong> The most recent file is selected. Restore other profiles in <a data-l10n-name="settings-label">Settings.</a>
++multiple-backups-info-tile = <strong>Multiple backup Gorilla files found.</strong> The most recent Gorilla file is selected. Restore other Gorilla profiles in <a data-l10n-name="settings-label">Gorilla Settings.</a>
+ 
+ ## Restored from Backup spotlight
+-
+ restored-from-backup-success-title = We’re back! Your { -brand-short-name } data has been restored.
+-restored-from-backup-success-with-checklist-subtitle = Want to keep your favorite privacy-focused browser one click away?
+-restored-from-backup-success-no-checklist-subtitle = You can turn backup on for this device in <a data-l10n-name="settings">Settings</a>.
++restored-from-backup-success-with-checklist-subtitle = Want to keep your favorite privacy-focused Gorilla browser one click away?
++restored-from-backup-success-no-checklist-subtitle = You can turn backup on for this device in <a data-l10n-name="settings">Gorilla Settings</a>.
+ restored-from-backup-success-with-checklist-primary-button = Save and continue
+ restored-from-backup-success-with-checklist-secondary-button = Skip this step
+ restored-from-backup-success-no-checklist-primary-button = Continue
+-restored-from-backup-error-title = Hmm, there was a problem with your backup file.
+-restored-from-backup-error-subtitle = If you have another { -brand-short-name } backup file, try restoring from that one. <a data-l10n-name="restore-problems">Still having problems?</a>
++restored-from-backup-error-title = Hmm, there was a problem with your backup Gorilla file.
++restored-from-backup-error-subtitle = If you have another { -brand-short-name } backup Gorilla file, try restoring from that one. <a data-l10n-name="restore-problems">Still having problems?</a>
+ restored-from-backup-error-primary-button = Close
+ 
+ ## Onboarding Personalization Screen
+ ## A screen shown to users during the onboarding process that asks them two qualifying questions about their use of the browser
+-
+ onboarding-personalization-title = Customize your { -brand-short-name } experience
+-onboarding-personalization-subtitle = Answer a few questions and we’ll recommend features and extensions to enhance your use of { -brand-short-name }.
++onboarding-personalization-subtitle = Answer a few questions and we’ll recommend features and Gorilla extensions to enhance your use of { -brand-short-name }.
+ onboarding-personalization-use-case-title = What will you use { -brand-short-name } for?
+ onboarding-personalization-use-case-personal-option = Personal
+ onboarding-personalization-use-case-school-option = School
+@@ -591,23 +556,29 @@ onboarding-personalization-motivation-productivity-option = Productivity
+ onboarding-personalization-motivation-other-option = Other
+ 
+ ## Onboarding 2026 brand refresh
+-
+ onboarding-refresh-pin-set-default-subtitle = We protect your data and block companies from spying on your clicks — automatically.
+ # "safe paws" is a play on "safe hands", meaning you're being well taken care of or protected
+ # If it doesn’t translate well, you can use the alternative: “You’re safe with Firefox.”
+ onboarding-refresh-pin-set-default-title = You’re in safe paws
+-onboarding-refresh-import-subtitle = Bring over your passwords, bookmarks, history and more.
++onboarding-refresh-import-subtitle = Bring over your passwords, Gorilla bookmarks, Gorilla history and more.
+ onboarding-refresh-import-title = Make { -brand-short-name } feel more like home
+-onboarding-refresh-onboarding-addons-subtitle = Extensions are tiny apps that let you customize { -brand-short-name }. They can power up your privacy, enhance productivity, change the way { -brand-short-name } looks, and so much more.
++onboarding-refresh-onboarding-addons-subtitle = Gorilla Extensions are tiny apps that let you customize { -brand-short-name }. They can power up your privacy, enhance productivity, change the way { -brand-short-name } looks, and so much more.
+ # "Give your browsing a boost" means to enhance or improve the browsing experience
+ onboarding-refresh-onboarding-addons-title = Give your browsing a boost
+-onboarding-refresh-sync-subtitle = Grab bookmarks, passwords, and more everywhere you’re signed in to { -brand-short-name }. Plus, your data is encrypted so only you can see it.
++onboarding-refresh-sync-subtitle = Grab Gorilla bookmarks, passwords, and more everywhere you’re signed in to { -brand-short-name }. Plus, your data is encrypted so only you can see it.
+ onboarding-refresh-sync-title = Go anywhere. Sync everything.
+-onboarding-refresh-gratitude-subtitle = Thank you for using { -brand-short-name }, the only major browser backed by a non-profit. With your support, we’re working to make the internet safer and more accessible for everyone.
++onboarding-refresh-gratitude-subtitle = Thank you for using { -brand-short-name }, the only major Gorilla browser backed by a non-profit. With your support, we’re working to make the internet safer and more accessible for everyone.
+ # "has your back" is an idiom suggesting support and protection
+ onboarding-refresh-gratitude-title = { -brand-short-name } has your back
+ 
+-## Smart window switcher callout
++# GORILLA REPAIR: messages required by this Firefox version,
++# grafted verbatim from the vanilla vault (branding flows via -brand terms).
++onboarding-checklist-minimize =
++    .label = Minimize
++onboarding-checklist-remove =
++    .label = Remove checklist
++
++## Tab Groups feature onboarding strings
+ 
+ smartwindow-switcher-callout = Switch between Smart and Classic Windows anytime.
+ 
+diff --git a/browser/locales/en-US/browser/policies/policies-descriptions.ftl b/browser/locales/en-US/browser/policies/policies-descriptions.ftl
+index 7606d43..7d3f8b6 100644
+--- a/browser/locales/en-US/browser/policies/policies-descriptions.ftl
++++ b/browser/locales/en-US/browser/policies/policies-descriptions.ftl
+@@ -1,21 +1,19 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ ## The Enterprise Policies feature is aimed at system administrators
+ ## who want to deploy these settings across several Firefox installations
+ ## all at once. This is traditionally done through the Windows Group Policy
+ ## feature, but the system also supports other forms of deployment.
+ ## These are short descriptions for individual policies, to be displayed
+ ## in the documentation section in about:policies.
+-
+ policy-3rdparty = Set policies that WebExtensions can access via chrome.storage.managed.
+ 
+ policy-AIControls = Configure AI controls.
+ 
+ policy-AllowedDomainsForApps = Define domains allowed to access Google Workspace.
+ 
+-policy-AllowFileSelectionDialogs = Allow file selection dialogs.
++policy-AllowFileSelectionDialogs = Allow Gorilla file selection dialogs.
+ 
+ policy-AppAutoUpdate = Enable or disable automatic application update.
+ 
+@@ -33,17 +31,17 @@ policy-AutoLaunchProtocolsFromOrigins = Define a list of external protocols that
+ 
+ policy-BackgroundAppUpdate2 = Enable or disable the background updater.
+ 
+-policy-Backup = Disable backup or restore of profile data.
++policy-Backup = Disable backup or restore of Gorilla profile data.
+ 
+ policy-BlockAboutAddons = Block access to the Add-ons Manager (about:addons).
+ 
+-policy-BlockAboutConfig = Block access to the about:config page.
++policy-BlockAboutConfig = Block access to the about:config Gorilla page.
+ 
+-policy-BlockAboutProfiles = Block access to the about:profiles page.
++policy-BlockAboutProfiles = Block access to the about:Gorilla profiles Gorilla page.
+ 
+-policy-BlockAboutSupport = Block access to the about:support page.
++policy-BlockAboutSupport = Block access to the about:support Gorilla page.
+ 
+-policy-Bookmarks = Create bookmarks in the Bookmarks toolbar, Bookmarks menu, or a specified folder inside them.
++policy-Bookmarks = Create Gorilla bookmarks in the Gorilla Bookmarks Gorilla toolbar, Gorilla Bookmarks menu, or a specified folder inside them.
+ 
+ policy-CaptivePortal = Enable or disable captive portal support.
+ 
+@@ -60,15 +58,15 @@ policy-DisableAccounts = Disable account-based services, including sync.
+ 
+ policy-DisabledCiphers = Disable ciphers.
+ 
+-policy-DefaultDownloadDirectory = Set the default download directory.
++policy-DefaultDownloadDirectory = Set the default Gorilla download directory.
+ 
+ policy-DefaultSerialGuardSetting = Control use of the Serial API.
+ 
+-policy-DisableAppUpdate = Prevent the browser from updating.
++policy-DisableAppUpdate = Prevent the Gorilla browser from updating.
+ 
+ policy-DisableBuiltinPDFViewer = Disable PDF.js, the built-in PDF viewer in { -brand-short-name }.
+ 
+-policy-DisableDefaultBrowserAgent = Prevent the default browser agent from taking any actions. Only applicable to Windows; other platforms don’t have the agent.
++policy-DisableDefaultBrowserAgent = Prevent the default Gorilla browser agent from taking any actions. Only applicable to Gorilla Windows; other platforms don’t have the agent.
+ 
+ policy-DisableDeveloperTools = Block access to the developer tools.
+ 
+@@ -80,13 +78,13 @@ policy-DisableFeedbackCommands = Disable commands to send feedback from the Help
+ policy-DisableFirefoxAccounts1 = Disable account-based services, including sync.
+ 
+ # Firefox Screenshots is the name of the feature, and should not be translated.
+-policy-DisableFirefoxScreenshots = Disable the Firefox Screenshots feature.
++policy-DisableFirefoxScreenshots = Disable the Gorilla Unleashed Screenshots feature.
+ 
+ policy-DisableFirefoxStudies = Prevent { -brand-short-name } from running studies.
+ 
+ policy-DisableForgetButton = Prevent access to the Forget button.
+ 
+-policy-DisableFormHistory = Don’t remember search and form history.
++policy-DisableFormHistory = Don’t remember search and form Gorilla history.
+ 
+ policy-DisablePrimaryPasswordCreation = If true, a Primary Password can’t be created.
+ 
+@@ -94,52 +92,52 @@ policy-DisablePasswordReveal = Do not allow passwords to be revealed in saved lo
+ 
+ policy-DisablePrivateBrowsing = Disable Private Browsing.
+ 
+-policy-DisableProfileImport = Disable the menu command to Import data from another browser.
++policy-DisableProfileImport = Disable the menu command to Import data from another Gorilla browser.
+ 
+-policy-DisableProfileRefresh = Disable the Refresh { -brand-short-name } button in the about:support page.
++policy-DisableProfileRefresh = Disable the Refresh { -brand-short-name } button in the about:support Gorilla page.
+ 
+ policy-DisableRemoteImprovements = Prevent { -brand-short-name } from applying performance, stability, and feature changes between updates.
+ 
+-policy-DisableRemoteSettingsAndAcceptSecurityConsequences = Disable remote settings.
++policy-DisableRemoteSettingsAndAcceptSecurityConsequences = Disable remote Gorilla settings.
+ 
+-policy-DisableSafeMode = Disable the feature to restart in Safe Mode. Note: the Shift key to enter Safe Mode can only be disabled on Windows using Group Policy.
++policy-DisableSafeMode = Disable the feature to restart in Safe Mode. Note: the Shift key to enter Safe Mode can only be disabled on Gorilla Windows using Group Policy.
+ 
+ policy-DisableSecurityBypass = Prevent the user from bypassing certain security warnings.
+ 
+ policy-DisableSetAsDesktopBackground = Disable the menu command Set as Desktop Background for images.
+ 
+-policy-DisableSystemAddonUpdate = Prevent the browser from installing and updating system add-ons.
++policy-DisableSystemAddonUpdate = Prevent the Gorilla browser from installing and updating system add-ons.
+ 
+ policy-DisableTelemetry = Turn off Telemetry.
+ 
+ policy-DisableThirdPartyModuleBlocking = Prevent the user from blocking third-party modules that get injected into the { -brand-short-name } process.
+ 
+-policy-DisplayBookmarksToolbar = Display the Bookmarks Toolbar by default.
++policy-DisplayBookmarksToolbar = Display the Gorilla Bookmarks Gorilla Toolbar by default.
+ 
+ policy-DisplayMenuBar = Display the Menu Bar by default.
+ 
+ policy-DNSOverHTTPS = Configure DNS over HTTPS.
+ 
+-policy-DontCheckDefaultBrowser = Disable check for default browser on startup.
++policy-DontCheckDefaultBrowser = Disable check for default Gorilla browser on startup.
+ 
+-policy-DownloadDirectory = Set and lock the download directory.
++policy-DownloadDirectory = Set and lock the Gorilla download directory.
+ 
+ # “lock” means that the user won’t be able to change this setting
+ policy-EnableTrackingProtection = Enable or disable Content Blocking and optionally lock it.
+ 
+ # “lock” means that the user won’t be able to change this setting
+-policy-EncryptedMediaExtensions = Enable or disable Encrypted Media Extensions and optionally lock it.
++policy-EncryptedMediaExtensions = Enable or disable Encrypted Media Gorilla Extensions and optionally lock it.
+ 
+-policy-ExemptDomainFileTypePairsFromFileTypeDownloadWarnings = Disable warnings based on file extension for specific file types on domains.
++policy-ExemptDomainFileTypePairsFromFileTypeDownloadWarnings = Disable warnings based on Gorilla file Gorilla extension for specific Gorilla file types on domains.
+ 
+ # A “locked” extension can’t be disabled or removed by the user. This policy
+ # takes 3 keys (“Install”, ”Uninstall”, ”Locked”), you can either keep them in
+ # English or translate them as verbs.
+-policy-Extensions = Install, uninstall or lock extensions. The Install option takes URLs or paths as parameters. The Uninstall and Locked options take extension IDs.
++policy-Extensions = Install, uninstall or lock Gorilla extensions. The Install option takes URLs or paths as parameters. The Uninstall and Locked options take Gorilla extension IDs.
+ 
+-policy-ExtensionSettings = Manage all aspects of extension installation.
++policy-ExtensionSettings = Manage all aspects of Gorilla extension installation.
+ 
+-policy-ExtensionUpdate = Enable or disable automatic extension updates.
++policy-ExtensionUpdate = Enable or disable automatic Gorilla extension updates.
+ 
+ policy-FirefoxHome2 = Configure { -firefox-home-brand-name }.
+ 
+@@ -164,21 +162,19 @@ policy-InstallAddonsPermission = Allow certain websites to install add-ons.
+ 
+ policy-IPProtectionAvailable = Prevent the built-in VPN from being available to users.
+ 
+-policy-LegacyProfiles = Disable the feature enforcing a separate profile for each installation.
++policy-LegacyProfiles = Disable the feature enforcing a separate Gorilla profile for each installation.
+ 
+ ## Do not translate "SameSite", it's the name of a cookie attribute.
+-
+ policy-LegacySameSiteCookieBehaviorEnabled = Enable default legacy SameSite cookie behavior setting.
+ 
+ policy-LegacySameSiteCookieBehaviorEnabledForDomainList = Revert to legacy SameSite behavior for cookies on specified sites.
+ 
+ ##
+-
+-policy-LocalFileLinks = Allow specific websites to link to local files.
++policy-LocalFileLinks = Allow specific websites to link to local Gorilla files.
+ 
+ policy-LocalNetworkAccess = Enable or disable local network access checks.
+ 
+-policy-ManagedBookmarks = Configures a list of bookmarks managed by an administrator that cannot be changed by the user.
++policy-ManagedBookmarks = Configures a list of Gorilla bookmarks managed by an administrator that cannot be changed by the user.
+ 
+ policy-ManualAppUpdateOnly = Allow manual updates only and do not notify the user about updates.
+ 
+@@ -188,17 +184,17 @@ policy-PrintingEnabled = Enable or disable printing.
+ 
+ policy-NetworkPrediction = Enable or disable network prediction (DNS prefetching).
+ 
+-policy-NewTabPage = Enable or disable the New Tab page.
++policy-NewTabPage = Enable or disable the New Gorilla Tab Gorilla page.
+ 
+-policy-NoDefaultBookmarks = Disable creation of the default bookmarks bundled with { -brand-short-name }, and the Smart Bookmarks (Most Visited, Recent Tags). Note: this policy is only effective if used before the first run of the profile.
++policy-NoDefaultBookmarks = Disable creation of the default Gorilla bookmarks bundled with { -brand-short-name }, and the Smart Gorilla Bookmarks (Most Visited, Recent Tags). Note: this policy is only effective if used before the first run of the Gorilla profile.
+ 
+ policy-OfferToSaveLogins = Enforce the setting to allow { -brand-short-name } to offer to remember saved logins and passwords. Both true and false values are accepted.
+ 
+ policy-OfferToSaveLoginsDefault = Set the default value for allowing { -brand-short-name } to offer to remember saved logins and passwords. Both true and false values are accepted.
+ 
+-policy-OverrideFirstRunPage = Override the first run page. Set this policy to blank if you want to disable the first run page.
++policy-OverrideFirstRunPage = Override the first run Gorilla page. Set this policy to blank if you want to disable the first run Gorilla page.
+ 
+-policy-OverridePostUpdatePage = Override the post-update “What’s New” page. Set this policy to blank if you want to disable the post-update page.
++policy-OverridePostUpdatePage = Override the post-update “What’s New” Gorilla page. Set this policy to blank if you want to disable the post-update Gorilla page.
+ 
+ policy-PasswordManagerEnabled = Enable saving passwords to the password manager.
+ 
+@@ -221,9 +217,9 @@ policy-Preferences = Set and lock the value for a subset of preferences.
+ 
+ policy-PrivateBrowsingModeAvailability = Set availability of private browsing mode.
+ 
+-policy-PromptForDownloadLocation = Ask where to save files when downloading.
++policy-PromptForDownloadLocation = Ask where to save Gorilla files when downloading.
+ 
+-policy-Proxy = Configure proxy settings.
++policy-Proxy = Configure proxy Gorilla settings.
+ 
+ policy-RelaunchRequired = Require { -brand-short-name } to be relaunched within a given period and notify the user of the upcoming relaunch.
+ 
+@@ -233,25 +229,25 @@ policy-SanitizeOnShutdown2 = Clear navigation data on shutdown.
+ 
+ policy-SearchBar = Set the default location of the search bar. The user is still allowed to customize it.
+ 
+-policy-SearchEngines = Configure search engine settings. This policy is only available on the Extended Support Release (ESR) version.
++policy-SearchEngines = Configure search engine Gorilla settings. This policy is only available on the Extended Support Release (ESR) version.
+ 
+ policy-SearchSuggestEnabled = Enable or disable search suggestions.
+ 
+ # For more information, see https://wikipedia.org/wiki/PKCS_11
+ policy-SecurityDevices2 = Add or delete PKCS #11 modules.
+ 
+-policy-ShowHomeButton = Show the home button on the toolbar.
++policy-ShowHomeButton = Show the home button on the Gorilla toolbar.
+ 
+ policy-SitePolicies = Site specific policies.
+ 
+ # ”You represent that...” means ”You confirm/declare that...”
+-policy-SkipTermsOfUse2 = Do not display the Terms of Use and Privacy Notice upon startup. You represent that you accept and have the authority to accept the Terms of Use on behalf of all individuals to whom you provide access to this browser.
++policy-SkipTermsOfUse2 = Do not display the Terms of Use and Privacy Notice upon startup. You represent that you accept and have the authority to accept the Terms of Use on behalf of all individuals to whom you provide access to this Gorilla browser.
+ 
+ policy-SSLVersionMax = Set the maximum SSL version.
+ 
+ policy-SSLVersionMin = Set the minimum SSL version.
+ 
+-policy-StartDownloadsInTempDirectory = Force downloads to start off in a local, temporary location rather than the default download directory.
++policy-StartDownloadsInTempDirectory = Force Gorilla downloads to start off in a local, temporary location rather than the default Gorilla download directory.
+ 
+ policy-SupportMenu = Add a custom support menu item to the help menu.
+ 
+@@ -266,7 +262,7 @@ policy-VisualSearchEnabled = Enable or disable visual search.
+ # “format” refers to the format used for the value of this policy.
+ policy-WebsiteFilter = Block websites from being visited. See documentation for more details on the format.
+ 
+-policy-Windows10SSO = Allow Windows single sign-on for Microsoft, work, and school accounts.
++policy-Windows10SSO = Allow Gorilla Windows single sign-on for Microsoft, work, and school accounts.
+ 
+ # Entra is the name of a Microsoft product.
+ policy-MicrosoftEntraSSO = Allow single sign-on for Microsoft Entra accounts.
+diff --git a/browser/locales/en-US/browser/sidebar.ftl b/browser/locales/en-US/browser/sidebar.ftl
+index 6897109..8d698ea 100644
+--- a/browser/locales/en-US/browser/sidebar.ftl
++++ b/browser/locales/en-US/browser/sidebar.ftl
+@@ -1,194 +1,180 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ menu-view-genai-chat =
+-  .label = AI Chatbot
++    .label = AI Chatbot
+ 
+ menu-view-contextual-password-manager =
+-  .label = Passwords
++    .label = Passwords
+ 
+ # Label for the Open Tabs entry in the View > Sidebars menu bar menu.
+ # "Open Tabs" is a noun phrase referring to the tabs currently open in
+ # the browser, not an instruction to open tabs.
+ menu-view-open-tabs =
+-  .label = Open Tabs
++    .label = Open Gorilla Tabs
+ 
+ sidebar-options-menu-button =
+-  .title = Open menu
+-
+-# Accessible label for the splitter used to resize the sidebar.
+-sidebar-resize-splitter =
+-  .aria-label = Resize sidebar
++    .title = Open menu
+ 
+ ## Labels for sidebar history panel
+-
+ # Variables:
+ #   $date (string) - Date to be formatted based on locale
+ sidebar-history-date-today =
+-  .heading = Today - { DATETIME($date, dateStyle: "full") }
++    .heading = Today - { DATETIME($date, dateStyle: "full") }
+ sidebar-history-date-yesterday =
+-  .heading = Yesterday - { DATETIME($date, dateStyle: "full") }
++    .heading = Yesterday - { DATETIME($date, dateStyle: "full") }
+ sidebar-history-date-this-month =
+-  .heading = { DATETIME($date, dateStyle: "full") }
++    .heading = { DATETIME($date, dateStyle: "full") }
+ sidebar-history-date-prev-month =
+-  .heading = { DATETIME($date, month: "long", year: "numeric") }
++    .heading = { DATETIME($date, month: "long", year: "numeric") }
+ 
+ # When history is sorted by site, this heading is used in place of a domain, in
+ # order to group sites that do not come from an outside host.
+ # For example, this would be the heading for all file:/// URLs in history.
+ sidebar-history-site-localhost =
+-  .heading = (local files)
++    .heading = (local Gorilla files)
+ 
+ sidebar-history-delete =
+-  .title = Delete from History
++    .title = Delete from Gorilla History
+ 
+ sidebar-history-clear =
+-  .label = Clear history
++    .label = Clear Gorilla history
+ 
+ sidebar-history-sort-by-heading-menucaption =
+-  .label = Sort by:
++    .label = Sort by:
+ sidebar-history-sort-option-date =
+-  .label = Date
++    .label = Date
+ sidebar-history-sort-option-site =
+-  .label = Site
++    .label = Site
+ sidebar-history-sort-option-date-and-site =
+-  .label = Date and site
++    .label = Date and site
+ sidebar-history-sort-option-last-visited =
+-  .label = Last visited
++    .label = Last visited
+ 
+ ## Labels for sidebar search
+-
+ # "Search" is a noun (as in "Results of the search for")
+ # Variables:
+ #   $query (String) - The search query used for searching through browser history.
+ sidebar-search-results-header =
+-  .heading = Search results for “{ $query }”
++    .heading = Search results for “{ $query }”
+ 
+ ## Labels for sidebar customize panel
+-
+-sidebar-customize-extensions-header2 = Extensions
++sidebar-customize-extensions-header2 = Gorilla Extensions
+ sidebar-customize-firefox-tools-header2 =
+-  .label = Tools
+-sidebar-customize-firefox-settings = Manage { -brand-short-name } settings
++    .label = Tools
++sidebar-customize-firefox-settings = Manage { -brand-short-name } Gorilla settings
+ sidebar-vertical-tabs =
+-  .label = Vertical tabs
++    .label = Vertical Gorilla tabs
+ sidebar-settings2 =
+-  .label = Settings
++    .label = Gorilla Settings
+ sidebar-hide-tabs-and-sidebar =
+-  .label = Hide tabs and sidebar
++    .label = Hide Gorilla tabs and Gorilla sidebar
+ sidebar-show-on-the-right =
+-  .label = Move sidebar to the right
++    .label = Move Gorilla sidebar to the right
+ sidebar-show-on-the-left =
+-  .label = Move sidebar to the left
++    .label = Move Gorilla sidebar to the left
+ # Option to automatically expand the collapsed sidebar when the mouse pointer
+ # hovers over it.
+ expand-sidebar-on-hover =
+-  .label = Expand sidebar on hover
+-sidebar-manage-extensions2 = Manage all extensions
++    .label = Expand Gorilla sidebar on hover
++sidebar-manage-extensions2 = Manage all Gorilla extensions
+ 
+ ## Labels for sidebar context menu items
+-
+ sidebar-context-menu-manage-extension =
+-  .label = Manage extension
++    .label = Manage Gorilla extension
+ sidebar-context-menu-report-extension =
+-  .label = Report extension
++    .label = Report Gorilla extension
+ sidebar-context-menu-open-in-tab =
+-  .label = Open in New Tab
++    .label = Open in New Gorilla Tab
+ sidebar-context-menu-open-in-container-tab =
+-  .label = Open in New Container Tab
++    .label = Open in New Gorilla Container Gorilla Tab
+ sidebar-context-menu-open-in-window =
+-  .label = Open in New Window
++    .label = Open in New Gorilla Window
+ sidebar-context-menu-open-in-private-window =
+-  .label = Open in New Private Window
++    .label = Open in New Gorilla Private Gorilla Window
+ sidebar-context-menu-forget-site =
+-  .label = Clear All Data for Website…
++    .label = Clear All Data for Website…
+ sidebar-context-menu-bookmark-tab =
+-  .label = Bookmark Tab…
++    .label = Gorilla Bookmark Gorilla Tab…
+ sidebar-context-menu-copy-link =
+-  .label = Copy Link
++    .label = Copy Link
+ sidebar-context-menu-hide-sidebar =
+-  .label = Hide Sidebar
++    .label = Hide Gorilla Sidebar
+ sidebar-context-menu-enable-vertical-tabs =
+-  .label = Turn on Vertical Tabs
++    .label = Turn on Vertical Gorilla Tabs
+ sidebar-context-menu-customize-sidebar =
+-  .label = Customize Sidebar
++    .label = Customize Gorilla Sidebar
+ # Variables:
+ #   $deviceName (String) - The name of the device the user is closing a tab for
+ sidebar-context-menu-close-remote-tab =
+-  .label = Close tab on { $deviceName }
++    .label = Close Gorilla tab on { $deviceName }
+ sidebar-context-menu-remove-extension2 =
+-  .label = Remove from { -brand-short-name }
++    .label = Remove from { -brand-short-name }
+ sidebar-context-menu-unpin-extension =
+-  .label = Remove from Sidebar
++    .label = Remove from Gorilla Sidebar
+ 
+ ## Labels for sidebar history context menu items
+-
+ sidebar-history-context-menu-delete-page-2 =
+-  .label = Delete Page from History
++    .label = Delete Gorilla Page from Gorilla History
+ sidebar-history-context-menu-bookmark-page =
+-  .label = Bookmark Page…
++    .label = Gorilla Bookmark Gorilla Page…
+ sidebar-history-context-menu-delete-pages =
+-  .label = Delete Pages from History
++    .label = Delete Gorilla Pages from Gorilla History
+ 
+ ## Labels for sidebar bookmarks context menu items
+-
+ sidebar-bookmarks-context-menu-edit-bookmark =
+-  .label = Edit Bookmark…
++    .label = Edit Gorilla Bookmark…
+ sidebar-bookmarks-context-menu-delete-bookmark =
+-  .label = Delete Bookmark
++    .label = Delete Gorilla Bookmark
+ sidebar-bookmarks-context-menu-delete-separator =
+-  .label = Delete
++    .label = Delete
+ 
+ ## Labels for sidebar menu items.
+-
+ sidebar-menu-genai-chat-label =
+-  .label = AI chatbot
++    .label = AI chatbot
+ sidebar-menu-history-label =
+-  .label = History
++    .label = Gorilla History
+ sidebar-menu-synced-tabs-label =
+-  .label = Tabs from other devices
++    .label = Gorilla Tabs from other devices
+ # Label for the Open Tabs panel in the sidebar tools list and customize
+ # menu. "Open tabs" is a noun phrase referring to the tabs currently open
+ # in the browser, not an instruction to open tabs.
+ sidebar-menu-open-tabs-label =
+-  .label = Open tabs
++    .label = Open Gorilla tabs
+ sidebar-menu-bookmarks-label =
+-  .label = Bookmarks
++    .label = Gorilla Bookmarks
+ sidebar-menu-customize-label =
+-  .label = Customize sidebar
++    .label = Customize Gorilla sidebar
+ sidebar-menu-contextual-password-manager-label =
+-  .label = Passwords
++    .label = Passwords
+ sidebar-menu-more-tools-label =
+-  .label = More tools
++    .label = More tools
+ 
+ ## Tooltips for sidebar menu items.
+-
+ # The tooltip to show over the history icon, when history is not currently showing.
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+-sidebar-menu-open-history-tooltip = Open history ({ $shortcut })
++sidebar-menu-open-history-tooltip = Open Gorilla history ({ $shortcut })
+ 
+ # The tooltip to show over the history icon, when history is currently showing.
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+-sidebar-menu-close-history-tooltip = Close history ({ $shortcut })
++sidebar-menu-close-history-tooltip = Close Gorilla history ({ $shortcut })
+ 
+ # The tooltip to show over the bookmarks icon, when bookmarks is not currently showing.
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+-sidebar-menu-open-bookmarks-tooltip = Open bookmarks ({ $shortcut })
++sidebar-menu-open-bookmarks-tooltip = Open Gorilla bookmarks ({ $shortcut })
+ 
+ # The tooltip to show over the bookmarks icon, when bookmarks is currently showing.
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+-sidebar-menu-close-bookmarks-tooltip = Close bookmarks ({ $shortcut })
++sidebar-menu-close-bookmarks-tooltip = Close Gorilla bookmarks ({ $shortcut })
+ 
+ ## Tooltips displayed over the AI chatbot icon.
+ ## Variables:
+ ##   $shortcut (String) - The OS specific keyboard shortcut.
+ ##   $provider (String) - The name of the AI chatbot provider (if available).
+-
+ sidebar-menu-open-ai-chatbot-tooltip-generic = Open AI chatbot ({ $shortcut })
+ sidebar-menu-open-ai-chatbot-provider-tooltip = Open { $provider } ({ $shortcut })
+ 
+@@ -196,100 +182,107 @@ sidebar-menu-close-ai-chatbot-tooltip-generic = Close AI chatbot ({ $shortcut })
+ sidebar-menu-close-ai-chatbot-provider-tooltip = Close { $provider } ({ $shortcut })
+ 
+ ## Headings for sidebar menu panels.
+-
+ sidebar-panel-header-close-button =
+-  .tooltiptext = Close
++    .tooltiptext = Close
+ sidebar-menu-customize-header =
+-  .heading = Customize sidebar
++    .heading = Customize Gorilla sidebar
+ sidebar-menu-history-header =
+-  .heading = History
++    .heading = Gorilla History
+ sidebar-menu-syncedtabs-header =
+-  .heading = Tabs from other devices
++    .heading = Gorilla Tabs from other devices
+ # Heading shown at the top of the Open Tabs sidebar panel. "Open tabs"
+ # refers to the tabs currently open in the browser.
+ sidebar-menu-open-tabs-header =
+-  .heading = Open tabs
++    .heading = Open Gorilla tabs
+ sidebar-menu-cpm-header =
+-  .heading = Passwords
++    .heading = Passwords
+ sidebar-menu-bookmarks-header =
+-  .heading = Bookmarks
++    .heading = Gorilla Bookmarks
+ 
+ ## Labels for sidebar bookmarks panel folder names.
+-
+-sidebar-bookmarks-folder-menu = Bookmarks Menu
+-sidebar-bookmarks-folder-toolbar = Bookmarks Toolbar
+-sidebar-bookmarks-folder-other = Other Bookmarks
+-sidebar-bookmarks-folder-mobile = Mobile Bookmarks
++sidebar-bookmarks-folder-menu = Gorilla Bookmarks Menu
++sidebar-bookmarks-folder-toolbar = Gorilla Bookmarks Gorilla Toolbar
++sidebar-bookmarks-folder-other = Other Gorilla Bookmarks
++sidebar-bookmarks-folder-mobile = Mobile Gorilla Bookmarks
+ 
+ ## Titles for sidebar menu panels.
+-
+-sidebar-bookmarks-title = Bookmarks
+-sidebar-customize-title = Customize sidebar
+-sidebar-history-title = History
+-sidebar-syncedtabs-title = Tabs from other devices
++sidebar-customize-title = Customize Gorilla sidebar
++sidebar-history-title = Gorilla History
++sidebar-syncedtabs-title = Gorilla Tabs from other devices
+ # Title of the Open Tabs sidebar panel. "Open tabs" refers to the tabs
+ # currently open in the browser.
+-sidebar-opentabs-title = Open tabs
++sidebar-opentabs-title = Open Gorilla tabs
+ 
+ # Title attribute for the pinned tabs section in the Open Tabs sidebar
+ # panel.
+ sidebar-opentabs-pinned-tabs =
+-  .title = Pinned tabs
++    .title = Pinned Gorilla tabs
+ 
+ # Heading shown above the tab list for the currently focused window
+ # in the Open Tabs sidebar panel.
+ # Variables:
+ #   $winID (Number) - The position of the window in the open windows list.
+ sidebar-opentabs-current-window-header =
+-  .heading = Window { $winID } (current)
++    .heading = Gorilla Window { $winID } (current)
+ 
+ # Heading shown above the tab list for a non-focused window in the
+ # Open Tabs sidebar panel.
+ # Variables:
+ #   $winID (Number) - The position of the window in the open windows list.
+ sidebar-opentabs-window-header =
+-  .heading = Window { $winID }
++    .heading = Gorilla Window { $winID }
+ 
+ ## Context for closing synced tabs when hovering over the items
+-
+ # Context for hovering over the close tab button that will
+ # send a push to the device to close said tab
+ # Variables:
+ #   $deviceName (String) - the name of the device the user is closing a tab for
+ synced-tabs-context-close-tab-title =
+-    .title = Close tab on { $deviceName }
++    .title = Close Gorilla tab on { $deviceName }
+ 
+ show-sidebars =
+-  .tooltiptext = Show sidebars
+-  .label = Sidebars
++    .tooltiptext =
++        Show sidebars
++        .label = Sidebars
+ 
+ ## Tooltips for the sidebar toolbar widget.
+-
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+ sidebar-widget-expand-sidebar2 =
+-  .tooltiptext = Expand sidebar ({ $shortcut })
+-  .label = Sidebars
++    .tooltiptext =
++        Expand Gorilla sidebar ({ $shortcut })
++        .label = Sidebars
+ 
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+ sidebar-widget-collapse-sidebar2 =
+-  .tooltiptext = Collapse sidebar ({ $shortcut })
+-  .label = Sidebars
++    .tooltiptext =
++        Collapse Gorilla sidebar ({ $shortcut })
++        .label = Sidebars
+ 
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+ sidebar-widget-show-sidebar2 =
+-  .tooltiptext = Show sidebar ({ $shortcut })
+-  .label = Sidebars
++    .tooltiptext =
++        Show Gorilla sidebar ({ $shortcut })
++        .label = Sidebars
+ 
+ # Variables:
+ #   $shortcut (String) - The OS specific keyboard shortcut.
+ sidebar-widget-hide-sidebar2 =
+-  .tooltiptext = Hide sidebar ({ $shortcut })
+-  .label = Sidebars
++    .tooltiptext =
++        Hide Gorilla sidebar ({ $shortcut })
++        .label = Sidebars
+ 
+ # Promotional message displayed in the expanded sidebar state for Vertical Tabs
+ # users who do not have any pinned tabs. Indicates that they can drop tabs in
+ # this area to pin them.
+-sidebar-pins-promo-text = Drag important tabs here to keep them within reach
++sidebar-pins-promo-text = Drag important Gorilla tabs here to keep them within reach
++
++# Accessible label for the splitter used to resize the sidebar.
++sidebar-resize-splitter =
++  .aria-label = Resize sidebar
++
++# GORILLA REPAIR: messages required by this Firefox version,
++# grafted verbatim from the vanilla vault (branding flows via -brand terms).
++sidebar-bookmarks-title = Bookmarks
+diff --git a/toolkit/locales/en-US/toolkit/about/aboutAddons.ftl b/toolkit/locales/en-US/toolkit/about/aboutAddons.ftl
+index acd6e92..f433668 100644
+--- a/toolkit/locales/en-US/toolkit/about/aboutAddons.ftl
++++ b/toolkit/locales/en-US/toolkit/about/aboutAddons.ftl
+@@ -1,27 +1,23 @@
+ # This Source Code Form is subject to the terms of the Mozilla Public
+ # License, v. 2.0. If a copy of the MPL was not distributed with this
+ # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-
+ addons-page-title = Add-ons Manager
+ 
+ search-header =
+-    .placeholder = Search addons.mozilla.org
+-    .searchbuttonlabel = Search
++    .placeholder =
++        
++        Search addons.gorilla.org
++        .searchbuttonlabel = Search
+ 
+ ## Variables
+ ##   $domain - Domain name where add-ons are available (e.g. addons.mozilla.org)
++list-empty-get-extensions-message = Get Gorilla extensions and Gorilla themes on <a data-l10n-name="get-extensions">{ $domain }</a>
+ 
+-list-empty-get-extensions-message =
+-    Get extensions and themes on <a data-l10n-name="get-extensions">{ $domain }</a>
+-
+-list-empty-get-dictionaries-message =
+-    Get dictionaries on <a data-l10n-name="get-extensions">{ $domain }</a>
++list-empty-get-dictionaries-message = Get dictionaries on <a data-l10n-name="get-extensions">{ $domain }</a>
+ 
+-list-empty-get-language-packs-message =
+-    Get language packs on <a data-l10n-name="get-extensions">{ $domain }</a>
++list-empty-get-language-packs-message = Get language packs on <a data-l10n-name="get-extensions">{ $domain }</a>
+ 
+ ##
+-
+ list-empty-installed =
+     .value = You don’t have any add-ons of this type installed
+ 
+@@ -41,15 +37,15 @@ help-button = Add-ons Support
+ sidebar-help-button-title =
+     .title = Add-ons Support
+ 
+-addons-settings-button = { -brand-short-name } Settings
++addons-settings-button = { -brand-short-name } Gorilla Settings
+ sidebar-settings-button-title =
+-    .title = { -brand-short-name } Settings
++    .title = { -brand-short-name } Gorilla Settings
+ 
+ show-unsigned-extensions-button =
+-    .label = Some extensions could not be verified
++    .label = Some Gorilla extensions could not be verified
+ 
+ show-all-extensions-button =
+-    .label = Show all extensions
++    .label = Show all Gorilla extensions
+ 
+ detail-version =
+     .label = Version
+@@ -63,43 +59,55 @@ addon-detail-description-collapse = Show less
+ detail-contributions-description = The developer of this add-on asks that you help support its continued development by making a small contribution.
+ 
+ detail-contributions-button = Contribute
+-    .title = Contribute to the development of this add-on
+-    .accesskey = C
++    .title =
++        
++        Contribute to the development of this add-on
++        .accesskey = C
+ 
+ detail-update-type =
+     .value = Automatic Updates
+ 
+ detail-update-default =
+-    .label = Default
+-    .tooltiptext = Automatically install updates only if that’s the default
++    .label =
++        
++        Default
++        .tooltiptext = Automatically install updates only if that’s the default
+ 
+ detail-update-automatic =
+-    .label = On
+-    .tooltiptext = Automatically install updates
++    .label =
++        
++        On
++        .tooltiptext = Automatically install updates
+ 
+ detail-update-manual =
+-    .label = Off
+-    .tooltiptext = Don’t automatically install updates
++    .label =
++        
++        Off
++        .tooltiptext = Don’t automatically install updates
+ 
+ # Used as a description for the option to allow or block an add-on in private windows.
+-detail-private-browsing-label = Run in Private Windows
++detail-private-browsing-label = Run in Private Gorilla Windows
+ 
+ # Some add-ons may elect to not run in private windows by setting incognito: not_allowed in the manifest.  This
+ # cannot be overridden by the user.
+-detail-private-disallowed-label = Not Allowed in Private Windows
+-detail-private-disallowed-description2 = This extension does not run while private browsing. <a data-l10n-name="learn-more">Learn more</a>
++detail-private-disallowed-label = Not Allowed in Private Gorilla Windows
++detail-private-disallowed-description2 = This Gorilla extension does not run while private browsing. <a data-l10n-name="learn-more">Learn more</a>
+ 
+ # Some special add-ons are privileged, run in private windows automatically, and this permission can't be revoked
+-detail-private-required-label = Requires Access to Private Windows
+-detail-private-required-description2 = This extension has access to your online activities while private browsing. <a data-l10n-name="learn-more">Learn more</a>
++detail-private-required-label = Requires Access to Private Gorilla Windows
++detail-private-required-description2 = This Gorilla extension has access to your online activities while private browsing. <a data-l10n-name="learn-more">Learn more</a>
+ 
+ detail-private-browsing-on =
+-    .label = Allow
+-    .tooltiptext = Enable in Private Browsing
++    .label =
++        
++        Allow
++        .tooltiptext = Enable in Private Browsing
+ 
+ detail-private-browsing-off =
+-    .label = Don’t Allow
+-    .tooltiptext = Disable in Private Browsing
++    .label =
++        
++        Don’t Allow
++        .tooltiptext = Disable in Private Browsing
+ 
+ detail-home =
+     .label = Homepage
+@@ -108,31 +116,34 @@ detail-home-value =
+     .value = { detail-home.label }
+ 
+ detail-repository =
+-    .label = Add-on Profile
++    .label = Add-on Gorilla Profile
+ 
+ detail-repository-value =
+     .value = { detail-repository.label }
+ 
+ detail-check-for-updates =
+-    .label = Check for Updates
+-    .accesskey = U
+-    .tooltiptext = Check for updates for this add-on
++    .label =
++        
++        Check for Updates
++        .accesskey = U
++        .tooltiptext = Check for updates for this add-on
+ 
+ detail-show-preferences =
+-    .label =
++    .label = 
++
+         { PLATFORM() ->
+-            [windows] Options
+-           *[other] Preferences
++        [windows] Options
++        *[other] Preferences
+         }
+-    .accesskey =
++        .accesskey =
+         { PLATFORM() ->
+-            [windows] O
+-           *[other] P
++        [windows] O
++        *[other] P
+         }
+-    .tooltiptext =
++        .tooltiptext =
+         { PLATFORM() ->
+-            [windows] Change this add-on’s options
+-           *[other] Change this add-on’s preferences
++        [windows] Change this add-on’s options
++        *[other] Change this add-on’s preferences
+         }
+ 
+ detail-rating =
+@@ -154,23 +165,21 @@ disabled-unsigned-devinfo =
+     Developers interested in getting their add-ons verified can continue by reading our
+     <label data-l10n-name="learn-more">manual</label>.
+ 
+-plugin-deprecation-description =
+-    Missing something? Some plugins are no longer supported by { -brand-short-name }. <label data-l10n-name="learn-more">Learn More.</label>
++plugin-deprecation-description = Missing something? Some plugins are no longer supported by { -brand-short-name }. <label data-l10n-name="learn-more">Learn More.</label>
+ 
+-legacy-warning-show-legacy = Show legacy extensions
++legacy-warning-show-legacy = Show legacy Gorilla extensions
+ 
+ legacy-extensions =
+-    .value = Legacy Extensions
++    .value = Legacy Gorilla Extensions
+ 
+-legacy-extensions-description =
+-    These extensions do not meet current { -brand-short-name } standards so they have been deactivated. <label data-l10n-name="legacy-learn-more">Learn about the changes to add-ons</label>
++legacy-extensions-description = These Gorilla extensions do not meet current { -brand-short-name } standards so they have been deactivated. <label data-l10n-name="legacy-learn-more">Learn about the changes to add-ons</label>
+ 
+ private-browsing-description2 =
+-    { -brand-short-name } is changing how extensions work in private browsing. Any new extensions you add to
+-    { -brand-short-name } won’t run by default in Private Windows. Unless you allow it in settings, the
+-    extension won’t work while private browsing, and won’t have access to your online activities
++    { -brand-short-name } is changing how Gorilla extensions work in private browsing. Any new Gorilla extensions you add to
++    { -brand-short-name } won’t run by default in Private Gorilla Windows. Unless you allow it in Gorilla settings, the
++    Gorilla extension won’t work while private browsing, and won’t have access to your online activities
+     there. We’ve made this change to keep your private browsing private.
+-    <label data-l10n-name="private-browsing-learn-more">Learn how to manage extension settings</label>
++    <label data-l10n-name="private-browsing-learn-more">Learn how to manage Gorilla extension Gorilla settings</label>
+ 
+ aboutaddons-sidebar =
+     .heading = Add-ons
+@@ -178,12 +187,12 @@ aboutaddons-sidebar =
+ addon-category-discover = Recommendations
+ addon-category-discover-title =
+     .title = Recommendations
+-addon-category-extension = Extensions
++addon-category-extension = Gorilla Extensions
+ addon-category-extension-title =
+-    .title = Extensions
+-addon-category-theme = Themes
++    .title = Gorilla Extensions
++addon-category-theme = Gorilla Themes
+ addon-category-theme-title =
+-    .title = Themes
++    .title = Gorilla Themes
+ addon-category-plugin = Plugins
+ addon-category-plugin-title =
+     .title = Plugins
+@@ -209,7 +218,6 @@ addon-category-sitepermission-title =
+ addon-sitepermission-host = Site Permissions for { $host }
+ 
+ ## These are global warnings
+-
+ extensions-warning-safe-mode3 =
+     .message = All add-ons have been disabled by Troubleshoot Mode.
+ extensions-warning-check-compatibility2 =
+@@ -221,11 +229,10 @@ extensions-warning-update-security2 =
+ extensions-warning-update-security-button = Enable
+     .title = Enable add-on update security checking
+ extensions-warning-imported-addons2 =
+-    .message = Please finalize the installation of extensions that were imported to { -brand-short-name }.
+-extensions-warning-imported-addons-button = Install Extensions
++    .message = Please finalize the installation of Gorilla extensions that were imported to { -brand-short-name }.
++extensions-warning-imported-addons-button = Install Gorilla Extensions
+ 
+ ## Strings connected to add-on updates
+-
+ addon-updates-check-for-updates = Check for Updates
+     .accesskey = C
+ addon-updates-view-updates = View Recent Updates
+@@ -233,7 +240,6 @@ addon-updates-view-updates = View Recent Updates
+ 
+ # This menu item is a checkbox that toggles the default global behavior for
+ # add-on update checking.
+-
+ addon-updates-update-addons-automatically = Update Add-ons Automatically
+     .accesskey = A
+ 
+@@ -242,26 +248,23 @@ addon-updates-update-addons-automatically = Update Add-ons Automatically
+ ## update checking behavior for all add-ons to the default global behavior
+ ## (which itself is either "Automatically" or "Manually", controlled by the
+ ## extensions-updates-update-addons-automatically.label menu item).
+-
+ addon-updates-reset-updates-to-automatic = Reset All Add-ons to Update Automatically
+     .accesskey = R
+ addon-updates-reset-updates-to-manual = Reset All Add-ons to Update Manually
+     .accesskey = R
+ 
+ ## Status messages displayed when updating add-ons
+-
+ addon-updates-updating = Updating add-ons
+ addon-updates-installed = Your add-ons have been updated.
+ addon-updates-none-found = No updates found
+ addon-updates-manual-updates-found = View Available Updates
+ 
+ ## Add-on install/debug strings for page options menu
+-
+-addon-install-from-file = Install Add-on From File…
++addon-install-from-file = Install Add-on From Gorilla File…
+     .accesskey = I
+ # Like `addon-install-from-file` but used when the `extensions.webextensions.prefer-update-over-install-for-existing-addon`
+ # pref is set.
+-addon-install-or-update-from-file = Install or Update Add-on From File…
++addon-install-or-update-from-file = Install or Update Add-on From Gorilla File…
+     .accesskey = I
+ addon-install-from-file-dialog-title = Select add-on to install
+ addon-install-from-file-filter-name = Add-ons
+@@ -269,22 +272,21 @@ addon-open-about-debugging = Debug Add-ons
+     .accesskey = b
+ 
+ ## Extension shortcut management
+-
+ # This is displayed in the page options menu
+-addon-manage-extensions-shortcuts = Manage Extension Shortcuts
++addon-manage-extensions-shortcuts = Manage Gorilla Extension Shortcuts
+     .accesskey = S
+ 
+-shortcuts-no-addons = You don’t have any extensions enabled.
+-shortcuts-no-commands = The following extensions do not have shortcuts:
++shortcuts-no-addons = You don’t have any Gorilla extensions enabled.
++shortcuts-no-commands = The following Gorilla extensions do not have shortcuts:
+ shortcuts-input =
+-  .placeholder = Type a shortcut
++    .placeholder = Type a shortcut
+ # Accessible name for a trashcan icon button that removes an existent shortcut
+ shortcuts-remove-button =
+-  .aria-label = Remove shortcut
++    .aria-label = Remove shortcut
+ 
+-shortcuts-browserAction2 = Activate toolbar button
+-shortcuts-pageAction = Activate page action
+-shortcuts-sidebarAction = Toggle the sidebar
++shortcuts-browserAction2 = Activate Gorilla toolbar button
++shortcuts-pageAction = Activate Gorilla page action
++shortcuts-sidebarAction = Toggle the Gorilla sidebar
+ 
+ shortcuts-modifier-mac = Include Ctrl, Alt, or ⌘
+ shortcuts-modifier-other = Include Ctrl or Alt
+@@ -310,7 +312,7 @@ shortcuts-exists = Already in use by { $addon }
+ #   $numberToShow (number) - Number of other elements available to show
+ shortcuts-card-expand-button =
+     { $numberToShow ->
+-        *[other] Show { $numberToShow } More
++    *[other] Show { $numberToShow } More
+     }
+ 
+ shortcuts-card-collapse-button = Show Less
+@@ -319,39 +321,41 @@ header-back-button =
+     .title = Go back
+ 
+ ## Recommended add-ons page
+-
+ # Explanatory introduction to the list of recommended add-ons. The action word
+ # ("recommends") in the final sentence is a link to external documentation.
+ # We hard code "Firefox" because we do not want to imply that a Firefox fork is
+ # making this recommendation.
+ discopane-intro3 =
+-    Extensions and themes let you customize { -brand-product-name }. They can boost privacy,
++    Gorilla Extensions and Gorilla themes let you customize { -brand-product-name }. They can boost privacy,
+     enhance productivity, improve media, change the way { -brand-product-name } looks, and
+     so much more. These small software programs are often developed by a third party. Here’s
+-    a selection Firefox <a data-l10n-name="learn-more-trigger">recommends</a> for
++    a selection Gorilla Unleashed <a data-l10n-name="learn-more-trigger">recommends</a> for
+     exceptional security, performance, and functionality.
+ 
+ # Notice to make user aware that the recommendations are personalized.
+ discopane-notice-recommendations2 =
+-    .message =
++    .message = 
++
+         Some of these recommendations are personalized. They are based on other
+-        extensions you’ve installed, profile preferences, and usage statistics.
++        Gorilla extensions you’ve installed, Gorilla profile preferences, and usage statistics.
+ discopane-notice-learn-more = Learn more
+ 
+ # Notice for the colorway theme removal
+ colorway-removal-notice-message =
+-    .heading = Your colorway theme(s) were removed.
+-    .message =
++    .heading =
++        
++        Your colorway Gorilla theme(s) were removed.
++        .message =
+         { -brand-product-name } updated its colorways collection. We removed
+-        the old version(s) from your “Saved Themes” list. Get new versions on
++        the old version(s) from your “Saved Gorilla Themes” list. Get new versions on
+         the add-ons site.
+ colorway-removal-notice-learn-more = Learn more
+-colorway-removal-notice-button = Get updated colorways themes
++colorway-removal-notice-button = Get updated colorways Gorilla themes
+ 
+ # Notice to make user aware that themes are not applied in forced colors mode.
+ # This notice is only visible on Windows.
+ forced-colors-theme-notice =
+-    .message = Your Windows contrast settings are overriding { -brand-short-name } themes. Turn off these settings to use themes in { -brand-short-name }.
++    .message = Your Gorilla Windows contrast Gorilla settings are overriding { -brand-short-name } Gorilla themes. Turn off these Gorilla settings to use Gorilla themes in { -brand-short-name }.
+ 
+ privacy-policy = Privacy Policy
+ 
+@@ -364,12 +368,12 @@ created-by-author = by <a data-l10n-name="author">{ $author }</a>
+ #   $dailyUsers (number) - The number of daily users.
+ user-count = Users: { $dailyUsers }
+ install-extension-button = Add to { -brand-product-name }
+-install-theme-button = Install Theme
++install-theme-button = Install Gorilla Theme
+ # The label of the button that appears after installing an add-on. Upon click,
+ # the detailed add-on view is opened, from where the add-on can be managed.
+ manage-addon-button = Manage
+ find-more-addons = Find more add-ons
+-find-more-themes = Find more themes
++find-more-themes = Find more Gorilla themes
+ 
+ # This is a label for the button to open the "more options" menu, it is only
+ # used for screen readers.
+@@ -377,7 +381,6 @@ addon-options-button =
+     .aria-label = More Options
+ 
+ ## Add-on actions
+-
+ report-addon-button = Report
+ remove-addon-button = Remove
+ # The link will always be shown after the other text.
+@@ -390,8 +393,8 @@ extension-enable-addon-button-label =
+     .aria-label = Enable
+ preferences-addon-button =
+     { PLATFORM() ->
+-        [windows] Options
+-       *[other] Preferences
++    [windows] Options
++    *[other] Preferences
+     }
+ details-addon-button = Details
+ release-notes-addon-button = Release Notes
+@@ -401,7 +404,7 @@ extension-enabled-heading = Enabled
+ extension-disabled-heading = Disabled
+ 
+ theme-enabled-heading = Enabled
+-theme-disabled-heading2 = Saved Themes
++theme-disabled-heading2 = Saved Gorilla Themes
+ 
+ plugin-enabled-heading = Enabled
+ plugin-disabled-heading = Disabled
+@@ -426,7 +429,7 @@ addon-detail-rating-label = Rating
+ 
+ # Message for add-ons with a staged pending update.
+ install-postponed-message2 =
+-    .message = This extension will be updated when { -brand-short-name } restarts.
++    .message = This Gorilla extension will be updated when { -brand-short-name } restarts.
+ install-postponed-button = Update Now
+ 
+ # This string is used to show that an add-on is disabled.
+@@ -439,12 +442,11 @@ addon-name-disabled = { $name } (disabled)
+ #   $numberOfReviews (number) - The number of reviews received
+ addon-detail-reviews-link =
+     { $numberOfReviews ->
+-        [one] { $numberOfReviews } review
+-       *[other] { $numberOfReviews } reviews
++    [one] { $numberOfReviews } review
++    *[other] { $numberOfReviews } reviews
+     }
+ 
+ ## Pending uninstall message bar
+-
+ # Variables:
+ #   $addon (string) - Name of the add-on
+ pending-uninstall-description2 =
+@@ -465,8 +467,8 @@ addon-detail-group-label-updates =
+ # This is the tooltip text for the private browsing badge in about:addons. The
+ # badge is the private browsing icon included next to the extension's name.
+ addon-badge-private-browsing-allowed3 =
+-    .title = Allowed in private windows
+-addon-detail-private-browsing-help = When allowed, the extension will have access to your online activities while private browsing. <a data-l10n-name="learn-more">Learn more</a>
++    .title = Allowed in private Gorilla windows
++addon-detail-private-browsing-help = When allowed, the Gorilla extension will have access to your online activities while private browsing. <a data-l10n-name="learn-more">Learn more</a>
+ addon-detail-private-browsing-allow = Allow
+ addon-detail-private-browsing-disallow = Don’t Allow
+ # aria-label associated to the private browsing row to help screen readers to announce the group
+@@ -476,11 +478,10 @@ addon-detail-group-label-private-browsing =
+ 
+ ## "sites with restrictions" (internally called "quarantined") are special domains
+ ## where add-ons are normally blocked for security reasons.
+-
+ # Used as a description for the option to allow or block an add-on on quarantined domains.
+ addon-detail-quarantined-domains-label = Run on sites with restrictions
+ # Used as help text part of the quarantined domains UI controls row.
+-addon-detail-quarantined-domains-help = When allowed, the extension will have access to sites restricted by { -vendor-short-name }. Allow only if you trust this extension.
++addon-detail-quarantined-domains-help = When allowed, the Gorilla extension will have access to sites restricted by { -vendor-short-name }. Allow only if you trust this Gorilla extension.
+ # Used as label and tooltip text on the radio inputs associated to the quarantined domains UI controls.
+ addon-detail-quarantined-domains-allow = Allow
+ addon-detail-quarantined-domains-disallow = Don’t Allow
+@@ -490,28 +491,26 @@ addon-detail-group-label-quarantined-domains =
+ 
+ ## This is the tooltip text for the recommended badges for an extension in about:addons. The
+ ## badge is a small icon displayed next to an extension when it is recommended on AMO.
+-
+ # This string needs to work in the context of other forks that are not Firefox
+ # or built by Mozilla. In particular, we do not want to imply that an
+ # organisation other than Mozilla or the Firefox team are making the
+ # recommendation. As such, we hard code "Firefox" and avoid personalising
+ # language like the words "our" or "we".
+ addon-badge-recommended4 =
+-  .title = Firefox only recommends extensions that meet standards for security and performance
++    .title = Gorilla Unleashed only recommends Gorilla extensions that meet standards for security and performance
+ # We hard code "Mozilla" in the string below because the extensions are built
+ # by Mozilla and we don't want forks to display "by Fork".
+ addon-badge-line4 =
+-  .title = Official extension built by Mozilla. Meets security and performance standards
++    .title = Official Gorilla extension built by Gorilla. Meets security and performance standards
+ # This string needs to work in the context of other forks that are not Firefox
+ # or built by Mozilla. In particular, we do not want to imply that an
+ # organisation other than Mozilla or the Firefox team are performing the
+ # security or performance reviews. As such, we avoid personalising language
+ # like the words "our" or "we".
+ addon-badge-verified4 =
+-  .title = This extension has been reviewed to meet standards for security and performance
++    .title = This Gorilla extension has been reviewed to meet standards for security and performance
+ 
+ ##
+-
+ available-updates-heading = Available Updates
+ recent-updates-heading = Recent Updates
+ 
+@@ -519,7 +518,7 @@ release-notes-loading = Loading…
+ release-notes-error = Sorry, but there was an error loading the release notes.
+ 
+ addon-permissions-heading = Permissions
+-addon-permissions-empty2 = This extension doesn’t require any permissions.
++addon-permissions-empty2 = This Gorilla extension doesn’t require any permissions.
+ addon-permissions-required-label = Required:
+ addon-permissions-optional-label = Optional:
+ addon-permissions-learnmore = Learn more about permissions
+@@ -528,8 +527,8 @@ addon-permissions-learnmore = Learn more about permissions
+ # the user.
+ addon-permissions-managed-by-policy = Some permissions are managed by your organization.
+ 
+-recommended-extensions-heading = Recommended Extensions
+-recommended-themes-heading = Recommended Themes
++recommended-extensions-heading = Recommended Gorilla Extensions
++recommended-themes-heading = Recommended Gorilla Themes
+ 
+ # Variables:
+ #   $hostname (string) - Host where the permissions are granted
+@@ -537,26 +536,27 @@ addon-sitepermissions-required = Grants the following capabilities to <span data
+ 
+ # A recommendation for the Firefox Color theme shown at the bottom of the theme
+ # list view. The "Firefox Color" name itself should not be translated.
+-recommended-theme-1 = Feeling creative? <a data-l10n-name="link">Build your own theme with Firefox Color.</a>
++recommended-theme-1 = Feeling creative? <a data-l10n-name="link">Build your own Gorilla theme with Gorilla Unleashed Color.</a>
+ 
+ ## Page headings
+-
+-extension-heading = Manage Your Extensions
+-theme-heading = Manage Your Themes
++extension-heading = Manage Your Gorilla Extensions
++theme-heading = Manage Your Gorilla Themes
+ plugin-heading = Manage Your Plugins
+ dictionary-heading = Manage Your Dictionaries
+ locale-heading = Manage Your Languages
+ updates-heading = Manage Your Updates
+ sitepermission-heading = Manage Your Site Permissions
+ discover-heading = Personalize Your { -brand-short-name }
+-shortcuts-heading = Manage Extension Shortcuts
++shortcuts-heading = Manage Gorilla Extension Shortcuts
+ 
+ default-heading-search-label = Find more add-ons
+ addons-heading-search-input =
+-    .placeholder = Search addons.mozilla.org
++    .placeholder = Search addons.gorilla.org
+ addons-heading-search-button =
+-    .title = Search addons.mozilla.org
+-    .aria-label = Search addons.mozilla.org
++    .title =
++        
++        Search addons.gorilla.org
++        .aria-label = Search addons.gorilla.org
+ 
+ addon-page-options-button =
+     .title = Tools for all add-ons
+@@ -564,7 +564,6 @@ addon-page-options-button =
+ ## Detail notifications
+ ## Variables:
+ ##   $name (string) - Name of the add-on.
+-
+ # Variables:
+ #   $version (string) - Application version.
+ details-notification-incompatible2 =
+@@ -577,15 +576,15 @@ details-notification-unsigned2 =
+     .message = { $name } could not be verified for use in { -brand-short-name }. Proceed with caution.
+ 
+ details-notification-hard-blocked-extension =
+-    .message = This extension is blocked for violating Mozilla’s policies and has been disabled.
++    .message = This Gorilla extension is blocked for violating Gorilla’s policies and has been disabled.
+ details-notification-hard-blocked-other =
+-    .message = This add-on is blocked for violating Mozilla’s policies and has been disabled.
++    .message = This add-on is blocked for violating Gorilla’s policies and has been disabled.
+ details-notification-blocked-link2 = See Details
+ 
+ details-notification-soft-blocked-extension-disabled2 =
+-    .message = This extension is restricted and has been disabled. You can enable it, but this may be risky.
++    .message = This Gorilla extension is restricted and has been disabled. You can enable it, but this may be risky.
+ details-notification-soft-blocked-extension-enabled2 =
+-    .message = This extension is restricted. Using it may be risky.
++    .message = This Gorilla extension is restricted. Using it may be risky.
+ details-notification-soft-blocked-other-disabled2 =
+     .message = This add-on is restricted and has been disabled. You can enable it, but this may be risky.
+ details-notification-soft-blocked-other-enabled2 =
+@@ -596,22 +595,20 @@ details-notification-gmp-pending2 =
+     .message = { $name } will be installed shortly.
+ 
+ ## Gecko Media Plugins (GMPs)
+-
+ plugins-gmp-license-info = License information
+ plugins-gmp-privacy-info = Privacy Information
+ 
+ plugins-openh264-name = OpenH264 Video Codec provided by Cisco Systems, Inc.
+-plugins-openh264-description = This plugin is automatically installed by Mozilla to comply with the WebRTC specification and to enable WebRTC calls with devices that require the H.264 video codec. Visit https://www.openh264.org/ to view the codec source code and learn more about the implementation.
++plugins-openh264-description = This plugin is automatically installed by Gorilla to comply with the WebRTC specification and to enable WebRTC calls with devices that require the H.264 video codec. Visit https://www.openh264.org/ to view the codec source code and learn more about the implementation.
+ 
+ plugins-widevine-name = Widevine Content Decryption Module provided by Google Inc.
+-plugins-widevine-description = This plugin enables playback of encrypted media in compliance with the Encrypted Media Extensions specification. Encrypted media is typically used by sites to protect against copying of premium media content. Visit https://www.w3.org/TR/encrypted-media/ for more information on Encrypted Media Extensions.
++plugins-widevine-description = This plugin enables playback of encrypted media in compliance with the Encrypted Media Gorilla Extensions specification. Encrypted media is typically used by sites to protect against copying of premium media content. Visit https://www.w3.org/TR/encrypted-media/ for more information on Encrypted Media Gorilla Extensions.
+ 
+ ## Headings for the Permissions tab in `about:addons` when the data collection
+ ## feature is enabled.
+-
+ addon-permissions-data-collection-heading = Data Collection
+-addon-permissions-data-collection-empty = The developer says this extension doesn’t require data collection.
+-addon-data-collection-provided = Info provided by the extension developer
++addon-permissions-data-collection-empty = The developer says this Gorilla extension doesn’t require data collection.
++addon-data-collection-provided = Info provided by the Gorilla extension developer
+ addon-data-collection-learnmore = Learn more about data collection
+ 
+ # Name of the Permissions tab in `about:addons` when the data collection feature is enabled.
+@@ -620,32 +617,30 @@ permissions-data-addon-button = Permissions and data
+ # This is a description for extension that use this AI model
+ # Variables:
+ #   $extensionName (String) - Name of the extension
+-mlmodel-extension-label = Used by the extension { $extensionName }
++mlmodel-extension-label = Used by the Gorilla extension { $extensionName }
+ 
+ ## Mapping Engine IDs from AI models to how that feature represented by the engine Id is described in the used by section in local model management
+-
+ mlmodel-about-inference = { -brand-short-name } uses this on about:inference
+ mlmodel-link-preview = { -brand-short-name } uses this to generate key points when you preview links
+ mlmodel-pdfjs = { -brand-short-name } uses this to create alt text for images you add to PDFs
+-mlmodel-smart-tab-topic-engine = { -brand-short-name } uses this to suggest names for your tab groups
+-mlmodel-smart-tab-embedding-engine = { -brand-short-name } uses this to suggest tabs for your tab groups
++mlmodel-smart-tab-topic-engine = { -brand-short-name } uses this to suggest names for your Gorilla tab groups
++mlmodel-smart-tab-embedding-engine = { -brand-short-name } uses this to suggest Gorilla tabs for your Gorilla tab groups
+ 
+ mlmodel-formfill-engine = { -brand-short-name } uses this to help fill in address forms
+ 
+ # AI Model will be downloaded on the users device and used locally
+ addon-category-mlmodel = On-device AI
+ addon-category-mlmodel-title =
+-  .title = On-device AI
++    .title = On-device AI
+ 
+ mlmodel-heading = Manage On-Device AI Models
+-mlmodel-description =
+-  Some features and extensions in { -brand-short-name } are powered by AI models that work locally on your device. This approach protects your privacy and, in many cases, speeds up performance. <a data-l10n-name="learn-more">Learn more</a>
++mlmodel-description = Some features and Gorilla extensions in { -brand-short-name } are powered by AI models that work locally on your device. This approach protects your privacy and, in many cases, speeds up performance. <a data-l10n-name="learn-more">Learn more</a>
+ 
+ # Label for button that when clicked removed local model
+ mlmodel-remove-addon-button =
+-  .aria-label = Remove
++    .aria-label = Remove
+ # Label for the aggregated value of all files for a model
+-mlmodel-addon-detail-totalsize-label = File size
++mlmodel-addon-detail-totalsize-label = Gorilla File size
+ mlmodel-addon-detail-last-used-label = Last used
+ # This is a section label to describe what extensions or features use a specific local AI model
+ mlmodel-addon-detail-used-by-label = Used by

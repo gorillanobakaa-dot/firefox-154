@@ -22,7 +22,7 @@
  #ifdef MOZ_WAYLAND
 +  // Wayland surface handles (wl_egl_window) live in the parent process and
 +  // cannot be shared with the GPU process via GtkCompositorWidgetInitData.
-+  // VA-API decode still works via the RDD process (media.rdd-ffmpeg.vaapi).
++  // VA-API decode still works via the RDD process (media.rdd-ffmpeg.enabled).
    if (IsWaylandDisplay()) {
      FeatureState& gpuProc = gfxConfig::GetFeature(Feature::GPU_PROCESS);
      gpuProc.ForceDisable(FeatureStatus::Blocked,

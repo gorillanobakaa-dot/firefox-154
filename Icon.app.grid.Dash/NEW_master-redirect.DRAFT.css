@@ -1,0 +1,187 @@
+/* ============================================================================
+   GORILLA UNLEASHED — MASTER REDIRECT  (Firefox 154 · clean rebuild DRAFT)
+   Rebuilt 2026-07-18 from NEW_MASTER_CSS_PLAN.md + HARVESTED_GOOD.css.
+   Philosophy: theme WITH Firefox 154 (set its own CSS variables); GPU-native only
+   (opacity/transform/outline); NO universal `*`; NO will-change; NO appearance:none
+   on native widgets; ONE referenced icon.
+   DEPLOY TARGETS (unchanged @import hijacks):
+     browser/themes/shared/master-redirect.css  (chrome://browser/skin/master-redirect.css)
+     — also reached by toolkit/themes/shared/global-shared.css for about: pages.
+   NOT HERE (leave intact, they work): newtab 600px logo + pill  -> activity-stream.css
+                                       funny search strings      -> *.ftl
+   ============================================================================ */
+
+/* -- palette tokens: change the look in one place -- */
+:root {
+  --g-black: #000000;
+  --g-cyan:  #00FFFF;
+  --g-pink:  #FFC0CB;
+  --g-navy:  #000080;
+  --g-red:   #FF3750;
+}
+
+/* ============================================================================
+   A. PALETTE — via Firefox 154's OWN variables (the safe 90%; work WITH the cascade)
+   ============================================================================ */
+:root, #main-window, #browser-window, window {
+  /* backgrounds -> pure black */
+  --lwt-accent-color: var(--g-black) !important;
+  --lwt-frame: var(--g-black) !important;
+  --tabpanel-background-color: var(--g-black) !important;
+  --color-gray-05: var(--g-black) !important;  --color-gray-10: var(--g-black) !important;
+  --color-gray-20: var(--g-black) !important;  --color-gray-30: var(--g-black) !important;
+  --color-gray-40: var(--g-black) !important;  --color-gray-50: var(--g-black) !important;
+  --color-gray-60: var(--g-black) !important;  --color-gray-70: var(--g-black) !important;
+  --color-gray-80: var(--g-black) !important;  --color-gray-90: var(--g-black) !important;
+  --panel-background: var(--g-black) !important;
+  --panel-background-color: var(--g-black) !important;
+  --arrowpanel-background: var(--g-black) !important;
+  --toolbar-bgcolor: var(--g-black) !important;
+  --chrome-content-separator-color: var(--g-black) !important;
+  --toolbar-field-background-color: var(--g-black) !important;
+  --lwt-toolbar-field-background-color: var(--g-black) !important;
+  --urlbar-box-bgcolor: var(--g-black) !important;
+  --input-bgcolor: var(--g-black) !important;
+  --newtab-background-color: var(--g-black) !important;
+  --newtab-background-color-secondary: var(--g-black) !important;
+
+  /* foreground -> cyan (white where cyan-on-black is unreadable, e.g. tab labels) */
+  --lwt-tab-text: #FFFFFF !important;
+  --panel-text-color: var(--g-cyan) !important;
+  --toolbar-field-color: var(--g-cyan) !important;
+  --lwt-toolbar-field-color: var(--g-cyan) !important;
+  --input-color: var(--g-cyan) !important;
+  --newtab-text-primary-color: var(--g-cyan) !important;
+
+  /* let Firefox 154 resolve its own light-dark() to dark natively */
+  color-scheme: dark !important;
+}
+
+/* ============================================================================
+   B. BRANDING — ONE referenced master icon; size-constrained; crisp-by-source
+   (the .svg's base64 image is Lanczos-downsampled to exact size via `brand crisp-svgs`;
+    CSS only PLACES it — never upscales. Max-size caps the ERR-UI-004 200px explosion.)
+   ============================================================================ */
+:root { --gorilla-master-icon: url("chrome://branding/content/about-logo.svg"); }
+.illustration, .info-icon, .error-icon, .panel-illustration, .category-icon,
+moz-promo img, #extensions-empty-illustration {
+  content: var(--gorilla-master-icon) !important;
+  background: var(--gorilla-master-icon) center / contain no-repeat !important;
+  -moz-context-properties: none !important;
+  filter: none !important;
+  max-width: 256px !important;
+  max-height: 256px !important;
+}
+
+/* ============================================================================
+   C. TARGETED CHROME FIXES — GPU-native only (opacity / transform / outline)
+   ============================================================================ */
+/* active tab: pink bg, black label — no border/box-shadow (0 reflow, 0 compositing) */
+.tabbrowser-tab[selected] .tab-background { background-color: var(--g-pink) !important; border: none !important; outline: none !important; box-shadow: none !important; }
+.tabbrowser-tab[selected] .tab-label { color: var(--g-black) !important; font-weight: normal !important; }
+.tabbrowser-tab[selected] .tab-close-button { color: var(--g-navy) !important; fill: var(--g-navy) !important; }
+/* inactive tab: cyan label; hover = cyan outline (no bg swap -> no repaint) */
+.tabbrowser-tab:not([selected]) .tab-label { color: var(--g-cyan) !important; }
+.tabbrowser-tab:not([selected]) .tab-close-button { color: var(--g-cyan) !important; fill: var(--g-cyan) !important; }
+.tabbrowser-tab:not([selected]):hover .tab-background { background-color: transparent !important; outline: 1px solid var(--g-cyan) !important; outline-offset: -1px !important; opacity: 0.8 !important; }
+
+/* NO images/icons in tabs — text-only tabs. Purge standard/overlay/loading/pending icons.
+   Targets ONLY icon child nodes: .tab-close-button, #tabs-newtab-button, .tab-label and every
+   tab hitbox/drag/click mechanic stay fully intact; label shifts flush-left into the freed space. */
+.tab-icon-image, .tab-icon-overlay, .tab-sharing-icon-overlay, .tab-throbber, .tab-icon-pending {
+  display: none !important;
+}
+/* Pinned tabs show ONLY a favicon by default — restore their label so they aren't blank buttons. */
+.tabbrowser-tab[pinned] .tab-label-container { display: flex !important; }
+
+/* url bar: cyan focus OUTLINE (never border/box-shadow -> no CPU resize) + placeholder pierce */
+#urlbar[focused="true"] > #urlbar-background { outline: 2px solid var(--g-cyan) !important; outline-offset: -2px !important; border: none !important; box-shadow: none !important; }
+.urlbar-input::placeholder, .searchbar-textbox::placeholder { opacity: 1 !important; color: var(--g-cyan) !important; }
+
+/* black-on-black visibility: titlebar controls + new-tab "+" -> cyan fill; close hover -> red */
+.titlebar-button > .toolbarbutton-icon { color: var(--g-cyan) !important; fill: var(--g-cyan) !important; -moz-context-properties: fill, fill-opacity, stroke !important; }
+.titlebar-close:hover > .toolbarbutton-icon { color: var(--g-red) !important; fill: var(--g-red) !important; }
+#tabs-newtab-button, #vertical-tabs-newtab-button, #TabsToolbar #new-tab-button,
+#tabs-newtab-button > .toolbarbutton-icon, #new-tab-button > .toolbarbutton-icon {
+  color: var(--g-cyan) !important; fill: var(--g-cyan) !important; -moz-context-properties: fill, fill-opacity !important;
+}
+#new-tab-button:hover, #tabs-newtab-button:hover { outline: 1px solid var(--g-cyan) !important; outline-offset: -1px !important; }
+
+/* Native nav-bar controls KEPT (glyph replacement was reverted — worked, but users disliked it).
+   Recolor their SVG icons cyan so they're visible on black (back/forward/reload/home/hamburger/etc.). */
+#nav-bar .toolbarbutton-1 > .toolbarbutton-icon,
+#nav-bar .toolbarbutton-1 > .toolbarbutton-badge-stack > .toolbarbutton-icon {
+  fill: var(--g-cyan) !important;
+  -moz-context-properties: fill, fill-opacity, stroke !important;
+}
+
+/* autocomplete / login popup icon clamp — ERR-UI-004 200px-explosion guard */
+.ac-site-icon, panel[type="autocomplete-richlistbox"] image, panel[type="autocomplete-richlistbox"] img {
+  max-width: 16px !important; max-height: 16px !important; object-fit: contain !important;
+}
+autocomplete-row-item { --icon-width: 16px !important; --icon-height: 16px !important; }
+
+/* animation kill: GLOBAL kill is done at the PREF level
+   (toolkit.cosmeticAnimations.enabled=false, browser.tabs.animate=false, ui.caretBlinkTime=0).
+   CSS here only stops the specific spinners — NO universal `*` selector (Plan 0.5), NO will-change PROMOTION (0.6). */
+.tab-throbber, .tab-loading-burst, .tab-icon-pending, .tab-icon-image, progress, .progress-bar, #tabbrowser-tabpanels {
+  animation: none !important; transition: none !important; background-image: none !important;
+}
+/* DECISION (user, 2026-07-18): UNIVERSAL animation-kill — comprehensive coverage chosen
+   over selector-traversal cost (mega-lesson §14 Trap 1 tradeoff, accepted for HD 4000:
+   "the animation kill matters more"). The targeted block above stays as explicit
+   belt-and-suspenders; this universal rule is the authoritative kill. This is a DURATION
+   clamp, NOT will-change promotion — no layer thrash. */
+*, *::before, *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+}
+
+/* ============================================================================
+   C2. will-change SUPPRESSION — the WANTED form (mega-lesson "Global will-change
+   Suppression"). This is NOT promotion: it RESETS to auto, stopping WebRender from
+   over-promoting elements to independent layers and thrashing HD 4000 VRAM /
+   stalling WRSceneBuilder. The banned thing is `will-change: transform/opacity`. */
+* { will-change: auto !important; }
+
+/* ============================================================================
+   C3. XUL LAYOUT FIXES (mega-lesson §15) — inject NATIVE vars, never hardcode
+   min/max on .tabbrowser-tab (breaks XUL flexbox). box-sizing keeps outlines inward;
+   margin-auto vertically centers tabs; toolbarspring/urlbar-container blacked + grown;
+   phantom pin-drop indicator hidden.
+   ============================================================================ */
+:root { --tab-min-height: 30px !important; }
+.tab-background { box-sizing: border-box !important; margin-block: 0px !important; }
+.tabbrowser-tab { margin-top: auto !important; margin-bottom: auto !important; }
+#urlbar-container { max-width: none !important; flex-grow: 1 !important; }
+toolbarspring { background-color: var(--g-black) !important; }
+#pinned-drop-indicator-text, #pinned-drop-indicator { display: none !important; }
+
+/* ============================================================================
+   D. NATIVE MENU / POPUP RESTORATION — the ERR-UI-004 fix. DO NOT strip appearance.
+   Forcing black on :root bleeds into every menupopup -> flat black boxes. Reset to native.
+   ============================================================================ */
+menupopup {
+  --panel-background: Menu !important;
+  --panel-background-color: Menu !important;
+  --arrowpanel-background: Menu !important;
+  --panel-text-color: MenuText !important;
+  appearance: auto !important;
+  -moz-default-appearance: auto !important;
+  background-color: Menu !important;
+  color: MenuText !important;
+}
+menupopup menuitem, menupopup menu {
+  appearance: auto !important;
+  -moz-default-appearance: auto !important;
+  background-color: transparent !important;
+  color: inherit !important;
+}
+menupopup menuseparator { appearance: auto !important; -moz-default-appearance: auto !important; }
+menupopup .menu-iconic-icon, menupopup .menu-iconic-left {
+  -moz-context-properties: fill, fill-opacity, stroke !important;
+  fill: currentColor !important;
+}

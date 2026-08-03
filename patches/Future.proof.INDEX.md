@@ -7,6 +7,14 @@ Full-file copies of the **currently applied** patches, taken from the live
 Why full copies (not `git diff`): the Day-0 commit is the git ROOT with most
 patches baked in, so `git diff HEAD` cannot cleanly extract them.
 
+> **RELOCATED 2026-08-03 (single-source-of-truth reorganisation):** the tarballs
+> no longer live in this repo. Both `Future.proof.APPLIED-STATE.*.tar.gz` (and
+> `merged-docs-backup-2026-08-02.tar.gz`) moved to
+> `~/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/Applied.State.Archive/`
+> (see `ARCHIVE.INDEX.md` there). The 2026-07-31 repairs set's canonical form is
+> the in-repo dir `Future.proof-2026-07-31.repairs/` — completed 2026-08-03 with
+> the 2 files only its tarball had (`aboutprofiling.css`, `warning.svg`).
+
 | Snapshot | files | notes |
 |---|---|---|
 | 2026-07-16_03_networking_snapshot | 8 | see MANIFEST.txt |

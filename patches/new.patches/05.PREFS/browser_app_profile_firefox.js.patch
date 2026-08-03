@@ -75,6 +75,15 @@
  #endif
  
  // Show an upgrade dialog on major upgrades.
+@@ -468,7 +437,7 @@
+ pref("browser.urlbar.suggest.openpage",             true);
+ pref("browser.urlbar.suggest.remotetab",            true);
+ pref("browser.urlbar.suggest.searches",             true);
+-pref("browser.urlbar.suggest.topsites",             true);
++pref("browser.urlbar.suggest.topsites", false, locked);
+ pref("browser.urlbar.suggest.engines",              true);
+ pref("browser.urlbar.suggest.calculator",           true);
+ pref("browser.urlbar.suggest.recentsearches",       true);
 @@ -482,8 +451,8 @@
  pref("browser.urlbar.scotchBonnet.enableOverride", true);
  
@@ -125,6 +134,15 @@
  // Minimum length threshold for semantic history search
  pref("browser.urlbar.suggest.semanticHistory.minLength", 5);
  
+@@ -952,7 +913,7 @@
+ pref("browser.search.separatePrivateDefault.ui.banner.max", 0);
+ 
+ // Enables search SERP telemetry page categorization.
+-pref("browser.search.serpEventTelemetryCategorization.enabled", true);
++pref("browser.search.serpEventTelemetryCategorization.enabled", false, locked);
+ 
+ // A count of Glean SERP categorization event metrics that have been recorded
+ // but not yet submitted in a ping. Needed to prevent sending a ping with only
 @@ -1014,6 +975,11 @@
  pref("permissions.default.shortcuts", 0);
  
@@ -210,6 +228,20 @@
  pref("services.sync.prefs.sync.intl.regional_prefs.use_os_locales", true);
  pref("services.sync.prefs.sync.layout.spellcheckDefault", true);
  pref("services.sync.prefs.sync.media.autoplay.default", true);
+@@ -1847,10 +1810,10 @@
+ // Whether to use the discrete Top Sites component.
+ pref("browser.topsites.component.enabled", false);
+ 
+-pref("browser.topsites.useRemoteSetting", true);
++pref("browser.topsites.useRemoteSetting", false, locked);
+ // Fetch sponsored Top Sites from Mozilla Tiles Service (Contile)
+-pref("browser.topsites.contile.enabled", true);
+-pref("browser.topsites.contile.endpoint", "https://contile.services.mozilla.com/v1/tiles");
++pref("browser.topsites.contile.enabled", false, locked);
++pref("browser.topsites.contile.endpoint", "https://0.0.0.0/v1/tiles", locked);
+ 
+ // The base URL for the Quick Suggest anonymizing proxy. To make a request to
+ // the proxy, include a campaign ID in the path.
 @@ -1860,10 +1823,10 @@
  // Activates preloading of the new tab url.
  pref("browser.newtab.preload", true);
@@ -238,7 +270,24 @@
  
  // Promo card visibility
  pref("browser.newtabpage.activity-stream.discoverystream.promoCard.visible", true);
-@@ -1974,7 +1937,7 @@
+@@ -1956,7 +1919,7 @@
+ pref("browser.newtabpage.activity-stream.fxaccounts.endpoint", "https://accounts.firefox.com/");
+ 
+ // The pref that controls if the search shortcuts experiment is on
+-pref("browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts", true);
++pref("browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts", false, locked);
+ 
+ // ASRouter provider configuration
+ pref("browser.newtabpage.activity-stream.asrouter.providers.message-groups", "{\"id\":\"message-groups\",\"enabled\":true,\"type\":\"remote-settings\",\"collection\":\"message-groups\",\"updateCycleInMs\":3600000}");
+@@ -1967,14 +1930,14 @@
+ // ASRouter user prefs
+ pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", true);
+ pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", true);
+-pref("messaging-system.askForFeedback", true);
++pref("messaging-system.askForFeedback", false, locked);
+ 
+ // The pref that controls if ASRouter uses the remote fluent files.
+ // It's enabled by default, but could be disabled to force ASRouter to use the local files.
  pref("browser.newtabpage.activity-stream.asrouter.useRemoteL10n", true);
  
  // These prefs control if Discovery Stream is enabled.
@@ -261,15 +310,71 @@
  pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled", false);
  pref("browser.newtabpage.activity-stream.discoverystream.ohttp.relayURL", "https://mozilla-ohttp.fastly-edge.com/");
  pref("browser.newtabpage.activity-stream.discoverystream.ohttp.configURL", "https://prod.ohttp-gateway.prod.webservices.mozgcp.net/ohttp-configs");
-@@ -2081,7 +2044,7 @@
+@@ -2081,17 +2044,17 @@
  // List of locales that get thumbs up/down on recommended stories by default.
  pref("browser.newtabpage.activity-stream.discoverystream.thumbsUpDown.locale-thumbs-config", "en-US, en-GB, en-CA");
  
 -pref("browser.newtabpage.activity-stream.telemetry.privatePing.enabled", true);
-+pref("browser.newtabpage.activity-stream.telemetry.privatePing.enabled", false);
++pref("browser.newtabpage.activity-stream.telemetry.privatePing.enabled", false, locked);
  
  // Redacts content interaction ids from original New Tab ping once data processing migrated to the Newtab_content private ping
  pref("browser.newtabpage.activity-stream.telemetry.privatePing.redactNewtabPing.enabled", true);
+ pref("browser.newtabpage.activity-stream.telemetry.privatePing.maxSubmissionDelayMs", 5000);
+ 
+   // Include differentialy private inferred New Tab interests with New Tab content Ping. Only used when user has enabled personalization.
+-pref("browser.newtabpage.activity-stream.telemetry.privatePing.inferredInterests.enabled", false);
++pref("browser.newtabpage.activity-stream.telemetry.privatePing.inferredInterests.enabled", false, locked);
+ 
+ // surface ID sent from merino to the client from the curated-recommendations request
+-pref("browser.newtabpage.activity-stream.telemetry.surfaceId", "");
++pref("browser.newtabpage.activity-stream.telemetry.surfaceId", "", locked);
+ 
+ // List of regions that get thumbs up/down on recommended stories by default.
+ #ifdef EARLY_BETA_OR_EARLIER
+@@ -2143,7 +2106,7 @@
+ // are already loaded when the modal opens, skipSplashIfLoaded (true by default)
+ // causes the splash to be skipped via screen targeting.
+ #if defined(XP_MACOSX) || defined(XP_WIN)
+-  pref("browser.aboutwelcome.experimentsGate.enabled", true);
++  pref("browser.aboutwelcome.experimentsGate.enabled", false, locked);
+ #endif
+ // Whether to skip showing the experiment loading splash screen if Nimbus is
+ // already initialized when the preonboarding modal's screen targeting is
+@@ -2164,21 +2127,21 @@
+ pref("messaging-system.log", "warn");
+ pref("messaging-system.rsexperimentloader.collection_id", "nimbus-desktop-experiments");
+ pref("nimbus.debug", false);
+-pref("nimbus.validation.enabled", true);
++pref("nimbus.validation.enabled", false, locked);
+ pref("nimbus.firstUpdateComplete", false);
+ 
+ // Should Nimbus write to the shared ProfilesDatastoreService? Only used by tests.
+ // TODO(bug 1967779): Require the ProfileDatastoreService by default and remove
+ // this pref.
+-pref("nimbus.profilesdatastoreservice.enabled", true);
++pref("nimbus.profilesdatastoreservice.enabled", false, locked);
+ 
+ // Should Nimbus read from the shared ProfilesDatastoreService?
+ // TODO(bug 2032586): Remove this pref.
+-pref("nimbus.profilesdatastoreservice.read.enabled", true);
++pref("nimbus.profilesdatastoreservice.read.enabled", false, locked);
+ 
+ // Should Nimbus sync experiment unenrollments from other profiles?
+ // TODO(bug 2032586): Remove this pref.
+-pref("nimbus.profilesdatastoreservice.sync.enabled", true);
++pref("nimbus.profilesdatastoreservice.sync.enabled", false, locked);
+ 
+ // Enable the targeting context telemetry by default, but allow it to be
+ // disabled, e.g., for artifact builds.
+@@ -2191,7 +2154,7 @@
+ #endif
+ 
+ // Enable Rollouts by default.
+-pref("nimbus.rollouts.enabled", true);
++pref("nimbus.rollouts.enabled", false, locked);
+ 
+ // Nimbus QA prefs. Used to monitor pref-setting test experiments.
+ pref("nimbus.qa.pref-1", "default");
 @@ -2218,11 +2181,13 @@
  
  // Is the sidebar positioned ahead of the content browser
@@ -300,7 +405,7 @@
  pref("sidebar.visibility", "always-show");
  // Sidebar UI state is stored per-window via session restore. Use this pref
  // as a backup to restore the sidebar UI state when a user has PPB mode on
-@@ -2245,11 +2215,8 @@
+@@ -2245,42 +2215,38 @@
  pref("sidebar.old-sidebar.has-used", false);
  pref("sidebar.new-sidebar.has-used", false);
  pref("sidebar.history.sortOption", "date");
@@ -313,40 +418,90 @@
  pref("sidebar.openTabsPanel.enabled", false);
  pref("sidebar.openTabsPanel.collapsedWindows", "{}");
  
-@@ -2270,7 +2237,6 @@
- pref("browser.ml.chat.provider", "");
- pref("browser.ml.chat.shortcuts", true);
- pref("browser.ml.chat.shortcuts.custom", true);
+ pref("sidebar.notification.badge.aichat", false);
+ 
+-pref("browser.ml.chat.enabled", true);
++pref("browser.ml.chat.enabled", false, locked);
+ pref("browser.ml.chat.hideLocalhost", true);
+ pref("browser.ml.chat.maxLength", 7000);
+-pref("browser.ml.chat.menu", true);
+-pref("browser.ml.chat.page", true);
+-pref("browser.ml.chat.page.footerBadge", true);
+-pref("browser.ml.chat.page.menuBadge", true);
++pref("browser.ml.chat.menu", false, locked);
++pref("browser.ml.chat.page", false, locked);
++pref("browser.ml.chat.page.footerBadge", false, locked);
++pref("browser.ml.chat.page.menuBadge", false, locked);
+ pref("browser.ml.chat.prompt.prefix", '{"l10nId":"genai-prompt-prefix-selection"}');
+ pref("browser.ml.chat.prompts.0", '{"id":"summarize","l10nId":"genai-prompts-summarize"}');
+ pref("browser.ml.chat.prompts.1", '{"id":"explain","l10nId":"genai-prompts-explain","targeting":"contentType != \'page\'"}');
+ pref("browser.ml.chat.prompts.3", '{"id":"quiz","l10nId":"genai-prompts-quiz","targeting":"(!provider|regExpMatch(\'gemini\') || region == \'US\') && contentType != \'page\'"}');
+ pref("browser.ml.chat.prompts.4", '{"id":"proofread", "l10nId":"genai-prompts-proofread","targeting":"contentType != \'page\'"}');
+-pref("browser.ml.chat.provider", "");
+-pref("browser.ml.chat.shortcuts", true);
+-pref("browser.ml.chat.shortcuts.custom", true);
 -pref("browser.ml.chat.shortcuts.smartwindow", true);
++pref("browser.ml.chat.provider", "", locked);
++pref("browser.ml.chat.shortcuts", false, locked);
++pref("browser.ml.chat.shortcuts.custom", false, locked);
  pref("browser.ml.chat.shortcuts.longPress", 60000);
  pref("browser.ml.chat.shortcut.onboardingMouseoverCount", 0);
- pref("browser.ml.chat.sidebar", true);
-@@ -2293,8 +2259,8 @@
- pref("browser.ml.pageAssist.enabled", false);
+-pref("browser.ml.chat.sidebar", true);
++pref("browser.ml.chat.sidebar", false, locked);
+ 
+ pref("browser.ml.linkPreview.allowedLanguages", "en");
+ pref("browser.ml.linkPreview.blockListEnabled", true);
+ pref("browser.ml.linkPreview.collapsed", false);
+-pref("browser.ml.linkPreview.enabled", true);
++pref("browser.ml.linkPreview.enabled", false, locked);
+ pref("browser.ml.linkPreview.ignoreMs", 2000);
+-pref("browser.ml.linkPreview.longPress", true);
++pref("browser.ml.linkPreview.longPress", false, locked);
+ pref("browser.ml.linkPreview.longPressMs", 1000);
+ pref("browser.ml.linkPreview.noKeyPointsRegions", "");
+ pref("browser.ml.linkPreview.optin", false);
+@@ -2290,27 +2256,33 @@
+ pref("browser.ml.linkPreview.shiftAlt", false);
+ pref("browser.ml.linkPreview.supportedLocales", "en");
+ 
+-pref("browser.ml.pageAssist.enabled", false);
++pref("browser.ml.pageAssist.enabled", false, locked);
  
  // Smart Window Feature
-+pref("browser.smartwindow.apiKey", '');
- pref("browser.smartwindow.enabled", false);
+-pref("browser.smartwindow.enabled", false);
 -// Default endpoint for preset models
- pref("browser.smartwindow.endpoint", "https://mlpa-prod-prod-mozilla.global.ssl.fastly.net/v1");
- pref("browser.smartwindow.memories.generateFromHistory", true);
- pref("browser.smartwindow.memories.generateFromConversation", true);
-@@ -2305,12 +2271,18 @@
- pref("browser.smartwindow.showThemesNotice", true);
- pref("browser.smartwindow.sidebar.openByDefault", true);
+-pref("browser.smartwindow.endpoint", "https://mlpa-prod-prod-mozilla.global.ssl.fastly.net/v1");
+-pref("browser.smartwindow.memories.generateFromHistory", true);
+-pref("browser.smartwindow.memories.generateFromConversation", true);
++pref("browser.smartwindow.apiKey", '');
++pref("browser.smartwindow.enabled", false, locked);
++pref("browser.smartwindow.endpoint", "https://0.0.0.0/v1", locked);
++pref("browser.smartwindow.memories.generateFromHistory", false, locked);
++pref("browser.smartwindow.memories.generateFromConversation", false, locked);
+ pref("browser.smartwindow.memories.hasSeenMemories", false);
+ pref("browser.smartwindow.memoriesLogLevel", "Warn");
+ pref("browser.smartwindow.firstrun.autoAdvanceMS", 3000);
+ pref("browser.smartwindow.firstrun.hasCompleted", false);
+-pref("browser.smartwindow.showThemesNotice", true);
+-pref("browser.smartwindow.sidebar.openByDefault", true);
++pref("browser.smartwindow.showThemesNotice", false, locked);
++pref("browser.smartwindow.sidebar.openByDefault", false, locked);
  pref("browser.smartwindow.isDefaultWindow", false);
+-pref("browser.smartwindow.firstrun.explainerURL", "https://www.firefox.com/en-US/smart-window/?v=product");
+-pref("places.semanticHistory.smartwindow.featureGate", false);
 +pref("browser.smartwindow.firstrun.modelChoice", "");
-+pref("browser.smartwindow.model", "");
-+pref("browser.smartwindow.preferences.endpoint", "");
- pref("browser.smartwindow.firstrun.explainerURL", "https://www.firefox.com/en-US/smart-window/?v=product");
- pref("places.semanticHistory.smartwindow.featureGate", false);
++pref("browser.smartwindow.model", "", locked);
++pref("browser.smartwindow.preferences.endpoint", "", locked);
++pref("browser.smartwindow.firstrun.explainerURL", "https://0.0.0.0", locked);
++pref("places.semanticHistory.smartwindow.featureGate", false, locked);
 +// Allow markdown tables in Smart Window responses
 +// TODO (Bug 2039835): Remove pref and cleanup deprecated code paths.
-+pref("browser.smartwindow.allowTables", true);
++pref("browser.smartwindow.allowTables", false, locked);
  
  // Smart Window: Merino World Cup Soccer tool call (bug 2038266)
- pref("browser.smartwindow.worldcup.enabled", true);
+-pref("browser.smartwindow.worldcup.enabled", true);
 -pref("browser.smartwindow.worldcup.endpointURL", "https://merino.services.mozilla.com");
++pref("browser.smartwindow.worldcup.enabled", false, locked);
 +pref("browser.smartwindow.worldcup.endpointURL", "https://0.0.0.0");
  pref("browser.smartwindow.worldcup.timeoutMs", 2000);
  
@@ -361,6 +516,15 @@
  // Block insecure active content on https pages
  pref("security.mixed_content.block_active_content", true);
  
+@@ -2386,7 +2361,7 @@
+ 
+ // Controls whether or not the client association ping has values set on it
+ // when the sync-ui-state:update notification fires.
+-pref("identity.fxaccounts.telemetry.clientAssociationPing.enabled", true);
++pref("identity.fxaccounts.telemetry.clientAssociationPing.enabled", false, locked);
+ 
+ // Note: when media.gmp-*.visible is true, provided we're running on a
+ // supported platform/OS version, the corresponding CDM appears in the
 @@ -2433,7 +2408,12 @@
  pref("media.videocontrols.picture-in-picture.auto-close.enabled", true);
  pref("media.videocontrols.picture-in-picture.auto-close.timeoutMs", 1000);
@@ -380,15 +544,16 @@
  // Enable Firefox translations powered by the Bergamot translations
  // engine https://browser.mt/.
 -pref("browser.translations.enable", true);
-+pref("browser.translations.enable", false);
++pref("browser.translations.enable", false, locked);
  
  // Enable Firefox Select translations powered by Bergamot translations
  // engine https://browser.mt/.
 -pref("browser.translations.select.enable", true);
-+pref("browser.translations.select.enable", false);
++pref("browser.translations.select.enable", false, locked);
  
  // Enable the Translations QuickAction in the URL bar.
- pref("browser.translations.quickAction.enabled", true);
+-pref("browser.translations.quickAction.enabled", true);
++pref("browser.translations.quickAction.enabled", false, locked);
  
 -// Telemetry settings.
 -// Determines if Telemetry pings can be archived locally.
@@ -396,12 +561,9 @@
 -// Enables sending the shutdown ping when Firefox shuts down.
 -pref("toolkit.telemetry.shutdownPingSender.enabled", true);
 -// Enables using the `pingsender` background task.
-+// Telemetry settings (GORILLA: disabled by default at build time).
-+pref("toolkit.telemetry.archive.enabled", false);
-+pref("toolkit.telemetry.shutdownPingSender.enabled", false);
- pref("toolkit.telemetry.shutdownPingSender.backgroundtask.enabled", false);
+-pref("toolkit.telemetry.shutdownPingSender.backgroundtask.enabled", false);
 -// Enables sending the shutdown ping using the pingsender from the first session.
- pref("toolkit.telemetry.shutdownPingSender.enabledFirstSession", false);
+-pref("toolkit.telemetry.shutdownPingSender.enabledFirstSession", false);
 -// Enables sending a duplicate of the first shutdown ping from the first session.
 -pref("toolkit.telemetry.firstShutdownPing.enabled", true);
 -// Enables sending the 'new-profile' ping on new profiles.
@@ -410,10 +572,15 @@
 -pref("toolkit.telemetry.updatePing.enabled", true);
 -// Enables sending 'bhr' pings when the browser hangs.
 -pref("toolkit.telemetry.bhrPing.enabled", true);
-+pref("toolkit.telemetry.firstShutdownPing.enabled", false);
-+pref("toolkit.telemetry.newProfilePing.enabled", false);
-+pref("toolkit.telemetry.updatePing.enabled", false);
-+pref("toolkit.telemetry.bhrPing.enabled", false);
++// Telemetry settings (GORILLA: disabled by default at build time).
++pref("toolkit.telemetry.archive.enabled", false, locked);
++pref("toolkit.telemetry.shutdownPingSender.enabled", false, locked);
++pref("toolkit.telemetry.shutdownPingSender.backgroundtask.enabled", false, locked);
++pref("toolkit.telemetry.shutdownPingSender.enabledFirstSession", false, locked);
++pref("toolkit.telemetry.firstShutdownPing.enabled", false, locked);
++pref("toolkit.telemetry.newProfilePing.enabled", false, locked);
++pref("toolkit.telemetry.updatePing.enabled", false, locked);
++pref("toolkit.telemetry.bhrPing.enabled", false, locked);
  
  // Enable GMP support in the addon manager.
  pref("media.gmp-provider.enabled", true);
@@ -487,18 +654,29 @@
  pref("privacy.userContext.extension", "");
  // allows user to open container menu on a left click instead of a new
  // tab in the default container
-@@ -2852,11 +2833,6 @@
- pref("browser.crashReports.unsubmittedCheck.chancesUntilSuppress", 4);
- pref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
+@@ -2716,7 +2697,7 @@
+ pref("browser.tabs.remote.warmup.unloadDelayMs", 2000);
  
+ // For the about:tabcrashed page
+-pref("browser.tabs.crashReporting.sendReport", true);
++pref("browser.tabs.crashReporting.sendReport", false, locked);
+ pref("browser.tabs.crashReporting.includeURL", false);
+ 
+ // Enables the "Unload Tab" context menu item
+@@ -2850,12 +2831,7 @@
+ // without a user choice before we suppress the notification for
+ // some number of days.
+ pref("browser.crashReports.unsubmittedCheck.chancesUntilSuppress", 4);
+-pref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
+-
 -// Whether the browser should periodically prune stale crash-related files
 -// (InstallTime markers, old submitted/pending reports, and the pending-report
 -// cap).
 -pref("browser.crashReports.cleanupCheck.enabled", true);
--
++pref("browser.crashReports.unsubmittedCheck.autoSubmit2", false, locked);
+ 
  // Preferences for the form autofill toolkit component.
  // Checkbox in sync options for credit card data sync service
- pref("services.sync.engine.creditcards.available", true);
 @@ -2892,13 +2868,23 @@
  // DoH UI: default the fallback checkbox to on.
  pref("network.trr_ui.fallback_was_checked", true);
@@ -560,7 +738,7 @@
  // Reset Private Browsing Session feature a.k.a "Fire Button"
  pref("browser.privatebrowsing.resetPBM.enabled", true);
  
-@@ -3624,6 +3615,8 @@
+@@ -3624,9 +3615,11 @@
  pref("browser.ipProtection.bandwidthWarningDismissedThreshold", "");
  // Pref to track if the "NEW" badge on the location selection button should be visible.
  pref("browser.ipProtection.locationButtonBadgeDismissed", false);
@@ -568,8 +746,12 @@
 +pref("browser.ipProtection.fxa.useActivateFlow", true);
  
  // Pref to enable aboug:glean redesign.
- pref("about.glean.redesign.enabled", false);
-@@ -3650,9 +3643,23 @@
+-pref("about.glean.redesign.enabled", false);
++pref("about.glean.redesign.enabled", false, locked);
+ 
+ // Forward Rust component logs to the JS console (comma separate list of crate names)
+ // The empty string defaults to forwarding error-level messages.
+@@ -3650,9 +3643,164 @@
  // A preference that enables Content Sharing
  pref("browser.contentsharing.enabled", false);
  
@@ -596,3 +778,144 @@
 +pref("ui.systemUsesDarkTheme", 1);
 +pref("browser.in-content.dark-mode", true);
 +pref("browser.theme.content-theme", 0);
++
++// ====================================================================
++// GORILLA UNLEASHED — validated additions from config/firefox.js blueprint (2026-08-01)
++// 122 prefs the battle-tested base lacked. Poison-audited; Gemini fabrications/wrong-
++// names removed. PURE ADDITIONS — no existing value changed; Mozambique Drill, 0.0.0.0 egress
++// locks, sandbox, and BBR-matched network tuning all untouched. Veto-skipped: DoH, clearOnShutdown.
++// ====================================================================
++pref("app.update.background.enabled",               false);
++pref("app.update.enabled",                          false);
++pref("browser.cache.disk.capacity",                 0);
++pref("browser.cache.disk.enable",                   false);
++pref("browser.cache.disk.smart_size.enabled",       false);
++pref("browser.cache.disk_cache_ssl",                false);
++pref("browser.cache.memory.capacity",               1048576);
++pref("browser.cache.memory.enable",                 true);
++pref("browser.contentanalysis.enabled", false, locked);
++pref("browser.contentanalysis.interception_point.clipboard.enabled", false, locked);
++pref("browser.ml.checkForMemory", false, locked);
++pref("browser.ml.enable", false, locked);
++pref("browser.ml.modelCacheMaxSize", 0, locked);
++pref("browser.ml.modelHubRootUrl", "", locked);
++pref("browser.newtabpage.activity-stream.telemetry", false, locked);
++pref("browser.safebrowsing.downloads.remote.enabled", false);
++pref("browser.safebrowsing.malware.enabled",        true);
++pref("browser.safebrowsing.phishing.enabled",       true);
++pref("browser.safebrowsing.provider.google4.gethashURL", "");
++pref("browser.sessionhistory.max_total_viewers",    1);
++pref("browser.sessionstore.interval",               120000);
++pref("browser.tabs.firefox-view",                   false);
++pref("browser.tabs.remote.useCrossOriginEmbedderPolicy", true);
++pref("browser.urlbar.quicksuggest.dataCollection.enabled", false, locked);
++pref("cookiebanners.service.enableGlobalRules",     true);
++pref("cookiebanners.service.mode",                  1);
++pref("datareporting.glean.uploadEnabled", false, locked);
++pref("datareporting.healthreport.service.enabled", false, locked);
++pref("datareporting.healthreport.uploadEnabled", false, locked);
++pref("datareporting.policy.dataSubmissionEnabled", false, locked);
++pref("dom.ipc.processCount",                        4);
++pref("dom.ipc.processPriorityManager.enabled",      true);
++pref("dom.max_chrome_script_run_time",              30);
++pref("dom.max_script_run_time",                     30);
++pref("dom.min_background_timeout_value",            1000);
++pref("dom.min_background_timeout_value_without_budget_throttling", 1000);
++pref("dom.min_timeout_value",                       1);
++pref("dom.push.enabled",                            true);
++pref("dom.security.https_only_mode",                true);
++pref("dom.security.https_only_mode_pbm",            true);
++pref("dom.serviceWorkers.enabled",                  true);
++pref("dom.storage.enabled",                         true);
++pref("dom.suspend_inactive.enabled",                true);
++pref("dom.timeout.background_throttling_max_budget", 50);
++pref("dom.timeout.throttling_delay",                15000);
++pref("dom.workers.maxPerDomain",                    8);
++pref("extensions.getAddons.showPane",               false);
++pref("extensions.htmlaboutaddons.recommendations.enabled", false);
++pref("extensions.pocket.enabled", false, locked);
++pref("fission.autostart",                           true);
++pref("gfx.canvas.accelerated",                      true);
++pref("gfx.canvas.accelerated.cache-items",          5000);
++pref("gfx.canvas.accelerated.cache-size",           2000);
++pref("gfx.text.subpixel-position.force-enabled",   true);
++pref("gfx.webrender.compositor",                    true);
++pref("gfx.webrender.compositor.force-enabled",      true);
++pref("gfx.webrender.fallback.software",             false);
++pref("gfx.webrender.scissored-cache-clears.enabled", true);
++pref("gfx.x11-egl.force-enabled", false);
++pref("javascript.options.baselinejit",              true);
++pref("javascript.options.ion",                      true);
++pref("javascript.options.mem.gc_high_frequency_large_heap_growth", 128);
++pref("javascript.options.mem.max",                 2048);
++pref("layers.gpu-process.enabled",                  false);
++pref("media.block-autoplay-until-in-foreground",    true);
++pref("media.eme.enabled",                           true);
++pref("media.eme.hdcp-policy-check.enabled",         true);
++pref("media.flac.enabled",                          false);
++pref("media.getusermedia.audio.processing.aec.enabled", true);
++pref("media.getusermedia.audio.processing.agc.enabled", true);
++pref("media.getusermedia.audio.processing.noise.enabled", true);
++pref("media.getusermedia.audio.processing.platform.enabled", true);
++pref("media.getusermedia.browser.enabled",          true);
++pref("media.gmp-manager.updateEnabled",             false);
++pref("media.gpu-process-decoder",                   false);
++pref("media.hardware-video-decoding.enabled",       true);
++pref("media.hevc.enabled",                          false);
++pref("media.mediasource.vp9.enabled", false);
++pref("media.mp4.enabled",                           true);
++pref("media.navigator.enabled",                     true);
++pref("media.navigator.video.default_fps",            30);
++pref("media.navigator.video.max_fr", 30);
++pref("media.navigator.video.max_fs", 8160);
++pref("media.ogg.enabled",                           false);
++pref("media.opus.enabled",                          true);
++pref("media.peerconnection.enabled",                true);
++pref("media.peerconnection.ice.default_address_only", true);
++pref("media.peerconnection.video.vp9_enabled",      false);
++pref("media.rdd-ffmpeg.enabled", true);
++pref("media.rdd-process.enabled", true);
++pref("media.webrtc.hw.h264.enabled",                true);
++pref("network.buffer.cache.count",                  128);
++pref("network.buffer.cache.size",                   524288);
++pref("network.dns.disablePrefetch",                 true);
++pref("network.dns.disablePrefetchFromHTTPS",        true);
++pref("network.http.connection-timeout",             10);
++pref("network.http.http2.enabled",                  true);
++pref("network.http.http2.send-buffer-size",         131072);
++pref("network.http.http3.enable",                   true);
++pref("network.http.http3.enable_0rtt",              true);
++pref("network.http.max-connections",                512);
++pref("network.http.max-persistent-connections-per-proxy",  16);
++pref("network.http.max-persistent-connections-per-server", 16);
++pref("network.http.pacing.requests.burst",          14);
++pref("network.http.pacing.requests.hz",             100);
++pref("network.http.pacing.requests.min-parallelism", 20);
++pref("network.http.response.timeout",               15);
++pref("network.http.speculative-parallel-limit",     0);
++pref("network.http.tcp_keepalive.long_lived_idle_time",     900);
++pref("network.prefetch-next",                       false);
++pref("nglayout.initialpaint.delay",                 0);
++pref("nglayout.initialpaint.delay_in_oopif",        0);
++pref("privacy.trackingprotection.enabled",          true);
++pref("privacy.trackingprotection.socialtracking.enabled", true);
++pref("security.mixed_content.block_display_content", true);
++pref("security.sandbox.gpu.level",                  1);
++pref("security.ssl.enable_false_start",             true);
++pref("toolkit.telemetry.cachedClientID", "", locked);
++pref("toolkit.telemetry.enabled", false, locked);
++pref("toolkit.telemetry.server", "", locked);
++pref("toolkit.telemetry.unified", false, locked);
++pref("trailhead.firstrun.didSeeAboutWelcome",       true);
++
++// ── GORILLA 2026-08-01: force+lock 3 telemetry/experiment prefs that vanilla leaves ON
++// via a channel/build #ifdef branch (Nightly/MOZ_DATA_REPORTING/artifact). Unconditional
++// lock here overrides the vanilla branch so they cannot be flipped on. ──
++pref("app.shield.optoutstudies.enabled", false, locked);
++pref("browser.crashReports.unsubmittedCheck.enabled", false, locked);
++pref("nimbus.telemetry.targetingContextEnabled", false, locked);
++
++// ── GORILLA 2026-08-01 kill-sweep: force+lock #ifdef-branched items OFF (vanilla leaves ON in this build's branch) ──
++pref("places.semanticHistory.featureGate", false, locked);
++pref("browser.contentblocking.report.privacy_metrics.enabled", false, locked);
++pref("browser.urlbar.trending.featureGate", false, locked);

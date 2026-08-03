@@ -1,0 +1,10 @@
+{
+  "lsp": {
+    "cpp":  { "command": "clangd",                       "args": ["--background-index"] },
+    "c":    { "command": "clangd",                       "args": ["--background-index"] },
+    "rust": { "command": "rust-analyzer",                "args": [] },
+    "css":  { "command": "vscode-css-language-server",   "args": ["--stdio"] },
+    "html": { "command": "vscode-html-language-server",  "args": ["--stdio"] },
+    "json": { "command": "vscode-json-language-server",  "args": ["--stdio"] }
+  }
+}
