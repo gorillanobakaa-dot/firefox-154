@@ -14,7 +14,7 @@
 #
 # USAGE:  build_deb.sh [VERSION] [DIST_BIN] [OUT_DIR]
 #   VERSION   default: read from application.ini (e.g. 154.0a1) + "-1"
-#   DIST_BIN  default: $HOME/firefox-src/obj-x86_64-pc-linux-gnu/dist/bin
+#   DIST_BIN  default: /home/gorilla/firefox-main/obj-x86_64-pc-linux-gnu/dist/bin
 #   OUT_DIR   default: FIrefox.154.Work/release
 # =============================================================================
 set -euo pipefail
@@ -60,15 +60,36 @@ mkdir -p "$STAGE/usr/lib/gorilla-unleashed"
 #    DO NOT strip them and DO NOT invent font-licensing policy here.
 rsync -aL --delete \
   --exclude 'tmp/' --exclude '*.log' --exclude '.cache/' --exclude 'crashreporter*' \
-  --exclude 'nsinstall' --exclude 'rapl' \
+  --exclude 'nsinstall' --exclude 'rapl' --exclude '.lldbinit' \
   "$DIST_BIN"/ "$STAGE/usr/lib/gorilla-unleashed"/
 
-# 3. branding: about-logo + window icons (mirrors install_firefox_154.sh intent)
+# 2b. scrub the builder's home path out of GENERATED TEXT files (about:buildconfig,
+#     RFPTarget generated refs, etc.). grep -I = text files only (never touch binaries).
+#     Cosmetic hygiene: a public binary shouldn't advertise the builder's home-dir layout.
+grep -rlIF '/home/gorilla' "$STAGE/usr/lib/gorilla-unleashed" 2>/dev/null | while read -r f; do
+  sed -i 's#/home/gorilla#/builddir#g' "$f"
+done
+
+# 2c. STRIP symbols from shipped binaries — release hygiene. Mozilla ships stripped
+#     (their libxul is ~176MB stripped; ours was 246MB unstripped = +50MB of .symtab that
+#     end users never use). strip -s removes the symbol table only; CODE is untouched, and
+#     the source tree rebuilds symbols anytime. Biggest single size win in the package.
+find "$STAGE/usr/lib/gorilla-unleashed" -type f \( -name '*.so' -o -name '*.so.*' \) -exec strip -s {} + 2>/dev/null || true
+for bin in firefox glxtest vaapitest plugin-container updater pingsender; do
+  f="$STAGE/usr/lib/gorilla-unleashed/$bin"; [ -f "$f" ] && strip -s "$f" 2>/dev/null || true
+done
+
+# 3. branding: about-logo — ONE artwork, PROPER-SIZED (one-PNG doctrine + Crisp_Logo lesson).
+#    about-logo.svg (embeds a 1200px raster) is the newtab/PB artwork via master-redirect. The
+#    PNGs are only for about:dialog: 500px + 1000px @2x, Lanczos-DOWNSAMPLED from the master.
+#    NEVER copy the ~8MB 2598px master verbatim — that duplicated ~15MB of dead pixels.
 BR="${5:-$(cd "$DIST_BIN/../../.." 2>/dev/null && pwd)/browser/branding/gorilla}"
 ALOGO="$STAGE/usr/lib/gorilla-unleashed/browser/chrome/browser/content/branding"
-if [ -d "$ALOGO" ] && [ -f "$ICON_MASTER" ]; then
-  cp "$ICON_MASTER" "$ALOGO/about-logo.png"      2>/dev/null || true
-  cp "$ICON_MASTER" "$ALOGO/about-logo@2x.png"   2>/dev/null || true
+if [ -d "$ALOGO" ] && [ -f "$ICON_MASTER" ] && command -v magick >/dev/null; then
+  magick "$ICON_MASTER" -fuzz 5% -trim -filter Lanczos -resize 500x500 \
+    -background none -gravity center -extent 500x500 "$ALOGO/about-logo.png"
+  magick "$ICON_MASTER" -fuzz 5% -trim -filter Lanczos -resize 1000x1000 \
+    -background none -gravity center -extent 1000x1000 "$ALOGO/about-logo@2x.png"
 fi
 # hicolor app icon sizes from the branding set (for the .desktop Icon= entry)
 for sz in 16 22 24 32 48 64 128 256; do
