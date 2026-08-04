@@ -1,0 +1,28 @@
+--- a/dom/media/webaudio/DynamicsCompressorNode.cpp
++++ b/dom/media/webaudio/DynamicsCompressorNode.cpp
+@@ -11,6 +11,7 @@
+ #include "WebAudioUtils.h"
+ #include "blink/DynamicsCompressor.h"
+ #include "mozilla/dom/DynamicsCompressorNodeBinding.h"
++#include "mozilla/StaticPrefs_media.h"
+ 
+ using WebCore::DynamicsCompressor;
+ 
+@@ -77,6 +78,17 @@
+       *aOutput = aInput;
+       return;
+     }
++
++    // GORILLA PATCH: Bypass compressor when hardware-only mode is active
++    // Our AudioStream.cpp DSP (psychoacoustic enhancer + FastTanh limiter) runs
++    // before this node in the audio pipeline. The Web Audio compressor would
++    // re-compress our already-limited signal, apply make-up gain, and defeat
++    // our carefully tuned 0.9 knee threshold. When hardware-only mode is on,
++    // pass through unmodified.
++    if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++      *aOutput = aInput;
++      return;
++    }
+ 
+     const uint32_t channelCount = aInput.ChannelCount();
+     if (mCompressor->numberOfChannels() != channelCount) {

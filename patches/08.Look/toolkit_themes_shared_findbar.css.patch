@@ -1,0 +1,176 @@
+--- a/toolkit/themes/shared/findbar.css
++++ b/toolkit/themes/shared/findbar.css
+@@ -11,13 +11,14 @@
+   transition-duration: 150ms, 0s;
+   transition-timing-function: ease-in-out, linear;
+   padding-block: 6px;
+-  border-top: 1px solid var(--chrome-content-separator-color);
+-  background-color: var(--toolbar-background-color);
+-  color: -moz-dialogtext;
++  border-top: 1px solid #00FFFF !important;
++  background-color: #000000 !important;
++  color: #00FFFF !important;
++  color-scheme: dark !important;
+ 
+   @media not -moz-pref("browser.nova.enabled") {
+-    border-top: 1px solid ThreeDShadow;
+-    background-color: -moz-dialog;
++    border-top: 1px solid #00FFFF !important;
++    background-color: #000000 !important;
+   }
+ 
+   &:where([hidden]) {
+@@ -72,16 +73,17 @@
+ 
+ .findbar-textbox {
+   appearance: none;
+-  background-color: var(--background-color-box);
+-  color: var(--input-text-color);
++  background-color: #000000 !important;
++  color: #00FFFF !important;
++  caret-color: #00FFFF !important;
+   min-height: 28px;
+ 
+   :root[lwtheme] & {
+-    background-color: var(--toolbar-field-background-color);
+-    color: var(--toolbar-field-text-color);
++    background-color: #000000 !important;
++    color: #00FFFF !important;
+   }
+ 
+-  border: var(--border-width) solid var(--border-color-interactive);
++  border: 1px solid #00FFFF !important;
+   border-radius: var(--border-radius-xlarge);
+   outline: none;
+   margin: 0;
+@@ -92,46 +94,47 @@
+   /* stylelint-disable-next-line media-query-no-invalid */
+   @media not -moz-pref("browser.nova.enabled") {
+     border-radius: var(--border-radius-small);
+-    border: 1px solid var(--input-border-color);
+-    background-color: var(--input-text-background-color);
++    border: 1px solid #00FFFF !important;
++    background-color: #000000 !important;
+     min-height: auto;
+     padding: 2px 5px;
+ 
+     &:focus {
+-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.23);
+-      outline-color: var(--toolbar-field-border-color-focus);
++      box-shadow: 0 1px 3px rgba(0, 255, 255, 0.23);
++      outline-color: #00FFFF;
+     }
+   }
+ 
+   &::placeholder {
+     opacity: 0.69;
++    color: #008B8B !important;
+   }
+ 
+   &:focus {
+-    background-color: var(--toolbar-field-background-color-focus);
+-    color: var(--toolbar-field-text-color-focus);
+-    border-color: transparent;
++    background-color: #000000 !important;
++    color: #00FFFF !important;
++    border-color: #00FFFF !important;
+     outline: var(--focus-outline);
+     outline-offset: var(--focus-outline-inset);
+   }
+ 
+   :root[lwtheme] &::selection {
+-    background-color: var(--lwt-toolbar-field-highlight, Highlight);
+-    color: var(--lwt-toolbar-field-highlight-text, HighlightText);
++    background-color: #00FFFF !important;
++    color: #000000 !important;
+   }
+ 
+   :root[lwtheme] &:not(:focus)::selection {
+-    background-color: var(--lwt-toolbar-field-highlight, text-select-background-disabled);
++    background-color: #006666 !important;
+   }
+ 
+   &[status="notfound"] {
+-    background-color: rgba(226, 40, 80, 0.3);
+-    color: inherit;
++    background-color: #1A0000 !important;
++    color: #FF6B6B !important;
+   }
+ 
+   &[flash="true"] {
+     background-color: rgba(255, 233, 0, 0.3);
+-    color: inherit;
++    color: #00FFFF !important;
+   }
+ }
+ 
+@@ -140,9 +143,9 @@
+ .findbar-find-previous,
+ .findbar-find-next {
+   appearance: none;
+-  -moz-context-properties: fill;
+-  fill: var(--toolbarbutton-icon-fill);
+-  color: inherit;
++  -moz-context-properties: fill, fill-opacity;
++  fill: #00FFFF !important;
++  color: #00FFFF !important;
+   border-radius: var(--border-radius-circle);
+   padding: var(--space-xsmall) var(--space-small);
+ 
+@@ -162,15 +165,17 @@
+   }
+ 
+   &:not([disabled]):hover {
+-    background-color: var(--toolbarbutton-background-color-hover, rgba(190, 190, 190, 0.2));
++    background-color: rgba(0, 255, 255, 0.15) !important;
++    outline: 1px solid #00FFFF !important;
++    outline-offset: -1px !important;
+   }
+ 
+   &:not([disabled]):hover:active {
+-    background-color: var(--toolbarbutton-background-color-active, rgba(190, 190, 190, 0.4));
++    background-color: rgba(0, 255, 255, 0.3) !important;
+   }
+ 
+   &[disabled] > .toolbarbutton-icon {
+-    opacity: var(--toolbarbutton-opacity-disabled);
++    opacity: 0.4;
+   }
+ }
+ 
+@@ -193,7 +198,8 @@
+ }
+ 
+ .findbar-container > checkbox {
+-  accent-color: var(--color-accent-primary);
++  accent-color: #00FFFF !important;
++  color: #00FFFF !important;
+ }
+ 
+ .findbar-find-status,
+@@ -220,20 +226,21 @@
+ /* Increase specificity to override close-icon.css */
+ .close-icon.findbar-closebutton {
+   margin: 2px 8px;
+-  fill: var(--toolbarbutton-icon-fill);
++  fill: #00FFFF !important;
++  -moz-context-properties: fill, fill-opacity !important;
+   transition: opacity 150ms ease-in-out;
+   border-radius: var(--border-radius-circle);
+-  border: var(--border-width) solid var(--toolbarbutton-outline-color);
++  border: 1px solid #00FFFF !important;
+   padding: var(--space-xsmall) var(--space-small);
+   width: auto;
+ 
+   &:hover {
+-    background-color: var(--toolbarbutton-background-color-hover, rgba(190, 190, 190, 0.2));
++    background-color: rgba(0, 255, 255, 0.15) !important;
+     outline: none;
+   }
+ 
+   &:hover:active {
+-    background-color: var(--toolbarbutton-background-color-active, rgba(190, 190, 190, 0.4));
++    background-color: rgba(0, 255, 255, 0.3) !important;
+   }
+ 
+   /* stylelint-disable-next-line media-query-no-invalid */

@@ -1,0 +1,9 @@
+Package: gorilla-unleashed
+Version: 153.0a1
+Architecture: amd64
+Maintainer: Gorilla Unleashed Team <gorilla@unleashed.local>
+Depends: libc6 (>= 2.17), libgcc-s1 (>= 3.0), libstdc++6 (>= 5.2), libgtk-3-0, libx11-6, libdbus-1-3, libasound2
+Section: web
+Priority: optional
+Description: Gorilla Unleashed Web Browser
+ A heavily optimized, telemetry-stripped, low-RAM, hardware-accelerated version of Firefox perfectly tuned with BBR pacing and FQ_CoDel.

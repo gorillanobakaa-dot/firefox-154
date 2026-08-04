@@ -1,0 +1,59 @@
+--- a/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.379563830 +0100
++++ b/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.381629057 +0100
+@@ -43,7 +43,13 @@
+   constructor() {
+     this.#allowHosts = null;
+     this.#allowOrigins = null;
+-    this.#allowSystemAccess = Services.env.exists(ENV_ALLOW_SYSTEM_ACCESS);
++
++    // 🦍 GORILLA UNLEASHED - PHYSICAL LOCK
++    // We have completely lobotomized the Remote Agent / WebDriver BiDi backdoor.
++    // Standard Firefox allows enabling system access via env var.
++    // In this build, it is hard-coded to FALSE. No flag or env var can wake it.
++    this.#allowSystemAccess = false; 
++
+     this.#browserStartupFinished = lazy.Deferred();
+     this.#enabled = false;
+ 
+@@ -94,15 +100,9 @@
+   }
+ 
+   set allowSystemAccess(value) {
+-    // Return early if system access is already marked being allowed.
+-    // There is also no possibility to disallow once it got allowed except
+-    // quitting Firefox and starting it again.
+-    if (this.#allowSystemAccess || !value) {
+-      return;
+-    }
+-
+-    this.#allowSystemAccess = true;
+-    Services.env.set(ENV_ALLOW_SYSTEM_ACCESS, "1");
++    // 🦍 GORILLA UNLEASHED - PHYSICAL LOCK
++    // This setter is now a dead end. Nothing can grant system access.
++    this.#allowSystemAccess = false;
+   }
+ 
+   /**
+@@ -427,11 +427,17 @@
+       case "command-line-startup":
+         Services.obs.removeObserver(this, topic);
+ 
+-        this.#allowHosts = this.#handleAllowHostsFlag(subject);
+-        this.#allowOrigins = this.#handleAllowOriginsFlag(subject);
+-        this.allowSystemAccess = this.#handleAllowSystemAccessFlag(subject);
+-
+-        this.#enabled = this.#handleRemoteDebuggingPortFlag(subject);
++        // 🦍 GORILLA UNLEASHED - PHYSICAL LOCK
++        // All remote-debugging and system access flags are now ignored.
++        this.#handleAllowHostsFlag(subject);
++        this.#handleAllowOriginsFlag(subject);
++        this.#handleAllowSystemAccessFlag(subject);
++        this.#handleRemoteDebuggingPortFlag(subject);
++
++        this.#allowHosts = null;
++        this.#allowOrigins = null;
++        this.allowSystemAccess = false;
++        this.#enabled = false;
+ 
+         if (this.#enabled) {
+           // Add annotation to crash report to indicate whether the

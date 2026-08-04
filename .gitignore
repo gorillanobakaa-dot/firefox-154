@@ -1,0 +1,9 @@
+# build + package outputs (never committed)
+release/
+*.deb
+build_logs/
+obj-*/
+firefox-src/
+gorilla-recreate/
+*.log
+__pycache__/

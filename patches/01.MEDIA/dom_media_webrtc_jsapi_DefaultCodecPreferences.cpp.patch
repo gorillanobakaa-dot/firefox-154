@@ -1,0 +1,24 @@
+--- a/dom/media/webrtc/jsapi/DefaultCodecPreferences.cpp
++++ b/dom/media/webrtc/jsapi/DefaultCodecPreferences.cpp
+@@ -124,10 +124,8 @@
+     const JsepCodecPreferences& aPrefs) {
+   // Supported video codecs.
+   // Note: order here implies priority for building offers!
+-  aSupportedCodecs.AppendElement(
+-      JsepVideoCodecDescription::CreateDefaultVP8(aPrefs));
+-  aSupportedCodecs.AppendElement(
+-      JsepVideoCodecDescription::CreateDefaultVP9(aPrefs));
++  // VP8, VP9, and AV1 removed intentionally — IVB HD 4000 has no hardware
++  // decode for these. H.264 (VAAPI) is the only supported video codec.
+   aSupportedCodecs.AppendElement(
+       JsepVideoCodecDescription::CreateDefaultH264_1(aPrefs));
+   aSupportedCodecs.AppendElement(
+@@ -137,8 +135,6 @@
+   aSupportedCodecs.AppendElement(
+       JsepVideoCodecDescription::CreateDefaultH264Baseline_0(aPrefs));
+   aSupportedCodecs.AppendElement(
+-      JsepVideoCodecDescription::CreateDefaultAV1(aPrefs));
+-  aSupportedCodecs.AppendElement(
+       JsepVideoCodecDescription::CreateDefaultUlpFec(aPrefs));
+   aSupportedCodecs.AppendElement(
+       JsepApplicationCodecDescription::CreateDefault());

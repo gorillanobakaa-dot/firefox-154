@@ -1,0 +1,11 @@
+--- a/gfx/config/gfxConfigManager.cpp
++++ b/gfx/config/gfxConfigManager.cpp
+@@ -158,6 +158,8 @@
+   else if (gfxPlatform::UseHDR()) {
+     mFeatureWrCompositor->UserForceEnable("Force enabled by HDR pref");
+   }
++  mFeatureWrCompositor->UserForceEnable(
++      "Gorilla: native Wayland compositor for VA-API zero-copy overlay");
+ #endif
+ 
+   ConfigureFromBlocklist(nsIGfxInfo::FEATURE_WEBRENDER_COMPOSITOR,

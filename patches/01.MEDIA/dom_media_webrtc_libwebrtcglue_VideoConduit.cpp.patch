@@ -1,0 +1,23 @@
+--- a/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
++++ b/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
+@@ -3,6 +3,7 @@
+  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+ #include "VideoConduit.h"
++#include "mozilla/StaticPrefs_media.h"
+ 
+ #include <algorithm>
+ #include <cmath>
+@@ -2142,7 +2143,11 @@
+   return gfx::gfxVars::IsInitialized() && gfx::gfxVars::HasWebrtcH264Hw();
+ }
+ 
+-bool WebrtcVideoConduit::HasAv1() { return true; }
++// GORILLA OVERRIDE: AV1 answered as unsupported in hardware-only mode — H.264-only
++// policy, no AV1 ASIC on Intel HD 4000 (MEDIA_CODEC_LESSONS 6-layer gate).
++bool WebrtcVideoConduit::HasAv1() {
++  return !StaticPrefs::media_gorilla_hardware_only_mode();
++}
+ 
+ Maybe<int> WebrtcVideoConduit::ActiveSendPayloadType() const {
+   MOZ_ASSERT(mCallThread->IsOnCurrentThread());

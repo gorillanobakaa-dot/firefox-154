@@ -1,0 +1,22 @@
+[Desktop Entry]
+Version=1.0
+Name=Gorilla Unleashed 154
+GenericName=Web Browser
+Comment=Firefox Unleashed optimized low-RAM build synced with BBR pacing
+Exec=env GTK_THEME=Adwaita:dark /usr/lib/gorilla-unleashed/firefox --name gorilla-unleashed -no-remote %u
+Icon=gorilla-unleashed
+StartupWMClass=gorilla-unleashed
+Terminal=false
+Type=Application
+MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;
+StartupNotify=true
+Categories=Network;WebBrowser;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=Open a New Window
+Exec=env GTK_THEME=Adwaita:dark /usr/lib/gorilla-unleashed/firefox --name gorilla-unleashed -no-remote
+
+[Desktop Action new-private-window]
+Name=Open a New Private Window
+Exec=env GTK_THEME=Adwaita:dark /usr/lib/gorilla-unleashed/firefox --name gorilla-unleashed -no-remote -private-window
