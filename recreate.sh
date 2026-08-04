@@ -17,6 +17,33 @@
 # USAGE:  recreate_success.sh [SRC_DIR]
 #   SRC_DIR default: ~/gorilla-recreate/firefox-src  (a FRESH dir; never your
 #                    existing working tree — this clones from scratch)
+#
+# -----------------------------------------------------------------------------
+# 🦍 YO, PAY ATTENTION — WHY BUILDING BEATS DOWNLOADING:
+#
+#   Because you build from MY mozconfig, you get the added bonus -march=native,
+#   and if I'm in a good mood I'll even throw in a few other goodies like -O3,
+#   BIOTCHES. 😎
+#
+#   Translation for the sane: `-march=native` tells the compiler "optimise for
+#   the EXACT chip you're compiling on" — YOUR laptop, not mine. It uses every
+#   instruction your CPU actually has instead of the museum-safe baseline that
+#   shipped binaries must assume. Same for -O3 and LTO. That is the whole point:
+#
+#     * the prebuilt .deb on the Releases page was compiled for MY machine
+#       (Ivy Bridge / Intel HD 4000). It RUNS elsewhere, but it is tuned to me.
+#     * this script compiles for YOU. Your cache sizes, your instruction set.
+#       That is a better browser than anything I can hand you prebuilt.
+#
+#   The cost is time (the compile is long on an old machine) and disk (~10-15 GB
+#   of build tree). If you have neither, grab the prebuilt .deb instead — it
+#   works fine. If you have a spare evening, build it. It's your silicon; use it.
+#
+#   ⚠ One honest catch: a binary built with -march=native may NOT run on a
+#   DIFFERENT/older CPU. Build it on the machine you'll run it on. Don't compile
+#   on your shiny new laptop and copy the .deb to grandma's 2009 netbook — it
+#   will die with "Illegal instruction". Build there, or use the generic .deb.
+# -----------------------------------------------------------------------------
 # =============================================================================
 set -euo pipefail
 
