@@ -71,8 +71,116 @@ echo -e "${NC}"
 # ---- 0. sanity: tools + patch set present ----
 [ -d "$PATCHSET" ] || die "patch set not found: $PATCHSET"
 [ -x "$PATCHSET/apply.sh" ] || die "apply.sh missing/not executable in $PATCHSET"
-for t in git python3 patch rsync; do command -v "$t" >/dev/null || die "missing required tool: $t"; done
-command -v clang-21 >/dev/null || warn "clang-21 not found — the tuned mozconfig expects it; install LLVM/Clang 21 or edit the mozconfig."
+
+# =============================================================================
+# 0a. PREFLIGHT — "yo, before you click, let me look at your machine"
+#
+# Compiling a browser is not `apt install`. It is tens of gigabytes, hours of
+# CPU, and a pile of build tools. This block checks your box FIRST and tells you
+# the truth, so you find out now instead of 4 hours in with a full disk.
+# =============================================================================
+BUILD_PARENT="$(dirname "$SRC")"; mkdir -p "$BUILD_PARENT" 2>/dev/null || true
+DISK_FREE_GB=$(df -BG --output=avail "$BUILD_PARENT" 2>/dev/null | tail -1 | tr -dc '0-9'); DISK_FREE_GB=${DISK_FREE_GB:-0}
+HOME_FREE_GB=$(df -BG --output=avail "$HOME" 2>/dev/null | tail -1 | tr -dc '0-9'); HOME_FREE_GB=${HOME_FREE_GB:-0}
+RAM_GB=$(free -g 2>/dev/null | awk '/^Mem:/{print $2}'); RAM_GB=${RAM_GB:-0}
+SWAP_GB=$(free -g 2>/dev/null | awk '/^Swap:/{print $2}'); SWAP_GB=${SWAP_GB:-0}
+CORES=$(nproc 2>/dev/null || echo 1)
+
+# what the build ACTUALLY costs (measured on the reference machine, not guessed):
+#   fresh shallow clone ~3-5 GB · objdir ~5-10 GB · ~/.mozbuild toolchains ~2-3 GB
+#   => 25 GB free is comfortable, 20 GB is the "you will sweat" minimum.
+NEED_GB=25; MIN_GB=20
+
+echo -e "${B_C}┌─ PREFLIGHT — having a look at your computer ────────────────────┐${NC}"
+printf "   Disk free (build dir) : %s GB\n" "$DISK_FREE_GB"
+printf "   Disk free (\$HOME)     : %s GB   (toolchains land in ~/.mozbuild)\n" "$HOME_FREE_GB"
+printf "   RAM / swap            : %s GB / %s GB\n" "$RAM_GB" "$SWAP_GB"
+printf "   CPU threads           : %s\n" "$CORES"
+echo -e "${B_C}└─────────────────────────────────────────────────────────────────┘${NC}"
+
+# ---- the tools. split: MUST-HAVE vs TOOLCHAIN(mozconfig-specific) ----
+MISS_APT=(); MISS_RUST=(); MISS_LLVM=()
+for t in git python3 patch rsync curl unzip; do command -v "$t" >/dev/null || MISS_APT+=("$t"); done
+command -v rustc    >/dev/null || MISS_RUST+=(rustc)
+command -v cargo    >/dev/null || MISS_RUST+=(cargo)
+command -v cbindgen >/dev/null || MISS_RUST+=(cbindgen)
+command -v node     >/dev/null || MISS_APT+=(nodejs)
+# the tuned mozconfig pins the LLVM-21 toolchain by name:
+for t in clang-21 clang++-21 lld-21 llvm-ar-21 llvm-nm-21 llvm-ranlib-21 llvm-objcopy-21 llvm-objdump-21; do
+  command -v "$t" >/dev/null || MISS_LLVM+=("$t")
+done
+command -v sccache >/dev/null || MISS_RUST+=(sccache)
+
+# ---- verdicts, in plain English ----
+FATAL=0
+if [ "$DISK_FREE_GB" -lt "$MIN_GB" ]; then
+  echo -e "\n${B_R}💔 DISK: you have ${DISK_FREE_GB} GB free. Compiling Firefox needs ~${NEED_GB} GB.${NC}"
+  echo -e "${B_R}   My heart breaks for you, but your computer hasn't got the room to even${NC}"
+  echo -e "${B_R}   sniff a Firefox compile. Free up about $((NEED_GB-DISK_FREE_GB)) GB — delete the 'educational${NC}"
+  echo -e "${B_R}   material', the distro ISOs you'll never boot, and \`sudo apt clean\`. Then come back.${NC}"
+  echo -e "${B_C}   OR: skip all this and grab the prebuilt .deb from the Releases page. Zero GB, zero hours.${NC}"
+  FATAL=1
+elif [ "$DISK_FREE_GB" -lt "$NEED_GB" ]; then
+  warn "DISK: ${DISK_FREE_GB} GB free — that's tight (want ~${NEED_GB} GB). It may work; it may die at 90%."
+else
+  ok "DISK: ${DISK_FREE_GB} GB free — plenty."
+fi
+
+TOTAL_MEM=$((RAM_GB + SWAP_GB))
+if [ "$TOTAL_MEM" -lt 4 ]; then
+  echo -e "${B_R}🧠 RAM: ${RAM_GB} GB (+${SWAP_GB} GB swap). Linking libxul is the greedy bit and WILL${NC}"
+  echo -e "${B_R}   run out of memory here. Add at least 8 GB of swap first, or use the prebuilt .deb.${NC}"
+  FATAL=1
+elif [ "$TOTAL_MEM" -lt 8 ]; then
+  warn "RAM: ${RAM_GB} GB (+${SWAP_GB} GB swap). Thin ice — the final link is memory-hungry."
+  warn "     If it dies with 'out of memory'/'signal 9' at the link step: add swap, that's the fix."
+else
+  ok "RAM: ${RAM_GB} GB (+${SWAP_GB} GB swap) — fine."
+fi
+
+# time estimate from core count — honest, not flattering
+if   [ "$CORES" -ge 8 ]; then EST="1.5-3 hours"
+elif [ "$CORES" -ge 4 ]; then EST="3-6 hours"
+else                          EST="6-12 hours (yes, really)"; fi
+say "TIME: roughly ${EST} for a cold build on ${CORES} threads. Plug the laptop in."
+
+if [ ${#MISS_APT[@]} -gt 0 ] || [ ${#MISS_RUST[@]} -gt 0 ] || [ ${#MISS_LLVM[@]} -gt 0 ]; then
+  echo
+  echo -e "${B_Y}📦 YO — you're missing build dependencies. You can't compile a browser without them.${NC}"
+  [ ${#MISS_APT[@]}  -gt 0 ] && echo -e "   system packages : ${MISS_APT[*]}"
+  [ ${#MISS_RUST[@]} -gt 0 ] && echo -e "   rust toolchain  : ${MISS_RUST[*]}"
+  [ ${#MISS_LLVM[@]} -gt 0 ] && echo -e "   LLVM 21         : ${MISS_LLVM[*]}"
+  echo
+  echo -e "${B_C}   Install them with (copy-paste, ~1-3 GB download, 10-30 min):${NC}"
+  [ ${#MISS_APT[@]} -gt 0 ] && \
+    echo "     sudo apt install -y build-essential git python3 python3-pip curl unzip rsync patch nodejs libgtk-3-dev libdbus-glib-1-dev libasound2-dev libpulse-dev pkg-config"
+  [ ${#MISS_RUST[@]} -gt 0 ] && {
+    echo "     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # rust"
+    echo "     cargo install cbindgen sccache"; }
+  [ ${#MISS_LLVM[@]} -gt 0 ] && {
+    echo "     # LLVM 21 is NOT in Debian/Ubuntu default repos — use upstream:"
+    echo "     wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && sudo ./llvm.sh 21"; }
+  echo
+  echo -e "${B_C}   Easier option: let Mozilla install most of it for you —${NC}"
+  echo    "     cd \"$SRC\" && ./mach --no-interactive bootstrap --application-choice=browser"
+  echo -e "${B_C}   (run that AFTER the clone step; it pulls its own clang+rust into ~/.mozbuild)${NC}"
+  if [ ${#MISS_LLVM[@]} -gt 0 ]; then
+    echo
+    warn "NOTE: the tuned mozconfig names clang-21 explicitly. No LLVM 21? Either install it above,"
+    warn "      or edit '$MOZCONFIG_SRC' and point CC/CXX/linker at the clang you DO have."
+  fi
+  FATAL=1
+fi
+
+if [ "$FATAL" -ne 0 ]; then
+  echo
+  echo -e "${B_R}✋ Stopping here — fix the above, then run me again.${NC}"
+  echo -e "${B_C}   Not interested in any of this? Totally fair. Download the ready-made .deb:${NC}"
+  echo    "   https://github.com/gorillanobakaa-dot/firefox.154/releases"
+  exit 1
+fi
+ok "Preflight passed — your machine can do this. Nice."
+echo
 say "Baseline: Firefox 154.0a1 nightly, snapshot ~${BASELINE_DATE}."
 warn "154.0a1 is a NIGHTLY with no exact pinned changeset (see new.patches/BASELINE.txt)."
 warn "A fresh clone is CLOSE to our baseline; patches apply with fuzz tolerance, and any"
