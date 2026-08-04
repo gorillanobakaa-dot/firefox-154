@@ -1,22 +1,116 @@
-# Gorilla Unleashed — Firefox 154
+# 🦍 Gorilla Unleashed — Firefox 154
 
-A telemetry-stripped, hardware-accelerated, low-RAM rebuild of Firefox for old
-and low-end Linux laptops — the machines that get thrown away while they still
-have years of life in them.
+**A faster, quieter Firefox for old and cheap Linux laptops.**
+No telemetry. No AI chatbots. No "experiments". No sponsored tiles. It wakes up
+the hardware your old machine already has, and it runs fine on 2 GB of RAM.
 
-> **🧸 In plain language:** this is Firefox with the phone-home, the background
-> "services," and the bloat taken out, and the old machine's real hardware (its
-> video chip, its graphics) switched back *on*. It runs well on a 2 GB laptop.
-> Everything we changed is here as a **patch** (a small, readable description of
-> the exact change) with a document next to it explaining, in both plain English
-> and developer terms, *what* it does and *why*. Nothing is hidden.
->
-> **💻 For developers:** a reproducible patch set against `mozilla-firefox`
-> nightly (154.0a1), plus a one-command builder. Every patch is
-> `diff -u`-format, applies with fuzz tolerance, and ships with a dual-track
-> (layman + developer) MASTER log and an A–F readiness audit per subsystem.
+---
 
-## One command
+# 👉 START HERE — which one are you?
+
+|  | 🟢 I just want the browser | 🔧 I want to build it myself |
+|---|---|---|
+| **You get** | A ready-to-install file. ~5 minutes. | A version compiled for *your exact* CPU. |
+| **You need** | Debian / Ubuntu / Mint, 64-bit | ~25 GB free disk + a few hours |
+| **Go to** | **[Part 1](#part-1--just-give-me-the-browser)** ⬇ | **[Part 2](#part-2--build-it-yourself)** ⬇ |
+
+---
+
+## Part 1 — "Just give me the browser"
+
+### ⚠ First, the trap that catches everybody
+
+Near the top of this page there is a **big green `< > Code` button**.
+
+> ## 🚫 DO NOT CLICK THE GREEN BUTTON
+> It gives you the **recipe**, not the **cake**. It downloads a folder of
+> instructions for programmers. It will not install a browser.
+
+The actual browser lives somewhere else, in a section called **Releases**.
+
+### Step 1 — Get the file
+
+**Easiest way — click this direct link:**
+
+### ➡ **[DOWNLOAD THE BROWSER (101 MB)](https://github.com/gorillanobakaa-dot/firefox.154/releases/latest)**
+
+That opens the **Releases** page. On it you'll see a small heading called
+**`Assets`** (you may need to click the little ▸ triangle to open it).
+Under Assets, click the file ending in **`.deb`**:
+
+```
+gorilla-unleashed_154.0a1-1_amd64.deb     ← click this one
+```
+
+Ignore the files called "Source code (zip)" and "Source code (tar.gz)" — those
+are the recipe again, not the browser.
+
+*(Prefer to find it yourself? Look down the right-hand side of this page for the
+word **Releases**, and click it.)*
+
+### Step 2 — Check it fits your computer
+
+This file works on **Debian, Ubuntu, Linux Mint, Pop!\_OS, MX Linux** and similar,
+on a **64-bit** computer. It does **not** work on Windows, macOS, Chromebooks,
+Raspberry Pi, or Fedora/Arch.
+
+Not sure? Open a terminal and paste this — if it answers `x86_64`, you're good:
+
+```sh
+uname -m
+```
+
+### Step 3 — Install it
+
+**The clicking way:** open your **Downloads** folder, double-click the `.deb`
+file. Your system's software installer opens — click **Install**, type your
+password.
+
+**The terminal way** (more reliable, and it tells you what went wrong):
+
+```sh
+cd ~/Downloads
+sudo apt install ./gorilla-unleashed_154.0a1-1_amd64.deb
+```
+
+When it asks for your password, the screen shows **nothing** as you type — that's
+normal, not a broken keyboard. Press Enter, and answer `Y` if it asks.
+
+### Step 4 — Open it
+
+Look in your applications menu for **Gorilla Unleashed 154** — the big gorilla
+icon. That's it. You're done. 🎉
+
+### If something goes wrong
+
+| It said… | Do this |
+|---|---|
+| `unmet dependencies` / `dependency problems` | `sudo apt --fix-broken install` |
+| `not a Debian format archive` | The download was cut short. Download it again. |
+| Nothing happens when I double-click | Use the terminal way in Step 3. |
+| `Illegal instruction` when it starts | Your CPU is older than the one it was built on → build your own in **Part 2**. |
+| Videos won't play on some sites | Expected: this build prefers the codecs your old chip can decode in hardware. See `patches/01.MEDIA`. |
+
+Still stuck? [Open an Issue](https://github.com/gorillanobakaa-dot/firefox.154/issues)
+— no question is too basic. That's what it's for.
+
+---
+
+## Part 2 — Build it yourself
+
+The ready-made file above was compiled on **my** laptop (a 2012 Intel machine).
+It runs elsewhere, but it's tailored to mine.
+
+Build it yourself and it gets compiled for **your** processor — using every
+instruction your CPU actually has, instead of the safe lowest-common-denominator
+settings that any shared download is forced to assume. Same browser, fitted to
+your machine.
+
+**What it costs:** about **25 GB** of free disk and **1.5 to 12 hours** of
+compiling, depending on your computer's speed. The laptop will be busy and warm.
+Plug it in.
+
+**How:** open a terminal and paste these three lines:
 
 ```sh
 git clone https://github.com/gorillanobakaa-dot/firefox.154.git
@@ -24,55 +118,60 @@ cd firefox.154
 ./recreate.sh
 ```
 
-`recreate.sh` clones a fresh Firefox source, lays this patch set onto it, copies
-the tuned build config, compiles it, and (optionally) wraps the result into an
-installable `.deb` — with a proper big Gorilla icon on your desktop. Grab a
-coffee: the download and the compile each take a while.
+The script **inspects your computer before it starts** and tells you the truth:
+how much disk and memory you have, roughly how long it will take, and exactly
+which build tools are missing — with the copy-paste commands to install them. If
+your machine can't handle it, it says so plainly and sends you back to Part 1
+rather than wasting four hours of your life.
 
-## What's in here
+> ⚠ **Build it on the machine you'll actually run it on.** A browser compiled for
+> a new laptop may refuse to start on an older one (`Illegal instruction`).
 
-| Path | What it is |
+---
+
+## What's actually in here (for the curious)
+
+Every change is a **patch** — a small, readable file showing exactly what was
+changed — and beside each group sits a document explaining it **twice**: once in
+plain English, once for developers. Nothing is hidden.
+
+| Folder | What it changes |
 |---|---|
-| `recreate.sh` | the one-command builder (clone → patch → build → `.deb`) |
-| `patches/` | the change set: `NN.TOPIC/` folders of `.patch` files + `apply.sh` |
-| `patches/NN.TOPIC/MASTER_PROJECT_LOG_*.md` | dual-track documentation + A–F audit for each subsystem |
-| `scripts/` | build wrapper, `.deb` packager, Microsoft-fonts helper |
-| `mozconfig` | the tuned clang-21 build configuration |
-| `deb_template/` | packaging skeleton (control, desktop entry, icon) |
+| `patches/01.MEDIA` | Video & audio — hardware decoding, speaker tuning |
+| `patches/02.GPU` | Wakes up old Intel graphics chips |
+| `patches/03.NETWORKING` | Network speed tuning |
+| `patches/05.PREFS` | The settings baked into the browser |
+| `patches/07.TOOLKIT` | Removes the AI features |
+| `patches/08.Look` | The black theme and the gorilla |
+| `patches/09.REMOTE` | Locks out remote control / automation |
+| `patches/13.TELEMETRY.KILL` | Switches off the phone-home |
+| *…and 6 more* | 04, 06, 10, 11, 12, 14 |
 
-## The subsystems
+Open any folder and read the file whose name starts with **`MASTER_PROJECT_LOG`** —
+that's the full story of that part, in both plain English and developer detail.
 
-`01.MEDIA` H.264-only hardware decode + audio DSP · `02.GPU` un-blocklist the
-Intel HD 4000 · `03.NETWORKING` kernel-matched TCP/DNS tuning · `04.PERFORMANCE`
-`05.PREFS` baked defaults · `06.QUOTA` · `07.TOOLKIT` AI/ML seam removal ·
-`08.Look` the theme + branding · `09.REMOTE` automation lockdown ·
-`10.OVERRIDES` · `11.FONT.SYSTEM` · `12.MOZAMBIQUE.DRILL` experiment kill ·
-`13.TELEMETRY.KILL` glean neutralised · `14.EGRESS.LOCKDOWN`.
+`recreate.sh` = the builder · `patches/` = the changes · `scripts/` = helpers ·
+`mozconfig` = build settings
 
-Read any room's `MASTER_PROJECT_LOG_*.md` for the full story of that subsystem —
-both tracks, every value, every reason.
+**A note on fonts:** the build can bundle Microsoft fonts (Segoe UI, Yu Gothic,
+Consolas) using the established `ttf-ms-win-auto` method — fetched from
+Microsoft's own Windows evaluation edition, the same approach mainstream Linux
+distributions use. See `scripts/fonts-microsoft.sh`.
 
-## Hardware target
-
-Tuned on and for era-2012 Intel hardware (Ivy Bridge / Intel HD 4000, the Sony
-VAIO SVE14A3AJ reference machine), Debian 13 + Wayland. The audio DSP and codec
-policy are compiled for that class of hardware; see `01.MEDIA` before deploying a
-built binary to a very different machine.
-
-## Fonts
-
-The build can bundle Microsoft fonts (Segoe UI, Yu Gothic, Consolas) using the
-established **ttf-ms-win-auto** method — sourced from Microsoft's own Windows
-evaluation edition, the same approach mainstream Linux distributions use. See
-`scripts/fonts-microsoft.sh` and `patches/11.FONT.SYSTEM/`.
+---
 
 ## Why this exists
 
 Open source gave the world the recipe but forgot to teach people how to cook.
-Publishing code is not access if only engineers can read it. So every change here
-carries a plain-language explanation next to the developer detail — the
-documentation is a first-class part of the product, meant to be readable by the
-person who owns the laptop, not just the person who compiles the browser.
+Publishing code isn't real access if only engineers can read it.
+
+This browser is for the person who saved for a year to buy a laptop somebody in a
+richer country threw away. Every background service, every "helpful" feature
+quietly phoning home, is memory and mobile data taken from that person. So it's
+stripped out — and **everything done to it is written down in plain language**, so
+the owner of the laptop can read it, understand it, and decide for themselves.
+
+---
 
 *Not affiliated with Mozilla. "Firefox" is a trademark of the Mozilla Foundation;
-this is an unofficial modified build.*
+this is an unofficial modified build. Free and open source.*
