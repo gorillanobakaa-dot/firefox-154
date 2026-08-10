@@ -1108,3 +1108,146 @@ This closes the LAST known broken about: page (§13's final open visual).
 Snapshot debt paid: aboutprofiling.css added to REPAIRS tarball
 (payload 51 -> 52, MANIFEST + README updated). Lesson atom:
 About_Profiling_Ghost_Theme_Class_Body_Pin (ingested).
+
+## 36. 2026-08-03 — global-shared.css: FF154 `[hidden]` safety net restored (live + master)
+
+**What:** re-added vanilla FF154's `:where([hidden]) { display: none !important; }` (vanilla
+global-shared.css:118) after the `@namespace html` line, with a GORILLA OVERRIDE provenance
+comment. The pre-154 master template this file derives from predates the rule, so deploying the
+master had silently dropped the chrome-side hidden-element enforcement (§17's bug class).
+**Where:** live `toolkit/themes/shared/global-shared.css` + master `FIrefox.154.Look/global-shared.css`
+(both edited identically; no per-file patch exists for this file — master copy IS the source).
+**Checks:** vanilla rule text verbatim; zero specificity preserved (`:where()`); rebuild owed to
+bake into omni.ja. Found by tree-poison-screen RUN 2 (THEME/CSS minion), supervisor-verified
+(vanilla=1 hit, live=0 hits pre-fix).
+**sha256 after:** live 4eda0ead8d3cec4f7c1c489eb55532d4509316e28017373a9af0656bb90a8544
+              master 4eda0ead8d3cec4f7c1c489eb55532d4509316e28017373a9af0656bb90a8544
+
+## 37. 2026-08-03 — design-system dist RESTORED TO VANILLA (78 orphan tokens resolved)
+
+**What:** all 5 divergent dist files restored byte-identical to FF154 vanilla (tokens-shared/
+brand/platform.css + storybook semantic-categories.mjs/tokens-table.mjs); the 3 Look masters
+(tokens-*.css) replaced with the same vanilla generation so redeploy cannot regress.
+**Why:** deployed dist was an OLDER token generation (07-16 tarball skew, zero theme content —
+proven RUN 2); 78 tokens consumed by live widgets (moz-button/moz-input-common/moz-card/sidebar)
+were undefined = the recurring invisible-widget class (§30/§31/§35 were point-fixes of it).
+**Safety:** reverse-orphan test PASSED — 6 old-generation-only tokens, zero live chrome consumers.
+Theme content untouched (it lives in master-redirect.css, §14).
+**sha256-16 after (live==vault==master):** shared 581d40e6458d4dc7,
+brand 5bf413eac1d7520b, platform 56feea1078e1a1fc.
+Rebuild owed (same single pending build).
+
+## 38. 2026-08-04 (12h) — theme regression repair + newtab rebase + icon/deb fixes
+
+**Context:** two stacked regressions. (a) MINE: the 2026-08-04 "restore dist tokens to vanilla"
+(§37 was correct for the storybook artifacts, but the batch ALSO overwrote the THEMED
+tokens-{shared,brand,platform}.css → dropped `--color-gray-80/90: #000000` etc. → newtab went
+grey. (b) OLDER (2026-08-02): an `npm run bundle:css` SCSS regeneration wiped the newtab
+injection (giant gorilla, black `:root` var block, cyan pill) from
+browser/extensions/newtab/css/{,nova/}activity-stream.css.
+
+**Fixes (all deployed to live tree + Look masters, then `mach build faster`):**
+1. tokens-{shared,brand,platform}.css RESTORED from git HEAD (themed) → live dist + masters;
+   verified 4× `--color-gray-{80,90}: #000000` back. sha master==live==dist.
+2. newtab injection REBASED onto the current (newer) upstream base per lesson
+   Old_Base_File_Skew_Vault_Rebase: guarded block `GORILLA-NEWTAB-THEME-BEGIN/END` appended at
+   EOF of both activity-stream.css files — full themed `:root` + `:root[lwt-newtab-brighttext]`
+   var set (from git HEAD), 600px about-logo.svg logo, wordmark hidden, margin pull-up, and the
+   CYAN search pill (`--content-search-handoff-ui-unfocused/fakefocus-border-color: #00FFFF`,
+   always-on, matches the top address-bar border). Masters re-synced FROM live (now on new base).
+   ⚠ A future `npm run bundle:css` will drop it again — re-run the injection after any bundle.
+3. about-logo.svg confirmed crisp (embeds 1200×1200 raster).
+4. .deb APP-GRID ICON fixed: build_deb.sh was shipping the raw 2598×2626 non-square master in the
+   1024 slot → now regenerates square 512+1024 via the canonical magick command
+   (fuzz-trim → Lanczos → center-extent), per wayland_dual_icon_bug_fixer.sh. postinst runs
+   gtk-update-icon-cache so it lands correctly on the USER's machine.
+
+**Artifact-verified in the rebuilt gorilla-unleashed_154.0a1-1_amd64.deb:** newtab css cyan pill
++ 600px gorilla + black bg + #0080ff actions + wordmark hidden; tokens 4× black overrides
+(chrome/toolkit/.../design-system/tokens-shared.css); icon 1024→1024×1024 square, 512→512×512;
+all 8 bundled fonts present; postinst icon-cache refresh. Rebuild owed = NONE (build faster done).
+
+## 39. 2026-08-10 — REOPENED per §14 addendum: login autocomplete popup clipped (height defect, colors OK)
+
+User screenshots (BT login page, and a light-theme login earlier the same day):
+popup renders as a black pill ~1 collapsed row tall, suggestion text clipped at
+the bottom edge. This is exactly the §14 addendum's predicted follow-up: the
+COLOR fix held (black panel per theme), the HEIGHT is a separate defect.
+
+**Ruled out 2026-08-10, each by evidence:**
+- master-redirect line 193 icon clamp (`autocomplete-row-item --icon-width/height`):
+  commented out, startupCache flushed, restart — popup STILL clipped. Restored.
+- `toolkit/components/satchel/autocomplete-row-item/autocomplete-row-item.css`
+  — diff vs SafetyVault vanilla: IDENTICAL.
+- `toolkit/content/widgets/autocomplete-popup.js` (adjustHeight) — IDENTICAL.
+- Missing design tokens: all 5 `--space-*` defs present in live tokens-shared.css
+  (the 125 trimmed lines are button/card tokens).
+- Known upstream bug: Bugzilla searched, no match for the new satchel row element.
+- NOT the Wayland compositor bug (fixed same day): popup is crisp, consistent,
+  and the defect predates that fix.
+
+**Working hypothesis (unproven):** adjustHeight() measures row rects once
+(rAF after popupshown) and sets richlistbox max-height; if rows grow AFTER
+measurement the overflow clips. Build-specific late-growers: the font token
+rewrite (tokens-platform unsets --font-size-*, tokens-brand redefines in rem)
+and forced-dark styling landing on the shadow rows.
+
+**Decisive next step:** Browser Toolbox on the open popup — check for a stale
+small inline max-height on the richlistbox with taller autocomplete-row-item
+children inside. One look = conviction + names the fix.
+
+**§39 RESOLVED same day (2026-08-10), live Browser Toolbox trace.** The clipped
+rows were Mozilla's "Import your logins from Google Chrome" + "Learn more"
+suggestions (`ImportableLoginsAutocompleteItem`, LoginAutoComplete.sys.mjs:400,
+shown on any empty login field when no logins are saved). Those rows are filled
+by ASYNC Fluent l10n (`autocomplete-import-logins-chrome`, rich data-l10n-name
+divs): at `adjustHeight()` time (rAF after popupshown) they measure **0px and
+4px**, max-height locks at 25px, then translation lands and they inflate to
+**51px + 38px** under the lid. The healing re-measure fires only after blur,
+when matchCount=0, so it writes 0px instead. Wiretap trace (repeated 5x, fully
+reproducible): `matchCount:2 rows:0,4 -> 25px` ... `matchCount:0 rows:51,38 -> 0px`.
+
+Ruled out on the way (see §39 above): icon clamp, row-item CSS, popup JS,
+design tokens, the FTL blank-line trim (legal Fluent), the Wayland compositor.
+
+**Fix:** `user_pref("signon.showAutoCompleteImport", "");` — kills the
+growth-nag rows at the gate (`importableBrowsers` null, LoginAutoComplete
+:395). Remaining rows (saved logins, Manage Passwords footer) use sync labels
+and measure correctly. Applied to live profile AND 10.OVERRIDES/NEW_FILES/
+user.js (master was drifted; synced to live byte-identical same day).
+
+NOTE: the underlying measure-before-async-l10n defect is VANILLA Firefox
+behaviour, latent for any future async-localized row type. If a clipped popup
+ever reappears with imports already off, that is the thing to look at —
+consider an upstream bug report with the §39 trace.
+
+**§39 addendum 2 (same day):** clicking the pill revealed the SECOND upsell
+living in that popup: the Firefox Relay "Get a free email mask" doorhanger
+(subscription service, needs Mozilla account; the locale rebrand had renamed
+the ad itself to "Gorilla Unleashed Relay email mask"). Closed at the gate:
+`user_pref("signon.firefoxRelay.feature", "disabled")` —
+FirefoxRelayUtils.relayIsAvailableOrEnabled() accepts only
+available/offered/enabled, so "disabled" removes rows, doorhanger and any
+relay.firefox.com traffic (an egress door for the 14.EGRESS ledger). Both
+prefs live in user.js AND 10.OVERRIDES/NEW_FILES/user.js (kept in sync).
+Login popup now contains only: saved logins + Manage Passwords footer.
+
+**§39 addendum 3 (same day) — the ROOT defect fixed.** After both ads were
+pref-killed, the pill persisted at 20px hiding the 33.4px "Manage Passwords"
+footer (`autocomplete-row-item`, type loginsFooter) — proving the
+measure-before-async-l10n defect bites EVERY async row, not just the ads.
+Root fix in `toolkit/content/widgets/autocomplete-popup.js` adjustHeight():
+a ResizeObserver on the visible rows re-runs adjustHeight whenever a row
+changes size while the popup is open (no feedback loop — adjustHeight writes
+only the richlistbox max-height, never row sizes; observer disconnects when
+the popup is not open). Deployed via `mach build faster`, verified in
+dist (`chrome/toolkit/content/global/elements/autocomplete-popup.js` carries
+the GORILLA OVERRIDE marker), startupCache flushed. Patch captured as
+`07.TOOLKIT/toolkit_content_widgets_autocomplete-popup.js.patch` and verified:
+vault vanilla + patch == live tree. This is an upstream-worthy fix.
+
+**§39 filed upstream:** https://bugzilla.mozilla.org/show_bug.cgi?id=2062283
+(Toolkit :: UI Widgets, defect) — full diagnosis + trace + before/after
+screenshots + offer to attach the ResizeObserver patch
+(07.TOOLKIT/toolkit_content_widgets_autocomplete-popup.js.patch). If upstream
+lands its own fix, drop our patch at the next rebase and take theirs.
