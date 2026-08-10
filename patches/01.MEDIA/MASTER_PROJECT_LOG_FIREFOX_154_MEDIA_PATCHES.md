@@ -357,6 +357,14 @@ navigator.mediaCapabilities.decodingInfo({
 **Status:** ✅ ALL DONE
 
 #### 4.1 Web Audio Compressor Bypass
+
+> **[CORRECTION 2026-08-10]** The rationale below is architecturally wrong: WebAudio
+> graphs output via AudioCallbackDriver directly to cubeb and NEVER pass through
+> AudioStream's DSP — the two paths are parallel, not chained, so "re-compression"
+> cannot occur. The bypass also removes DynamicsCompressorNode's automatic make-up
+> gain for any site that depends on it. Verified 2026-08-10 (it was NOT the cause of
+> the whisper incident — see patches/new.patches/15.AUDIO/2026-08-10_WHISPER_SAGA.md
+> — but it remains mis-justified). Removal is recommended at next rebuild.
 **Risk:** Web Audio compressor re-compresses AudioStream DSP output, defeats careful tuning
 
 **File Patched (1):**
@@ -832,7 +840,7 @@ CXXFLAGS += ["-march=native"]  # Added for dom/media
 
 ### PDMFactory.cpp
 ```diff
---- $HOME/firefox-source/dom/media/platforms/PDMFactory.cpp	2026-07-05
+--- /home/gorilla/firefox-source/dom/media/platforms/PDMFactory.cpp	2026-07-05
 +++ PDMFactory.cpp	2026-07-07
 @@ -8,7 +8,7 @@
  #include "PDMFactory.h"
@@ -845,7 +853,7 @@ CXXFLAGS += ["-march=native"]  # Added for dom/media
 
 ### FFmpegVideoDecoder.cpp
 ```diff
---- $HOME/firefox-source/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp
+--- /home/gorilla/firefox-source/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp
 +++ FFmpegVideoDecoder.cpp
 @@ -604,6 +604,7 @@
    AdjustHWDecodeLogging();
@@ -1013,14 +1021,14 @@ CXXFLAGS += ["-O3"]             # Aggressive optimization
 
 ```bash
 # From firefox-source root:
-cd $HOME/firefox-source
+cd /home/gorilla/firefox-source
 
 # Deploy patches
-cd $HOME/Documents/FIrefox.154.Work/patches
+cd /home/gorilla/Documents/FIrefox.154.Work/patches
 ./deploy.sh
 
 # Configure
-cd $HOME/firefox-source
+cd /home/gorilla/firefox-source
 ./mach configure
 
 # Build (two-stage PGO)
@@ -1342,7 +1350,7 @@ Doc accuracy 87.5% → 89.7%.
 before the next rebuild, every patch group was checked for tampering/drift/never-applied.
 
 **Method:** for each of the 20 patch files — parse target; confirm every added (+) line is
-present in the LIVE tree (`$HOME/firefox-src`); confirm every removed (−) line
+present in the LIVE tree (`/home/gorilla/firefox-main`); confirm every removed (−) line
 exists in the VANILLA vault baseline. Then a value-level manual read of the six
 highest-stakes files against the invariants in the source-tree CLAUDE.md.
 
@@ -2149,7 +2157,7 @@ dated all.js sign-off. Do not "correct" them on DSP math.)
 
 This section supersedes the earlier v1.0/Aug-02 merged excerpts above wherever they
 conflict. It was regenerated from the 20 live `.patch` files and re-verified against the
-patched tree `$HOME/firefox-src` (FF_SRC). Key re-verifications: `UserForceEnable`
+patched tree `/home/gorilla/firefox-main` (FF_SRC). Key re-verifications: `UserForceEnable`
 at gfxPlatformGtk.cpp:283 (NOT UserEnable); GPU_PROCESS ForceDisable on Wayland at line 333
 (VA-API in RDD); VA-API frame pool = 16 at four sites (2046/2144/2277/2408); pref
 media.gorilla.hardware_only_mode at StaticPrefList.yaml:12746; PDMFactory reject at 475-479.
@@ -2496,7 +2504,7 @@ The HD 4000 has a fixed-function H.264 VLD ASIC but no VP9/AV1 hardware decode. 
 Before trusting a build, verify the pref exists and the enforcement points are present in the tree.
 
 **Prerequisites:**
-- The patched tree at $FF_SRC (default $HOME/firefox-src)
+- The patched tree at $FF_SRC (default /home/gorilla/firefox-main)
 
 **Step 1:** grep -n 'media.gorilla.hardware_only_mode' $FF_SRC/modules/libpref/init/StaticPrefList.yaml
   - Expected: Hit at line 12746.
@@ -2757,3 +2765,25 @@ not measurement. Re-run on the same input and check whether specific numbers
 stay consistent between runs.
 
 # ═══ END REGENERATED DUAL-TRACK + IBM AUDIT (2026-08-04) ═══
+
+
+---
+
+## 2026-08-10 — Envelope loudness compressor + bypass removal (VERIFIED)
+
+**AudioStream.cpp** — new Stage 5b in AudioPsychoacousticEnhancer: envelope
+loudness compressor with the SC4 parameters mic-verified system-side the same
+day (threshold -20 dBFS, ratio 4:1, attack 3 ms, release 150 ms, makeup +12 dB;
+per-channel envelope, denormal flush). Gain rides the envelope, never the
+waveform (FF153 waveshaper lesson enforced by construction).
+**DynamicsCompressorNode.cpp** — hardware-only bypass REMOVED (rationale was
+architecturally false: WebAudio and AudioStream paths are parallel, never
+chained; the bypass silenced sites relying on this node's auto make-up gain).
+StaticPrefs include removed with it.
+
+Verification (build 20260810-20:05, dual-band mic method, streams routed
+around the system compressor): -30 dBFS tone out at -12.0 dBFS (+10 dB vs old
+chain, design predicted -11.9); -12 dBFS tone out at -5.5 dBFS (+0.5 dB —
+compression holds). Two-point transfer matches design within 0.5 dB.
+Patch masters regenerated from SafetyVault pristine diffs; previous masters
+kept as *.pre-20260810. Full story: patches/new.patches/15.AUDIO/.
