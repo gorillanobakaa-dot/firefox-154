@@ -1,0 +1,141 @@
+--- a/toolkit/mozapps/extensions/content/aboutaddons.css
++++ b/toolkit/mozapps/extensions/content/aboutaddons.css
+@@ -51,6 +51,19 @@
+   overflow: hidden auto;
+ }
+ 
++@media (prefers-reduced-motion) {
++  /* Setting border-inline-end on #sidebar makes it a focusable element */
++  #sidebar::after {
++    content: "";
++    width: 1px;
++    height: 100%;
++    background-color: var(--border-color);
++    top: 0;
++    inset-inline-end: 0;
++    position: absolute;
++  }
++}
++
+ .category-badge {
+   min-width: var(--dimension-20);
+   background-color: var(--color-accent-primary);
+@@ -328,7 +341,13 @@
+ }
+ 
+ .theme-enable-button {
+-  padding-inline: var(--space-small);
++  min-width: auto;
++  font-size: var(--font-size-small);
++  min-height: auto;
++  height: 24px;
++  margin: 0;
++  padding: 0 8px;
++  font-weight: normal;
+ }
+ 
+ .addon-description {
+@@ -357,6 +376,12 @@
+   align-self: center;
+ }
+ 
++.page-options-menu > .more-options-button {
++  background-image: url("chrome://global/skin/icons/settings.svg");
++  width: 32px;
++  height: 32px;
++}
++
+ /* Recommended add-ons on list views */
+ .recommended-heading {
+   margin-bottom: 24px;
+@@ -535,11 +560,31 @@
+   margin-inline-start: 8px;
+ }
+ 
+-addon-card .more-options-button {
+-  margin-inline-start: var(--space-small);
+-  /* Override the attention badge color to match the one used by the
+-   * "Available Updates" badge shown in the sidebar. */
+-  --button-attention-dot-color: var(--color-accent-primary);
++.more-options-button {
++  min-width: auto;
++  min-height: auto;
++  width: 24px;
++  height: 24px;
++  margin: 0;
++  margin-inline-start: 8px;
++  -moz-context-properties: fill;
++  fill: currentColor;
++  background-image: url("chrome://global/skin/icons/more.svg");
++  background-repeat: no-repeat;
++  background-position: center center;
++  /* Get the -badged ::after element in the right spot. */
++  padding: 1px;
++  display: flex;
++  justify-content: flex-end;
++}
++
++.more-options-button-badged::after {
++  content: "";
++  display: block;
++  width: 5px;
++  height: 5px;
++  border-radius: var(--border-radius-circle);
++  background-color: var(--color-accent-primary);
+ }
+ 
+ panel-item[action="remove"]::part(button) {
+@@ -705,7 +750,7 @@
+   box-shadow: none;
+ }
+ 
+-section:not(:empty) ~ :is(#empty-addons-message, #empty-addons-promo) {
++section:not(:empty) ~ #empty-addons-message {
+   display: none;
+ }
+ 
+@@ -733,13 +778,35 @@
+   }
+ }
+ 
+-@media -moz-pref("browser.nova.enabled") {
+-  [is="recommended-footer"] > .amo-link-container,
+-  #empty-addons-message {
+-    display: none;
+-  }
+-
+-  addon-list:not([type="extension"]) #empty-addons-promo {
+-    display: none;
+-  }
++/* ============================================================
++ * GORILLA UNLEASHED — ABOUT:ADDONS LOBOTOMY
++ * Excise: saved/disabled themes, "Feeling creative?",
++ * "Find more themes" button, and all AMO recommendations.
++ * CSS-only, zero JS. Applied: 2026-05-29
++ * ============================================================ */
++
++/* 1. Hide saved (disabled) themes — Alpenglow, Light, Dark, etc. */
++.theme-disabled-section {
++  display: none !important;
++}
++
++/* 2. Kill the entire recommended-themes-footer:
++ *    Contains both "Feeling creative? Build your own theme with Firefox Color."
++ *    AND the "Find more themes" button */
++footer[is="recommended-themes-footer"],
++recommended-themes-footer {
++  display: none !important;
++}
++
++/* 3. Kill the recommended-themes-section (recommendations panel) */
++recommended-themes-section {
++  display: none !important;
++}
++
++/* 4. Belt-and-suspenders: hide .theme-recommendation paragraph
++ *    and .amo-link-container in case they render outside the footer */
++.theme-recommendation,
++.amo-link-container {
++  display: none !important;
+ }
++

@@ -1,0 +1,60 @@
+--- a/browser/base/content/navigator-toolbox.js
++++ b/browser/base/content/navigator-toolbox.js
+@@ -2,11 +2,6 @@
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+-ChromeUtils.defineESModuleGetters(this, {
+-  AIWindowUI:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindowUI.sys.mjs",
+-});
+-
+ document.addEventListener(
+   "DOMContentLoaded",
+   () => {
+@@ -200,8 +195,7 @@
+         #identity-icon-box,
+         #identity-permission-box,
+         #translations-button,
+-        #split-view-button,
+-        #smartwindow-ask-button
++        #split-view-button
+         `);
+       if (!element) {
+         return;
+@@ -296,12 +290,6 @@
+           }
+           break;
+ 
+-        case "smartwindow-ask-button":
+-          if (isLeftClick) {
+-            AIWindowUI.toggleSidebar(window);
+-          }
+-          break;
+-
+         default:
+           throw new Error(`Missing case for #${element.id}`);
+       }
+@@ -334,8 +322,7 @@
+         #unified-extensions-button,
+         #library-button,
+         #ipprotection-button,
+-        #split-view-button,
+-        #smartwindow-ask-button
++        #split-view-button
+       `);
+       if (!element) {
+         return;
+@@ -435,12 +422,6 @@
+           }
+           break;
+ 
+-        case "smartwindow-ask-button":
+-          if (isLikeLeftClick) {
+-            AIWindowUI.toggleSidebar(window);
+-          }
+-          break;
+-
+         default:
+           throw new Error(`Missing case for #${element.id}`);
+       }

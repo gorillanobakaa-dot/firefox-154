@@ -1,22 +1,22 @@
 --- a/dom/media/platforms/PDMFactory.cpp
 +++ b/dom/media/platforms/PDMFactory.cpp
-@@ -2,10 +2,14 @@
+@@ -2,11 +2,11 @@
   * License, v. 2.0. If a copy of the MPL was not distributed with this
   * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
-+// GORILLA OVERRIDE: AgnosticDecoderModule excised (software-fallback ban — see
-+// MEDIA_CODEC_LESSONS Bugs B/D). Vanilla reference = the vault tree; no
-+// PDMFactory_upstream.cpp exists (stale comment corrected 2026-08-03).
-+
- #include "PDMFactory.h"
- 
- #include "AOMDecoder.h"
+-#include "PDMFactory.h"
+-
+-#include "AOMDecoder.h"
 -#include "AgnosticDecoderModule.h"
-+// #include "AgnosticDecoderModule.h"  // REMOVED: all instantiation sites excised by this patch (software-fallback ban)
++// GORILLA OVERRIDE: AgnosticDecoderModule (software VP8/VP9/Theora/Vorbis) is
++// GATED on !media.gorilla.hardware_only_mode instead of excised (changed
++// 2026-08-11; the
  #include "AudioTrimmer.h"
++#include "AgnosticDecoderModule.h"
  #include "BlankDecoderModule.h"
  #include "DecoderDoctorDiagnostics.h"
-@@ -67,7 +71,14 @@
+ #include "EMEDecoderModule.h"
+@@ -67,7 +67,20 @@
  namespace mozilla {
  
  #define PDM_INIT_LOG(msg, ...) \
@@ -27,12 +27,18 @@
 +// Only H.264 is allowed (HW-decoded via VAAPI on IVB); VP8, VP9, AV1, HEVC
 +// are blocked to prevent silent CPU fallback.
 +static bool IsBlockedSoftwareOnlyVideoCodec(const nsACString& aMimeType) {
++  // GORILLA OVERRIDE 2026-08-11: gate on the master pref so the block can be
++  // lifted per-profile (whatsapp-desktop) without a rebuild. Default (pref=true)
++  // is unchanged: everything that is not H.264 is still blocked.
++  if (!StaticPrefs::media_gorilla_hardware_only_mode()) {
++    return false;
++  }
 +  return !MP4Decoder::IsH264(aMimeType);
 +}
  
  extern already_AddRefed<PlatformDecoderModule> CreateNullDecoderModule();
  
-@@ -89,10 +100,6 @@
+@@ -89,10 +102,6 @@
      if (StaticPrefs::media_ffvpx_hw_enabled()) {
        FFVPXRuntimeLinker::Init();
      }
@@ -43,7 +49,33 @@
  #endif
    }
  
-@@ -446,6 +453,34 @@
+@@ -298,12 +307,24 @@
+   nsTArray<std::function<CheckResult()>> mCheckerList;
+ };  // SupportChecker
+ 
+-PDMFactory::PDMFactory() {
++PDMFactory::PDMFactory(Purpose aPurpose)
++    : mForWebCodecs(aPurpose == Purpose::WebCodecs) {
+   EnsureInit();
+   CreatePDMs();
+   CreateNullPDM();
+ }
+ 
++// GORILLA OVERRIDE 2026-08-11: per-instance view of the software-codec block.
++// A WebCodecs-purpose factory admits software VP8 when the opt-in pref is
++// set; every other factory keeps the absolute hardware-only block.
++bool PDMFactory::IsBlockedVideoCodec(const nsACString& aMimeType) const {
++  if (mForWebCodecs && StaticPrefs::media_gorilla_webcodecs_software_vp8() &&
++      VPXDecoder::IsVP8(aMimeType)) {
++    return false;
++  }
++  return IsBlockedSoftwareOnlyVideoCodec(aMimeType);
++}
++
+ PDMFactory::~PDMFactory() = default;
+ 
+ /* static */
+@@ -446,6 +467,34 @@
          __func__);
    }
  
@@ -66,7 +98,7 @@
 +  //   DO NOT "fix" this by re-adding a software H.264 fallback. That silently
 +  //   defeats the mission. If VA-API is failing, fix the driver/env, not this.
 +  if (config.IsVideo()) {
-+    if (IsBlockedSoftwareOnlyVideoCodec(config.mMimeType)) {
++    if (IsBlockedVideoCodec(config.mMimeType)) {
 +      return PlatformDecoderModule::CreateDecoderPromise::CreateAndReject(
 +          MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
 +                      RESULT_DETAIL("Software-only video codec blocked by "
@@ -78,23 +110,23 @@
    if ((MP4Decoder::IsH264(config.mMimeType) ||
         AOMDecoder::IsAV1(config.mMimeType) ||
         VPXDecoder::IsVPX(config.mMimeType) ||
-@@ -459,6 +494,10 @@
+@@ -459,6 +508,10 @@
  
  DecodeSupportSet PDMFactory::SupportsMimeType(
      const nsACString& aMimeType) const {
 +  if (StringBeginsWith(aMimeType, "video/"_ns) &&
-+      IsBlockedSoftwareOnlyVideoCodec(aMimeType)) {
++      IsBlockedVideoCodec(aMimeType)) {
 +    return DecodeSupportSet{};
 +  }
    UniquePtr<TrackInfo> trackInfo = CreateTrackInfoWithMIMEType(aMimeType);
    if (!trackInfo) {
      return DecodeSupportSet{};
-@@ -469,6 +508,12 @@
+@@ -469,6 +522,12 @@
  DecodeSupportSet PDMFactory::Supports(
      const SupportDecoderParams& aParams,
      DecoderDoctorDiagnostics* aDiagnostics) const {
 +  if (aParams.mConfig.IsVideo()) {
-+    if (IsBlockedSoftwareOnlyVideoCodec(aParams.mConfig.mMimeType)) {
++    if (IsBlockedVideoCodec(aParams.mConfig.mMimeType)) {
 +      return DecodeSupportSet{};
 +    }
 +  }
@@ -102,7 +134,7 @@
    if (mEMEPDM) {
      return mEMEPDM->Supports(aParams, aDiagnostics);
    }
-@@ -530,10 +575,6 @@
+@@ -530,10 +589,6 @@
    if (StaticPrefs::media_wmf_enabled()) {
      StartupPDM(WMFDecoderModule::Create());
    }
@@ -113,7 +145,7 @@
  #endif
  }
  
-@@ -590,13 +631,13 @@
+@@ -590,13 +645,13 @@
          FFmpegRuntimeLinker::LinkStatusCode());
    }
  #endif
@@ -130,7 +162,7 @@
    }
  }
  
-@@ -628,8 +669,8 @@
+@@ -628,8 +683,8 @@
                   StaticPrefs::media_android_media_codec_preferred());
      }
  #endif
@@ -141,7 +173,7 @@
    }
  #ifdef MOZ_WMF_MEDIA_ENGINE
    if (aKind == ipc::SandboxingKind::MF_MEDIA_ENGINE_CDM) {
-@@ -642,7 +683,7 @@
+@@ -642,7 +697,7 @@
    PDM_INIT_LOG("Utility PDM order:");
    int i = 0;
    for (const auto& pdm : mCurrentPDMs) {
@@ -150,7 +182,7 @@
    }
  }
  
-@@ -710,8 +751,8 @@
+@@ -710,12 +765,26 @@
      }
  #endif
  
@@ -161,7 +193,25 @@
  #if !defined(MOZ_WIDGET_ANDROID)  // Still required for video?
    }
  #endif  // !defined(MOZ_WIDGET_ANDROID)
-@@ -732,7 +773,7 @@
+ 
++  // GORILLA OVERRIDE 2026-08-11: a WebCodecs-purpose factory with the opt-in
++  // pref set gets software VP8 for in-page codecs (WhatsApp calls). Placed
++  // OUTSIDE the allow-audio-non-utility block above (pref is @IS_IOS@ —
++  // false on Linux, so everything inside that block is dead code here).
++  // Inserted at the FRONT so the remote modules cannot claim VP8 and then
++  // refuse in their hardware-only Init(). Agnostic only claims VPX/AV1, so
++  // H.264 still reaches the hardware path. <video>/MSE/WebRTC factories
++  // never construct with Purpose::WebCodecs, and IsBlockedVideoCodec()
++  // still rejects everything but VP8.
++  if (mForWebCodecs && StaticPrefs::media_gorilla_webcodecs_software_vp8()) {
++    StartupPDM(AgnosticDecoderModule::Create(),
++               /* aInsertAtBeginning */ true);
++  }
++
+   // Android still needs this, the actual decoder is remoted on java side
+ #ifdef MOZ_WIDGET_ANDROID
+   if (AndroidDecoderModule::IsJavaDecoderModuleAllowed()) {
+@@ -732,7 +801,7 @@
    PDM_INIT_LOG("Content PDM order:");
    int i = 0;
    for (const auto& pdm : mCurrentPDMs) {
@@ -170,7 +220,7 @@
    }
  }
  
-@@ -770,8 +811,8 @@
+@@ -770,8 +839,8 @@
    }
  #endif
  
@@ -181,7 +231,7 @@
  
    if (StaticPrefs::media_gmp_decoder_enabled() &&
        !StartupPDM(GMPDecoderModule::Create(),
-@@ -782,7 +823,7 @@
+@@ -782,7 +851,7 @@
    PDM_INIT_LOG("Default PDM order:");
    int i = 0;
    for (const auto& pdm : mCurrentPDMs) {
@@ -190,7 +240,7 @@
    }
  }
  
-@@ -901,18 +942,11 @@
+@@ -901,18 +970,11 @@
      if (MP4Decoder::IsH264(aMimeType)) {
        return MCSInfo::GetDecodeSupportSet(MediaCodec::H264, aSupported);
      }

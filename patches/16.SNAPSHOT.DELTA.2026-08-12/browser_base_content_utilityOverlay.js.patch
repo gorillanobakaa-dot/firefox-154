@@ -1,0 +1,21 @@
+--- a/browser/base/content/utilityOverlay.js
++++ b/browser/base/content/utilityOverlay.js
+@@ -12,8 +12,6 @@
+ 
+ ChromeUtils.defineESModuleGetters(this, {
+   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
+   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+   ContextualIdentityService:
+@@ -64,9 +62,6 @@
+         return "about:privatebrowsing";
+       }
+     }
+-    if (AIWindow.isAIWindowActive(window)) {
+-      return AIWindow.newTabURL;
+-    }
+     return AboutNewTab.newTabURL;
+   },
+ });

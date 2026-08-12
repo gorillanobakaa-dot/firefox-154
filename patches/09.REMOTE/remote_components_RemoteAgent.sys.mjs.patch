@@ -1,5 +1,5 @@
---- a/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.379563830 +0100
-+++ b/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.381629057 +0100
+--- a/remote/components/RemoteAgent.sys.mjs
++++ b/remote/components/RemoteAgent.sys.mjs
 @@ -43,7 +43,13 @@
    constructor() {
      this.#allowHosts = null;

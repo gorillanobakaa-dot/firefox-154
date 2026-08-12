@@ -1,0 +1,21 @@
+--- a/browser/components/asrouter/modules/ASRouter.sys.mjs
++++ b/browser/components/asrouter/modules/ASRouter.sys.mjs
+@@ -55,8 +55,6 @@
+   Spotlight: "resource:///modules/asrouter/Spotlight.sys.mjs",
+   ToastNotification: "resource:///modules/asrouter/ToastNotification.sys.mjs",
+   ToolbarBadgeHub: "resource:///modules/asrouter/ToolbarBadgeHub.sys.mjs",
+-  AIWindow:
+-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+ });
+ 
+ XPCOMUtils.defineLazyPreferenceGetter(
+@@ -2590,9 +2588,6 @@
+         trigger.context.onThirdPartyPage = isThirdPartyPage(
+           browser.documentGlobal.gBrowser?.currentURI
+         );
+-        trigger.context.isAIWindow = !!lazy.AIWindow?.isAIWindowActive?.(
+-          browser.documentGlobal
+-        );
+         trigger.context.browserIsSelected =
+           trigger.context.browserIsSelected ||
+           browser === browser.documentGlobal.gBrowser?.selectedBrowser;

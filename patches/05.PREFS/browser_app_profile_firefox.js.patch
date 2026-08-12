@@ -838,7 +838,7 @@
  
  // Forward Rust component logs to the JS console (comma separate list of crate names)
  // The empty string defaults to forwarding error-level messages.
-@@ -3650,9 +3684,164 @@
+@@ -3650,9 +3684,170 @@
  // A preference that enables Content Sharing
  pref("browser.contentsharing.enabled", false);
  
@@ -926,8 +926,6 @@
 +pref("gfx.canvas.accelerated.cache-items",          5000);
 +pref("gfx.canvas.accelerated.cache-size",           2000);
 +pref("gfx.text.subpixel-position.force-enabled",   true);
-+pref("gfx.webrender.compositor",                    true);
-+pref("gfx.webrender.compositor.force-enabled",      true);
 +pref("gfx.webrender.fallback.software",             false);
 +pref("gfx.webrender.scissored-cache-clears.enabled", true);
 +pref("gfx.x11-egl.force-enabled", false);
@@ -989,6 +987,14 @@
 +pref("security.mixed_content.block_display_content", true);
 +pref("security.sandbox.gpu.level",                  1);
 +pref("security.ssl.enable_false_start",             true);
++// GORILLA 2026-08-10: no upsells in the login autocomplete popup. The Chrome
++// login-import suggestion and the Firefox Relay email-mask integration are
++// Mozilla sign-up funnels; Relay also talks to relay.firefox.com. Both rows
++// are async-l10n rendered and trigger the popup-clipping defect reported as
++// https://bugzilla.mozilla.org/show_bug.cgi?id=2062283 (root-fixed in
++// 07.TOOLKIT autocomplete-popup.js, but the ads stay off regardless).
++pref("signon.showAutoCompleteImport", "");
++pref("signon.firefoxRelay.feature", "disabled");
 +pref("toolkit.telemetry.cachedClientID", "", locked);
 +pref("toolkit.telemetry.enabled", false, locked);
 +pref("toolkit.telemetry.server", "", locked);

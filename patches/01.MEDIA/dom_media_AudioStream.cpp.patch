@@ -1,6 +1,6 @@
 --- a/dom/media/AudioStream.cpp
 +++ b/dom/media/AudioStream.cpp
-@@ -127,6 +127,202 @@
+@@ -127,6 +127,222 @@
    double mBasePosition;
  };
  
@@ -70,6 +70,11 @@
 +  static constexpr float kCompThreshold = 0.10f;  // -20 dBFS
 +  static constexpr float kCompSlope     = 0.75f;  // 1 - 1/ratio, ratio 4:1
 +  static constexpr float kCompMakeup    = 4.0f;   // +12 dB
++  // GORILLA OVERRIDE 2026-08-11: 8 dB soft knee, matching the SC4 reference
++  // settings. Compression fades in from kCompKneeLo (-24 dBFS) instead of
++  // switching on abruptly at the threshold.
++  static constexpr float kCompKneeDb = 8.0f;
++  static constexpr float kCompKneeLo = 0.06309573f;  // -24 dBFS
 +
 +  uint32_t mSampleRate = 0;
 +  uint32_t mChannels = 0;
@@ -142,6 +147,13 @@
 +    return;
 +  }
 +
++  // GORILLA OVERRIDE 2026-08-11: Stage 5b is pref-gated (default on). A
++  // machine with a system-wide compressor sink sets this false to avoid two
++  // 4:1 compressors in series (audible gain pumping). Read once per callback,
++  // not per sample.
++  const bool compressorEnabled =
++      StaticPrefs::media_gorilla_loudness_compressor_enabled();
++
 +  for (uint32_t i = 0; i < aFrames; ++i) {
 +    for (uint32_t c = 0; c < mChannels; ++c) {
 +      uint32_t idx = i * mChannels + c;
@@ -171,8 +183,10 @@
 +
 +      // Stage 5b: Envelope loudness compressor (see class comment). The
 +      // envelope, not the sample, drives the gain; attack/release keep the
-+      // waveform shape intact.
-+      {
++      // waveform shape intact. Soft knee: below kCompKneeLo the gain is pure
++      // makeup, inside the knee the ratio blends in quadratically (dB
++      // domain), above the knee the curve equals the previous hard-knee one.
++      if (compressorEnabled) {
 +        float& env = mState.compEnv[chIdx];
 +        const float mag = std::abs(y);
 +        env += (mag > env ? mCompAtk : mCompRel) * (mag - env);
@@ -180,8 +194,14 @@
 +          env = 0.0f;  // flush denormals on old Intel cores
 +        }
 +        float gain = kCompMakeup;
-+        if (env > kCompThreshold) {
-+          gain = kCompMakeup * std::pow(env / kCompThreshold, -kCompSlope);
++        if (env > kCompKneeLo) {
++          const float oDb = 8.6858896f * std::log(env / kCompThreshold);
++          const float half = 0.5f * kCompKneeDb;
++          const float grDb = oDb >= half
++                                 ? kCompSlope * oDb
++                                 : kCompSlope * (oDb + half) * (oDb + half) /
++                                       (2.0f * kCompKneeDb);
++          gain = kCompMakeup * std::exp(-0.11512925f * grDb);
 +        }
 +        y *= gain;
 +      }
@@ -203,7 +223,7 @@
  AudioStream::AudioStream(DataSource& aSource, uint32_t aInRate,
                           uint32_t aOutputChannels,
                           AudioConfig::ChannelLayout::ChannelMap aChannelMap)
-@@ -142,7 +338,10 @@
+@@ -142,7 +358,10 @@
        mPlaybackComplete(false),
        mPlaybackRate(1.0f),
        mPreservesPitch(true),
@@ -215,7 +235,7 @@
  
  AudioStream::~AudioStream() {
    LOG("deleted, state {}", static_cast<int>(mState.load()));
-@@ -268,8 +467,20 @@
+@@ -268,8 +487,20 @@
    }
  
    mCubeb = handle;
@@ -238,7 +258,7 @@
  }
  
  nsresult AudioStream::OpenCubeb(cubeb* aContext, cubeb_stream_params& aParams,
-@@ -313,11 +524,15 @@
+@@ -313,11 +544,15 @@
      return;
    }
  
@@ -258,7 +278,7 @@
  }
  
  void AudioStream::SetStreamName(const nsAString& aStreamName) {
-@@ -426,6 +641,8 @@
+@@ -426,6 +661,8 @@
      mTimeStretcher = nullptr;
    }
  
@@ -267,7 +287,7 @@
    mState = SHUTDOWN;
    mEndedPromise.ResolveIfExists(true, __func__);
  }
-@@ -682,6 +899,30 @@
+@@ -682,6 +919,30 @@
    mDumpFile.Write(static_cast<const AudioDataValue*>(aBuffer),
                    aFrames * mOutChannels);
  

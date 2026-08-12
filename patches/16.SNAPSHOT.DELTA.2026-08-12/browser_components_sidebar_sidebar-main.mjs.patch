@@ -1,0 +1,53 @@
+--- a/browser/components/sidebar/sidebar-main.mjs
++++ b/browser/components/sidebar/sidebar-main.mjs
+@@ -19,7 +19,6 @@
+ ChromeUtils.defineESModuleGetters(lazy, {
+   ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
+   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
+-  GenAI: "resource:///modules/GenAI.sys.mjs",
+ });
+ 
+ /**
+@@ -52,7 +51,7 @@
+   get fluentStrings() {
+     if (!this._fluentStrings) {
+       this._fluentStrings = new Localization(
+-        ["browser/sidebar.ftl", "preview/genai.ftl"],
++        ["browser/sidebar.ftl"],
+         true
+       );
+     }
+@@ -355,17 +354,7 @@
+       .querySelectorAll("[customized-tool='true']")
+       .forEach(node => node.remove());
+ 
+-    const menuBuilders = {
+-      aichat: async () => {
+-        if (Services.prefs.getBoolPref("browser.ml.chat.page")) {
+-          await lazy.GenAI.buildAskChatMenu(this._contextMenu, {
+-            browser: window.gBrowser.selectedBrowser,
+-            selectionInfo: null,
+-            source: "tool",
+-          });
+-        }
+-      },
+-    };
++    const menuBuilders = {};
+ 
+     const builder = menuBuilders[toolId];
+     if (typeof builder === "function") {
+@@ -673,14 +662,6 @@
+ 
+   getEntrypointValues(action) {
+     let providerInfo;
+-    if (action.view === "viewGenaiChatSidebar") {
+-      providerInfo = lazy.GenAI.currentChatProviderInfo;
+-      action.iconUrl = providerInfo.iconUrl;
+-      // Sets the tooltip text for the action based on the chatbot provider's name.
+-      // This tooltip text is also used to set the action label
+-      action.tooltiptext = providerInfo.name;
+-    }
+-
+     if (action.disabled || action.hidden) {
+       return null;
+     }
