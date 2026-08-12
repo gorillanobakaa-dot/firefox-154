@@ -1,6 +1,7 @@
 # Gorilla Unleashed Firefox 154 — Patches Working Directory
 
-**Source tree**: `/home/gorilla/firefox-main/` (has its own CLAUDE.md with full build rules)
+**Source tree**: DELETED 2026-08-12 (was `firefox-main` at the home-dir root). Rebuild from
+GitHub `gorillanobakaa-dot/firefox.154` master (recreate.sh + patches, tag `snapshot-2026-08-12`).
 **This directory**: Patches, lessons, notes, scripts for the custom Firefox build.
 
 ## THREAT LEVEL — ask this FIRST, before anything else (author mandate 2026-08-05)
@@ -22,7 +23,7 @@ of one. Cf. DEFCON 5 vs. peacetime.)
 | Level | Condition | Posture |
 |---|---|---|
 | **CRITICAL** | Compile highly likely, near future | Pre-flight every gate (CSS `@import` lint, `dsp-preflight.py`, `patch-tamper-check.py`). No speculative edits, no refactors, no doc-writing. Every change must have a build reason you can state. Verify the **artifact** — mtime + symbols — never the exit code. |
-| **SEVERE** | Compile highly likely | Changes are build-affecting. Small, reversible diffs. Read `/home/gorilla/firefox-main/CLAUDE.md` before touching source. Batch reads hard. |
+| **SEVERE** | Compile highly likely | Changes are build-affecting. Small, reversible diffs. Source tree deleted 2026-08-12 — rebuild from the GitHub kit before source work. Batch reads hard. |
 | **SUBSTANTIAL** | Compile likely | Normal patch work. Full rules apply. Exploration allowed if cheap and announced first. |
 | **MODERATE** | Compile possible, not likely | Docs, patch files, audits. Source edits allowed but treat them as drafts — expect iteration before any build. |
 | **LOW** | Compile highly unlikely | Documentation, logs, organisation, reading. Do not touch source. Tool calls are for reading and writing docs. |
@@ -86,7 +87,7 @@ build on it. Topic taxonomy: `patches/new.patches/01.MEDIA` … `14.EGRESS.LOCKD
 When you learn something in these areas, it goes there — not into loose notes.
 
 ## CRITICAL: Before modifying ANY source code, read the source tree CLAUDE.md first:
-- `/home/gorilla/firefox-main/CLAUDE.md` — ALL mandatory rules for media, GFX, CSS, locale, build
+- Source-tree CLAUDE.md (media/GFX/CSS/locale/build rules) DELETED with the tree 2026-08-12 — the rules survive as brain lessons + this repo's docs
 
 ## Key files in this directory:
 - `patches/GOLDEN_RULES.md` — One-line rule table, every rule proven by a real bug
@@ -157,16 +158,12 @@ runtime sample confirms it.
 ## GNOME desktop icon — do NOT reinvent this, use the script
 The GNOME app grid icon for Gorilla Unleashed 154 has a documented padding/sizing problem
 (vault master PNG is 2598x2626 with transparent border → renders smaller than neighbours).
-The fix is already scripted. Any agent touching the desktop icon MUST run this instead of
-copying PNGs manually or guessing at paths. Canonical invocation (via the toolkit):
+The fix is scripted. The toolkit and vault copies were deleted 2026-08-12; the SAME logic
+(canonical magick command) now lives in `scripts/build_deb.sh` on GitHub
+`gorillanobakaa-dot/firefox.154` master (app-grid icon step) and in the brain lesson
+`Lanczos_Downsample_Icon_Pipeline`. Never copy PNGs manually or guess at paths.
 
-    ~/Documents/firefox/gorilla-firefox-toolkit/firefox-build-brand-patch brand icons-fix
-
-The underlying script (same logic) also lives in the vault:
-
-    /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/Safety.Vault.Theme/ICON.WAYLAND.SCRIPTS/wayland_dual_icon_bug_fixer.sh
-
-What the script does: reads the vault master PNG, trims transparent padding with ImageMagick,
+What the logic does: reads the master PNG, trims transparent padding with ImageMagick,
 Lanczos-resamples to 1024x1024 square, deploys to all hicolor sizes, regenerates the
 .desktop entry with correct Exec/StartupWMClass for the 154 build, flushes GNOME caches.
 Canonical source icon: `.../deb_template/usr/share/icons/hicolor/1024x1024/apps/gorilla-unleashed.png`

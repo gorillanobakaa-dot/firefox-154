@@ -8,9 +8,10 @@ be correct (they only point).
 
 ## The short version (read `CLAUDE.md` for the full rules)
 
-1. **Source-tree rules are mandatory.** Before touching any source under
-   `/home/gorilla/firefox-main/`, read `/home/gorilla/firefox-main/CLAUDE.md`.
-   That file lists media/GFX/CSS/locale/build invariants proven by real bugs.
+1. **Source tree DELETED 2026-08-12** (was `firefox-main` at the home-dir root; its
+   CLAUDE.md went with it — the invariants survive in the brain lessons and this
+   repo's docs). To rebuild: GitHub `gorillanobakaa-dot/firefox.154` master
+   (recreate.sh + patches, tag `snapshot-2026-08-12`).
 2. **Reference machine:** Sony VAIO SVE14A3AJ — Intel HD 4000 (Ivy Bridge),
    i965 VA-API, **16 GiB DDR3L UMA-shared with the GPU** (verified from GNOME
    Settings > About, 2026-07-16), Debian 13 Trixie, Wayland/GNOME 48.

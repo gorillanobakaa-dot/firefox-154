@@ -9,9 +9,9 @@ pointer stays correct.
 
 1. [`CLAUDE.md`](./CLAUDE.md) — this directory's rules, hardware target, naming
    discipline, top-3 forgotten rules, doc-audit toolkit pointer.
-2. [`/home/gorilla/firefox-main/CLAUDE.md`](/home/gorilla/firefox-main/CLAUDE.md)
-   — mandatory rules for any source-tree edit (media, GFX, CSS, locale, build).
-   Each rule is anchored to a real bug that has already burned this project.
+2. Source tree DELETED 2026-08-12 (its CLAUDE.md with it; the media/GFX/CSS/
+   locale/build rules survive in brain lessons + this repo's docs). Rebuild
+   from GitHub `gorillanobakaa-dot/firefox.154` master (`snapshot-2026-08-12`).
 3. [`doc-audit/AGENT.md`](./doc-audit/AGENT.md) — if you are asked to document or
    audit a patch topic.
 
