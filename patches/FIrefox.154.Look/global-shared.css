@@ -26,6 +26,15 @@
 @namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
 
+/* GORILLA OVERRIDE: restore FF154's upstream hidden-element safety net (vanilla
+   toolkit/themes/shared/global-shared.css:118) — anything carrying the `hidden`
+   attribute must not render; `:where()` keeps it at zero specificity so a
+   deliberate `!important` show-rule can still win. The pre-154 master template
+   this file derives from predates the rule; found missing 2026-08-03. */
+:where([hidden]) {
+  display: none !important;
+}
+
 :root {
   --default-focusring-width: 2px;
   --default-focusring: var(--default-focusring-width) dotted;

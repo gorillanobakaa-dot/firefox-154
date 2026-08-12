@@ -1,0 +1,134 @@
+<concept name="audio_path_forensics_and_config_regression_2026_08_02">
+  <category>06.AUDIO.Pipewire.Wireplumber</category>
+  <date>2026-08-02</date>
+  <aliases>"voices sound metallic", "audio vibration distortion", "browser audio suddenly worse",
+    "pipewire undoing our work again", "filter-chain came back", "audio configs disappeared",
+    "who is resampling my audio", "sink stuck at 48000", "44100 stream on 48000 clock",
+    "how to prove the DSP patches are innocent", "audio forensics method", "clock.force-rate",
+    "allowed-rates", "masked service resurrected"</aliases>
+
+  <symptoms>Soft voices sound unnatural, slightly metallic, with faint vibration/distortion on the
+    FF154 build — despite the media patches being verified correct. Instinct says "the DSP patches
+    are broken" or "retune the constants."</symptoms>
+
+  <when_to_recall>ANY audio-quality regression on this machine. ALWAYS before touching DSP code or
+    constants. Also after ANY bulk file cleanup/rename/scrub operation (the trigger that caused
+    this incident), and whenever a systemd user service that was "dealt with" reappears.</when_to_recall>
+
+  <wrong_instinct>
+    1. Blaming the Firefox DSP patches and retuning them. The patches were byte-verified innocent
+       BEFORE the real cause was found; retuning would have corrupted a correct implementation to
+       compensate for an OS-layer fault.
+    2. Trusting "everything is fine" from a model (or a past session log) without re-verifying the
+       LIVE system state. Configs are FILES; files die in cleanups; the system then reverts
+       silently while every document still says it is fixed. This is the SECOND time the OS audio
+       layer reverted (first: 2026-06-26). The June fix was real; its files were later eaten.
+    3. Diagnosing sound quality in the first minute after a live clock/rate switch — the switch
+       itself glitches the running stream (we heard "loud vibrations" immediately after forcing
+       44100 mid-stream; same config minutes later, after the stream reopened, was clean).
+  </wrong_instinct>
+
+  <human_rationale>
+  LAYMAN — WHAT HAPPENED:
+  The browser's sound enhancement was fine. The operating system's audio plumbing had been
+  silently reset to factory settings: the three custom config files that tamed it were deleted —
+  almost certainly by our own 16,000-occurrence "gorilla" name-purge, because the files were named
+  10-gorilla-*.conf — and a parasite helper process (filter-chain) that Debian's factory preset
+  auto-revives had come back from the dead because the "weld" holding it off (a mask symlink) was
+  also just a file in the same purged folder. Result: every song at 44.1 kHz was being converted
+  to 48 kHz at stock quality on its way to the speakers. That conversion was the metallic edge.
+  Restoring the configs (with purge-proof names) and re-welding the parasite fixed the sound.
+  THE MORAL: a fix that lives in a file is only as permanent as the file. After any mass cleanup,
+  re-check every fix that lives on disk.
+
+  DEVELOPER — THE FORENSIC TECHNIQUE (the thing to never forget):
+  Layer-by-layer elimination, each layer PROVEN before moving down. Never skip to tuning.
+
+  L1. PROVE THE PATCHES (before suspecting them):
+      (a) tree: for each patch, apply to pristine VANILLA copy, diff result vs LIVE tree —
+          demand byte-identical (20/20 for 01.MEDIA on 2026-08-02).
+      (b) binary: grep -a libxul.so for ADDED strings (present) AND for REMOVED vanilla strings
+          (absent — the negative-space check a stale build cannot fake). NS_WARNING strings are
+          compiled OUT of opt builds — their absence proves nothing.
+      (c) runtime deps: vainfo profiles, LIBVA_DRIVER_NAME, pref defaults in StaticPrefList.
+  L2. VERIFY THE OS LAYER AGAINST THE LESSONS (this is where the body was buried):
+      ls ~/.config/pipewire/pipewire.conf.d/ pipewire-pulse.conf.d/ ~/.config/wireplumber/wireplumber.conf.d/
+      systemctl --user is-enabled filter-chain.service   # "masked" is the ONLY safe answer
+      systemctl --user is-active  filter-chain.service   # enabled+active = regressed
+      pw-metadata -n settings | grep -E 'clock.rate|allowed'
+  L3. PHOTOGRAPH THE LIVE GRAPH while audio plays (evidence, not vibes):
+      pw-dump > before.json; parse Nodes (media.class + negotiated Format.rate) and Links →
+      the actual signal path. Two verdict tools:
+      - LINK MAP: is the app stream linked DIRECTLY to the sink, or via an interloper node?
+      - CPU SNIFF: a daemon with 21ms CPU over 26h processes NOTHING (filter-chain was present
+        but inert — exonerated as active suspect; masked anyway as hygiene).
+      The rate mismatch (Stream 44100 → Sink 48000) identifies the ONE live processor: the
+      resampler inside the adapter, at stock quality (4).
+  L4. MEASURE THE CONTENT before judging the DSP: yt-dlp the actual clip
+      (--extractor-args "youtube:player_client=android" beats SABR lockouts), ffmpeg
+      loudnorm (EBU R128: this ballad = -15 LUFS, LRA 13.7 = double-normal dynamics, whispers
+      at -28 dBFS), windowed RMS percentiles, band-split with the DSP's OWN one-pole math at its
+      OWN corner frequencies, then run the BIT-EXACT C++ chain (Padé FastTanh, 220/3500 xover,
+      1.8/1.4 gains, drive 0.4 blend 0.2, ×1.1 makeup, 0.9 knee) over the real samples.
+      Result: whispers get +4.4 dB, loud gets +3.9 dB, intelligibility band (mid) gets +0.8 dB —
+      the enhancer is a fixed tone control, not a loudness intelligence. Limiter engagement
+      0.138% = the browser limiter was NOT the metallic source. Media-element playback never
+      touches AudioDestinationNode → that stage exonerated for YouTube too.
+  L5. FIX MINIMALLY, SCRUB-PROOF:
+      systemctl --user mask --now filter-chain.service        # mask, NEVER just disable
+      ~/.config/pipewire/pipewire.conf.d/10-unleashed.conf:   # NO brand words in filenames
+          context.properties = { default.clock.allowed-rates = [ 44100 48000 96000 192000 ] }
+      ~/.config/pipewire/pipewire-pulse.conf.d/10-unleashed.conf:
+          stream.properties = { resample.quality = 15 }
+      DO NOT force audio.format in WirePlumber — unnecessary for this fix and it is the S24LE
+      no-sinks trap. DO NOT restore quantum=4096 (192k-era tuning; ~85ms latency at 48k).
+  L6. VERIFY WITH THE SAME CAMERA: pw-dump after.json → Sink rate == Stream rate (44100==44100)
+      = resampler PROVABLY out of the path. Note: a running sink may hold its old rate while any
+      other stream (even pavucontrol's peak meters) keeps the graph busy;
+      `pw-metadata -n settings 0 clock.force-rate 44100` switches it live as an A/B lever —
+      but expect transient glitches on the stream that was playing THROUGH the switch; retest
+      after the stream reopens. Remove force-rate afterwards; allowed-rates auto-follow is the
+      steady state.
+  L7. LEVEL-MATCHED A/B for any remaining coloration question: render the exact DSP chain over
+      the real song offline (testA_raw / testB_dsp / testC_dsp_levelmatched) and play through
+      pw-play — same path, only variable is the math.
+  </human_rationale>
+
+  <execution_logic>
+    OUTCOME 2026-08-02: metallic edge + vibrations GONE with the OS layer repaired and zero
+    changes to Firefox. The "loud vibrations" heard immediately post-switch were the mid-stream
+    clock change itself (proven: identical config + same daemon uptime later = clean).
+    Browser DSP exonerated for this symptom class.
+
+    STANDING RULES:
+    1. After ANY bulk rename/scrub/cleanup: re-verify every on-disk fix (configs, masks,
+       symlinks). Add their paths to the tree-restore procedure.
+    2. systemd user units with preset=enabled resurrect from "disable". Only "mask" holds.
+       Check with is-enabled (want: masked) AND is-active (want: inactive).
+    3. Critical config filenames must never contain scrub-target words.
+    4. OS layer before DSP constants — always. The patches' innocence is provable in minutes
+       (L1); DSP retuning to mask an OS fault poisons a correct implementation.
+    5. Never diagnose audio quality during/just after a live rate switch.
+
+    EVIDENCE (all preserved): SECOND.BRAIN/Chroma.DB.and.Brain.xml/AUDIO.AUDIT.2026-08-02/
+    {AUDIO_GRAPH_EVIDENCE_2026-08-02.md, pw-dump.before.json, pw-dump.after.json,
+    pw-dump.playing.json, AUDIT_PASS1_MECHANICAL.md, AUDIT_PASS2_VERDICTS.md}. A/B clips:
+    scratchpad testA_raw.wav / testB_dsp.wav / testC_dsp_levelmatched.wav (whisper t=5.9s,
+    loud t=34.5s, from the G1 test ballad (the clip the retired G1 brand traced to)).
+
+    RESOLVED SAME DAY: clock.force-rate retired 12:26 after owner confirmed clean sound
+    (allowed-rates auto-follow is the steady state). A/B/C listening test completed (3 runs,
+    silent system): DSP versions "sounded good", differences "minute" — chain EXONERATED for
+    harshness; benefit subtle, per the measurements. Full lab method, code, numbers and the
+    quiet-lifter design spec: [[dsp_ab_lab_measure_simulate_listen_2026_08_02]] + executable
+    tool gorilla-firefox-toolkit/modules/dsp-ab-lab.py.
+    STILL OPEN: envelope-tracked quiet-lifter for the 70-80% volume-crank (the G1 compander's
+    GOAL was right, its memoryless math was wrong — attack/release this time; spec in the
+    ab-lab atom).
+  </execution_logic>
+
+  <related>[[filter_chain_service_global_mask_2026_06_26]], [[pipewire_s24le_format_rejection]],
+    [[pipewire_alc269_audio_pipeline_unlock_2026_06_26]], [[dsp_pipeline_ordering_and_waveshapers]],
+    [[Hardware_Only_H264_WebRTC_WhatsApp_VP8_Incompatibility]]</related>
+  <verified>2026-08-02 (live system, evidence files listed above)</verified>
+</concept>

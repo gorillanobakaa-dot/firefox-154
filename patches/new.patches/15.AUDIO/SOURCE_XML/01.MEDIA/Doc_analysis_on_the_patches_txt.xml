@@ -1,0 +1,2589 @@
+<concept>
+    <title>Document: analysis.on.the.patches.txt</title>
+    <category>Project Documentation</category>
+    <description>Contents of /home/gorilla/Documents/analysis.on.the.patches.txt</description>
+    <details>
+Claude finished the response
+Welcome, g1! I’m Claude.
+
+Bring me anything—a tough problem, a half-formed idea, something you need to write. We’ll figure it out together.
+
+Where do you want to start?
+
+have a look at this code source and tell me if my implementations are consistent across all the files
+21:48
+
+I'll look at the uploaded files to compare your implementations across all of them. Let me check the ones not yet in context (the .orig files and the other .cpp files).
+Ran 2 commands
+
+This is much clearer now. I can already see what's going on, but let me check the other files before drawing conclusions.
+Ran 2 commands
+
+Interesting — that file is byte-identical to its .orig, even though it contains a &quot;PATCH&quot; comment block (zero-copy IPC enforcement). Let me check the other two files for context, then look at the full PDMFactory and DecoderTraits picture.
+Ran 2 commands
+
+Now I have the full picture. Here's where the inconsistencies are.
+
+The core flag, kHardwareVideoDecodeOnly, is now dead code. You flipped it to false at line 72, so the one guarded block that still checks it (if (kHardwareVideoDecodeOnly &amp;&amp; config.IsVideo()) at line 447, inside CreateDecoder) is now a no-op. But the two new &quot;HW-ONLY POLICY&quot; blocks you added — in SupportsMimeType and Supports — don't check the flag at all, they're unconditional. So you've got one mechanism turned off and a second, newer mechanism hard-wired on. That's the main inconsistency: the toggle exists but no longer actually toggles anything.
+
+SupportsMimeType is broader than Supports. The first blocks any video/* MIME type that isn't H.264. The second only blocks when MP4Decoder::IsH264 fails, but doesn't check the MIME prefix first — it relies on mConfig.IsVideo(). These should be equivalent in practice (audio configs skip the check either way), but the asymmetry in how the gate is expressed (string-prefix check vs. config-type check) means if IsVideo() and a video/-prefixed MIME type can ever diverge (e.g., a container reporting itself oddly), the two functions will disagree on whether to allow it.
+
+PDMFactory.cpp line 922 has a third &quot;PATCH: Hardware-only gate&quot; comment — let me check that one too, since it wasn't in the diff output above (the diff only showed line-range changes near the top of the file).
+View context around line 922 patch
+
+Good — that's a third copy of the same gate (this one is the static, remote-process variant). Now I have everything I need to give you a real answer.
+
+Across the three files, your stated goal — block all non-H.264 software video decoding, force hardware-only H.264 — is implemented redundantly and inconsistently rather than from one source of truth. Specifically:
+
+1. The kill switch doesn't kill anything anymore. kHardwareVideoDecodeOnly flipped from true to false (PDMFactory.cpp:72), and the one place that still respects it (CreateDecoder, line 447) is now effectively disabled. But you separately hard-coded the same restriction, unconditionally, in Supports() and SupportsMimeType(). If the intent was &quot;make this a single toggleable feature,&quot; it's not — half the gate is permanently on regardless of the flag, and half is permanently off. If the intent was &quot;always hard-lock, remove the toggle,&quot; then the dead flag and dead if block at line 447 should be deleted, not left as inert clutter.
+
+2. The four gates use different predicates for &quot;is this allowed.&quot;
+
+    PDMFactory::Supports (instance method, line 487-490): allows only if MP4Decoder::IsH264.
+    PDMFactory::SupportsMimeType (instance method, line 471-474): allows only if MP4Decoder::IsH264, gated on StringBeginsWith(aMimeType, &quot;video/&quot;).
+    PDMFactory::SupportsMimeType (static, remote-process variant, line ~922): allows if IsH264, otherwise blocks video/* prefix or explicitly VP8/VP9/AV1/HEVC — a belt-and-suspenders check that's redundant with the prefix check but at least explicit.
+    DecoderTraits::CanHandleCodecsType (DecoderTraits.cpp): blocks based on substring matches in the codec string (&quot;av01&quot;, &quot;vp9&quot;, &quot;vp09&quot;, &quot;vp8&quot;, &quot;hev1&quot;, &quot;hvc1&quot;) plus blocking video/webm, video/x-webm, video/ogg MIME types outright — a completely different detection strategy (string search on the raw original type string) than the other three (typed MIME/codec checks via MP4Decoder::IsH264 etc).
+
+That last one is the riskiest inconsistency: aType.OriginalString().Find(&quot;vp9&quot;) is a raw substring search over whatever string was passed in, not a parsed codec check. It will misfire on coincidental substrings (anything with &quot;vp9&quot; or &quot;vp8&quot; appearing inside a filename-like or parameter-like portion of the type string) and won't catch codec strings that don't literally contain those substrings but still mean VP9/AV1/HEVC. The PDMFactory versions are more rigorous, using VPXDecoder::IsVP8/IsVP9, AOMDecoder::IsAV1, MP4Decoder::IsHEVC. DecoderTraits should be using the same typed helpers instead of string-searching, both for correctness and so the four gates can't drift further out of sync.
+
+3. CanHandleMediaType (DecoderTraits.cpp, container-only branch) blocks Ogg/WebM but not Matroska, even though MatroskaDecoder::IsSupportedType later in the same function still returns CANPLAY_MAYBE. If the policy is &quot;no software-decoded containers without codec info,&quot; Matroska (which routes to VP9/AV1/etc. just as often as WebM) is a gap — it falls through unblocked while WebM is blocked at the same chokepoint.
+
+4. RemoteVideoDecoder.cpp is identical to its .orig. Despite containing a &quot;PATCH: Zero-copy IPC enforcement&quot; comment, that's not something you added — the diff against the .orig file is empty, meaning this enforcement is either pre-existing/unrelated to your hardware-only effort, or you intended to make a change here that never landed. If your hardware-only policy was also supposed to touch the remote decoder's frame handling, that change is missing.
+
+Net effect: you have at least four independent enforcement points for the same rule, expressed three different ways (typed codec check, MIME-prefix check, raw substring search on the original type string), one disabled toggle still wired into dead code, and one container format (Matroska) that slipped through the container-level gate. If this is meant to be a single coherent policy rather than defense-in-depth, I'd consolidate it into one shared predicate (e.g., a static bool IsHardwareOnlyAllowed(mimeType, codecString) helper using the typed MP4Decoder/VPXDecoder/AOMDecoder checks) and call that from all four sites, then delete the dead kHardwareVideoDecodeOnly flag and its now-unreachable branch — or restore it as the actual single toggle if you want this to remain switchable.
+
+those files were supposed to implement a strategy of achieving full usage of my ASIC rejecting all the codecs and the file types it does not support, and only receiving and processing with the help of intel quicksink  ASIC   formats intel hd 4000 can support both audio and video and not allowing the browser to software decode as this is incredibly hard and taxing on the processors. It is also pointless since we have a prfectly good ASIC. It was intended to be perfectly tuned for this architecture : Device Profile
+Manufacturer: Sony Corporation
+Model: SVE14A3AJ
+Chassis Type: Laptop
+Platform: Intel Ivy Bridge
+Chipset: Intel HM76 Express
+Motherboard PCB: 820-3024-B
+Firmware Version: R0210V5
+Embedded Controller: Sony Proprietary EC
+Processor
+Model: Intel Core i7-3632QM
+Architecture: Ivy Bridge (22nm)
+Physical Cores: 4
+Logical Threads: 8
+Base Clock: 2.2 GHz
+Turbo Maximum: 3.2 GHz
+Thermal Design Power: 35W
+Instruction Sets: AVX, AES-NI
+Graphics
+Integrated Model: Intel HD Graphics 4000
+Integrated Silicon Variant: IVB GT2
+Integrated Status: Active
+Dedicated Vendor: AMD
+Dedicated Model: Radeon HD 7670M
+Dedicated Codename: Turks
+Dedicated Topology: Muxless Enduro switchable configuration
+Dedicated Status: Disabled in BIOS
+Memory
+Capacity: 16 GB
+Type: DDR3L
+Form Factor: SO-DIMM
+Channel Mode: Dual-Channel
+Storage
+Total Capacity: 1.9 TB
+Drive 0 Vendor: Kingston
+Drive 0 Model: DC600M
+Drive 0 Interface: SATA III (6 Gb/s)
+Drive 0 Controller: Phison Enterprise
+Drive 0 NAND Type: 3D TLC
+Drive 0 Status: S.M.A.R.T. verified
+Connectivity Interfaces
+USB Host Controller: Intel HM76 Native xHCI
+USB Ports External: Multiple USB 3.0 Type-A
+USB Ports Internal: USB 2.0 Hub (Camera interface)
+Display Output: HDMI, VGA
+Networking Ethernet: RJ45
+Sensors Telemetry
+Ambient Light Sensor
+Free-fall Accelerometer
+Thermal Probes (CPU, Die)
+Fan Tachometer
+Operating Environment
+OS Distribution: Debian GNU/Linux 13 (trixie)
+Architecture: 64-bit
+Kernel: Linux 7.0.9-unleashed.+60db-bbr-fq-codel-2026.05.20--15.34
+Desktop Environment: GNOME 48
+Display Server Protocol: Wayland  can you make that happen and do the nexessary modicfications in the source code so we can achieve out goal?
+22:26
+
+I need to stop you here before going further, because the hardware context you just gave actually contradicts the strategy in the patches, and proceeding would make your laptop worse at the thing you want, not better.
+
+The HD 4000 in your i7-3632QM cannot decode VP9, AV1, or HEVC in hardware. Period. Intel Quick Sync on Ivy Bridge (HD 4000, GT2) only has fixed-function decode for H.264, MPEG-2, and VC-1. VP9 hardware decode didn't arrive in Intel iGPUs until Skylake/Kaby Lake-ish generations (and even then partially), AV1 not until Gen11/Tiger Lake, and HEVC decode arrived with Broadwell. Ivy Bridge predates all three. So &quot;reject everything that isn't H.264 so the ASIC handles it&quot; is correct only for H.264 — for VP9/AV1/HEVC there is no ASIC path on this chip to fall back to. Your patches don't add a hardware path for those codecs; they just return CANPLAY_NO / empty DecodeSupportSet, which means the browser won't play that content at all — not &quot;decode it in hardware instead,&quot; just refuses it outright.
+
+That changes what the patches actually do versus what you described. Let's separate the two real effects:
+
+What the patches correctly achieve: for H.264, VPXDecoder/AOM checks gate everything else off, so H.264 (which HD 4000 does decode via Quick Sync) is the only video path left standing. That part is sound for this hardware, assuming the existing GetDecoderModule/PDM machinery actually routes H.264 through the platform decoder module (WMF on Windows, VA-API on Linux) rather than ffmpeg's software path — that's a separate wiring question from the gating logic, and the gating alone doesn't guarantee it.
+
+What they actually do for VP9/AV1/WebM/Ogg/Matroska: hard rejection, full stop. Not &quot;software-decode is forbidden so use hardware instead&quot; — there is no hardware, so the content simply won't play. If a site serves you a WebM/VP9 stream with no H.264 fallback (increasingly common — YouTube defaults to VP9/AV1 for many resolutions), you'll get nothing instead of a slow-but-working software decode. Given a Turks dGPU that's disabled in BIOS and a 4-core/8-thread 35W Ivy Bridge part, &quot;we have a perfectly good ASIC&quot; is true only for H.264; for everything else the honest tradeoff is CPU load vs. no video at all, not CPU load vs. ASIC.
+
+I'd like to know which tradeoff you actually want before I touch the source, since the current patch set picks &quot;no video&quot; silently and that's worth confirming deliberately rather than by default.
+
+Q: For codecs the HD 4000 has no hardware decode for (VP9, AV1, HEVC, and WebM/Ogg containers) — what should happen?
+A: Hard block them (current behavior): browser refuses to play, no CPU fallback ever
+
+Q: Should I also fix the actual H.264 hardware routing (PDM/VA-API wiring) so H.264 reliably goes through Quick Sync rather than just gating other codecs off?
+A: Yes, check and fix the H.264 hardware decode path too
+
+Q: Want me to also fix the inconsistencies I flagged (dead flag, duplicated/divergent logic across 4 call sites, Matroska gap, fragile substring matching)?
+A: Yes, consolidate into one shared, consistent policy
+22:29
+
+Good, that's a coherent and defensible policy: hard-block what the ASIC can't do, make sure H.264 actually rides Quick Sync, and make the gating logic a single source of truth instead of four divergent copies. Let me look at the full files before touching anything, since I need to see MP4Decoder::IsH264, the PDM ordering/creation logic, and how VA-API gets selected on Linux.
+Ran a command, viewed a file
+
+Let me see the truncated middle section, especially the CreatePDM/StartupPDM/FFmpeg/FFVPX ordering, and check whether VA-API is even in scope here (this is Firefox/Gecko source on Debian/Wayland — VA-API support lives in ffvpx/libva, not WMF).
+View middle section of PDMFactory.cpp covering CreateDecoder and FFmpeg/FFVPX init
+
+Now I understand the actual mechanics. This is important context for the H.264-hardware-routing question: on this Debian/Wayland/Intel stack, &quot;Quick Sync&quot; reaches Firefox through ffmpeg's VA-API hwaccel inside the FFmpeg/FFVPX PDM, not through a separate dedicated module. There's no Linux equivalent of WMFDecoderModule in this file — the #ifdef XP_WIN blocks are Windows-only. So &quot;fix the H.264 hardware routing&quot; on this machine concretely means: make sure FFmpegRuntimeLinker/FFmpegVideoDecoder actually requests a VA-API-backed decoder for H.264, and confirm the Supports() gate's DecodeSupport::HardwareDecode reporting matches reality. Let me check FFmpegVideoDecoder.cpp for that.
+Search FFmpegVideoDecoder.cpp for VAAPI / hardware decode markers
+
+This confirms VA-API support already exists and is wired in. Let me look at the key gating points — gfxVars::UseH264HwDecode(), the init path that decides VAAPI vs software, and Supports()/GetSupportedCodecs() to see if DecodeSupport::HardwareDecode is actually reported for H.264.
+View around line 800-1000 for hardware decode gating and init
+
+This is the critical finding. Two things here directly determine whether your H.264 will actually go through Quick Sync rather than silently falling back to software:
+
+    InitHWDecoderIfAllowed() already tries VAAPI before falling back to software (InitSWDecoder) — that machinery is correct and present.
+    But ShouldDisableHWDecoding gates everything on gfx::gfxVars::UseH264HwDecode(), XRE_IsRDDProcess(), and hardware WebRender being active (lines 836-876). If any of those three is false — e.g., software WebRender, RDD process disabled, or the gfxVars flag itself unset — H.264 silently falls through to InitSWDecoder and you get software decode with no error, no log the user would notice, nothing blocking it. Given your hard-block policy blocks everything except H.264, if H.264 quietly falls back to software you'd never know — there's no other codec left to compare against and notice &quot;this one's slow.&quot;
+
+Let me check GetSupportedCodecs/Supports reporting in the FFmpeg PDM module and gfxVars::UseH264HwDecode to see how that flag gets set, since that's the actual lever.
+Look for how Supports()/DecodeSupportSet are reported in FFmpegVideoDecoder.cpp
+
+No hits — Supports()/DecodeSupportSet reporting isn't in this file (it's presumably in FFmpegDecoderModule.cpp, which wasn't uploaded), so I can't verify or edit that piece directly. Let me check what's actually editable here and what gfxVars::UseH264HwDecode depends on, to scope what I can responsibly change.
+Searched the web
+
+This confirms exactly what I expected, and it matters for what I write: the gfxVars::UseH264HwDecode() flag is computed from gfx blocklisting/feature detection deep in the graphics layer, not from anything in these four files. I can't responsibly invent code that overrides it, since it's not in the files I have, but I can add a hard pref-driven override and make the existing gates fail loudly instead of silently. That's the honest, achievable scope here.
+
+Here's the concrete plan I'll implement across the three real files (RemoteVideoDecoder.cpp is untouched, since its diff was empty and the IPC frame-dropping logic there is orthogonal to the codec policy):
+
+    A single shared policy function (IsHardwareOnlyAllowedCodec) used by all four PDMFactory/DecoderTraits call sites, using typed codec checks (MP4Decoder::IsH264, VPXDecoder::IsVP8/IsVP9, AOMDecoder::IsAV1, MP4Decoder::IsHEVC) instead of raw substring search.
+    Remove the dead kHardwareVideoDecodeOnly flag and its unreachable branch, since you've confirmed the policy is permanent, not toggleable.
+    Close the Matroska gap in DecoderTraits.cpp's container-only check.
+    Add a loud, fail-safe check in FFmpegVideoDecoder's H.264 path: if hardware decode was disabled/unavailable for H.264 specifically, reject with a clear MediaResult instead of silently calling InitSWDecoder, so a misdetected GPU/WebRender state surfaces as &quot;this won't play&quot; rather than quietly burning your CPU. I'll gate this behind a dedicated pref so you can flip it off if you ever want graceful software fallback for H.264 specifically.
+
+Let me check FFmpegVideoDecoder.h references and the full Init() function before editing, then make the changes.
+View full Init() function
+
+Now I have what I need. Let me check mCodecID accessibility and confirm MOZ_USE_HWDECODE is the right guard, then write the changes.
+Check mCodecID field and existing StaticPrefs naming conventions
+
+Good — mCodecID is accessible as a protected/inherited member, and there's already a precedent of StaticPrefs::media_* flags. Since the .h/StaticPrefs YAML for new prefs aren't in my uploaded files, I'll avoid inventing a brand-new StaticPrefs entry (that requires editing StaticPrefList.yaml which I don't have) and instead implement the loud-failure behavior using a static constexpr bool toggle co-located with the code, mirroring how kHardwareVideoDecodeOnly was already done in PDMFactory.cpp — consistent with your existing pattern and not dependent on files I can't see.
+
+Let's start with PDMFactory.cpp:
+Edited 2 files
+
+Now let's update the three remaining gates in this file to use the shared helper, starting with the dead-flag block in CreateDecoderWithPDM:
+Replace the now-dead kHardwareVideoDecodeOnly gate in CreateDecoderWithPDM with the shared, always-on hardware-only policy check
+
+I deliberately changed this from &quot;must report DecodeSupport::HardwareDecode&quot; to &quot;must not be a blocked codec.&quot; Let me flag why, since it's a meaningful judgment call: the original kHardwareVideoDecodeOnly check asked the PDM itself whether this specific decode path is hardware-accelerated, which is actually the more precise check (it would also catch H.264 falling back to software for unrelated reasons, like a broken VAAPI context). But it depends on aPDM-&gt;Supports() correctly reporting HardwareDecode, which I can't verify since FFmpegDecoderModule.cpp wasn't provided. I'll keep the codec-identity check as the baseline (matches the other three gates) and note the limitation to you directly rather than hiding it. Now the two Supports-style methods:
+Edited 2 files
+
+Now the fourth call site, the static remote-process SupportsMimeType:
+Use shared helper in the static remote-process SupportsMimeType variant instead of inline duplicate logic
+
+Now let's verify the file compiles logically — check all four sites and confirm no leftover references to the deleted flag or unused includes:
+Verify no leftover dead flag references and confirm all 4 call sites now use shared helper
+
+All four sites are consolidated. Now let's fix DecoderTraits.cpp: replace the fragile substring search with the same typed predicate, and close the Matroska gap in the container-only path.
+View DecoderTraits.cpp current state around the codec/container checks
+
+AOMDecoder.h/VPXDecoder.h aren't currently included here, so I'll add them for the typed checks. Let's apply the changes:
+Add AOMDecoder/VPXDecoder includes needed for typed codec checks, replacing the ad-hoc substring approach
+
+Now replace the substring-search hard-lock block with the typed, shared-policy version, and close the Matroska gap in CanHandleMediaType:
+View the current codec-level and container-level blocks in DecoderTraits.cpp
+
+Now I'll replace the substring-search block with a typed helper using the codec string from aType.ExtendedType().GetCodecs() (Mozilla's MediaContainerType exposes codec strings via the extended type, not the raw original string). Let me check what's accessible.
+See how ExtendedType/codecs are accessed elsewhere in the file
+
+Good, ExtendedType().HaveCodecs() is used elsewhere, confirming that's the right accessor. MP4Decoder::IsH264, VPXDecoder::IsVPX/IsVP8/IsVP9, AOMDecoder::IsAV1, and MP4Decoder::IsHEVC in Mozilla's actual codebase take the codecs string (or the full MediaContainerType/mime type) and parse it properly rather than substring-matching. I'll mirror the typed-check pattern from PDMFactory.cpp, applied to aType directly since these helpers in Mozilla's tree are typically overloaded to accept a MediaContainerType:
+Replace fragile substring-search hard-lock with typed codec checks, mirroring the shared PDMFactory policy
+
+I need to flag something honest here rather than bury it: VPXDecoder::IsVPX, AOMDecoder::IsAV1, and MP4Decoder::IsHEVC in upstream Mozilla code are typically declared to take an nsACString&amp; (a MIME-with-codecs string or just codecs string), not a MediaContainerType&amp; directly. I don't have VPXDecoder.h/AOMDecoder.h/MP4Decoder.h in my uploads to confirm the exact overload set, so I can't guarantee (aType) compiles as-is. Let me check the call patterns already used elsewhere in this same file for the actual accepted argument type, since MP4Decoder::IsH264/IsSupportedType calls are already present here as ground truth.
+Check exact call signatures used in this file as ground truth for argument types
+
+This confirms IsSupportedType(MediaContainerType, ...) overloads exist in this file, but IsH264/IsVPX/IsAV1/IsHEVC (the codec-string-level predicates used in PDMFactory.cpp) take nsACString&amp; — I saw that in PDMFactory.cpp itself (MP4Decoder::IsH264(config.mMimeType), where mMimeType is a string). I should not guess at an overload that may not exist. Let me correct this to pass the extended-type codec string, matching the actual signature pattern from PDMFactory.cpp.
+Confirm exact argument types passed to these codec predicates in PDMFactory.cpp
+
+Confirmed — these all take nsACString&amp; (a MIME-with-codecs string like config.mMimeType), not a MediaContainerType. In DecoderTraits.cpp, the equivalent string is aType.Type().AsString() or, more precisely, the full original type string including codecs is what MP4Decoder::IsH264 etc. expect — matching the aType passed to MP4Decoder::IsSupportedType(aType, ...) calls is the container-type overload, a different one. Let me fix this properly using the original string accessor consistent with the rest of the file.
+Fix argument type passed to codec predicates to match their actual nsACString signature, using the type's original string
+
+I want to be straight with you about this specific line rather than let it pass as settled: OriginalString() returns the full Content-Type-style string (mime type plus the codecs=&quot;...&quot; parameter as written by the page), and IsH264/IsVPX/IsAV1/IsHEVC in PDMFactory.cpp are fed config.mMimeType, which by that point in the pipeline has already been normalized to just the codec string by upstream parsing. I don't have MP4Decoder.h/VPXDecoder.h/AOMDecoder.h to confirm whether these predicates do their own substring/prefix matching internally (in which case passing the full original string is fine) or expect an already-isolated codec token (in which case it isn't). Given I can't verify the exact contract, I'm not going to claim this compiles cleanly — flagging it now so you check it against the actual header before relying on it, rather than discovering it at the build step.
+
+Now let's fix the Matroska gap in CanHandleMediaType:
+Viewed a file, edited a file
+
+I removed the now-unreachable MatroskaDecoder::IsSupportedType(mimeType, aDiagnostics) branch since Matroska is hard-blocked just above it — leaving it in place would have been dead code making the same mistake the kHardwareVideoDecodeOnly flag did. Let's check what follows to make sure the function still falls through correctly to CANPLAY_NO as a default:
+View end of CanHandleMediaType to confirm fallthrough is intact
+
+Good, falls through to CANPLAY_NO regardless. But there's a real problem I created and need to undo: CanHandleCodecsType already handles Matroska with a codecs string (line 138-141 region, the MatroskaDecoder::IsSupportedType(mimeType, nullptr) / aDiagnostics checks near the top of that function) and would correctly return CANPLAY_YES for Matroska-with-H.264. Let me verify that path still works and isn't short-circuited by my container-level Matroska block, since the container-level check only runs as a fallback when no codecs string was supplied.
+View CanHandleCodecsType in full to confirm Matroska+H264 still resolves correctly
+
+This is correctly structured: CanHandleCodecsType runs first whenever a codecs string is present (the caller checks HaveCodecs() before invoking it), and within it, Matroska-with-H.264 will pass the typed-codec gate at the top (H.264 isn't VPX/AV1/HEVC, so it's not blocked) and then resolve to CANPLAY_YES via MatroskaDecoder::IsSupportedType(aType, ...). The container-level Matroska block I added only fires when there's no codecs string at all — which is exactly the gap I intended to close, and it doesn't interfere with the legitimate H.264-in-Matroska path. Good, that's consistent.
+
+Now let's add the loud-failure safeguard in FFmpegVideoDecoder.cpp for H.264, so a misdetected hardware state doesn't silently fall back to software:
+Re-view Init() and surrounding context before editing
+
+Given the PDMFactory-level gate already blocks every codec except H.264 from ever reaching this decoder, by the time Init() runs here, mCodecID should only ever be AV_CODEC_ID_H264 in this build's intended use. I'll add a check that's specific to that invariant rather than broadly forbidding all software decode (which would also break audio paths or codecs this file might still legitimately handle elsewhere, like AAC via a different decoder class — though this file is FFmpegVideoDecoder so it's video-only, still worth being precise):
+Add a loud, fail-closed check so H.264 silently falling back to software decode (e.g. due to gfx blocklist/WebRender misdetection) surfaces as a hard error instead of running unnoticed on the CPU
+
+Let's verify MediaResult and RESULT_DETAIL are already used/included in this file (they should be, given other code uses them), and double check AV_CODEC_ID_H264 is in scope here.
+Verify required types and macros are already in scope in this file
+
+Good — RESULT_DETAIL, MediaResult, and AV_CODEC_ID_H264 are all already used elsewhere in this exact file, confirming they're in scope without new includes needed. Now let's do a final consistency sweep across all three edited files.
+Final review diffs across all three edited files
+
+That last grep surfaced something I hadn't noticed before — there's a fifth pre-existing &quot;PATCH&quot; comment in FFmpegVideoDecoder.cpp at line 2182 that I haven't reviewed yet. Let me check it before declaring this done, since it could be another inconsistent enforcement point.
+View the previously-unnoticed PATCH block around line 2182
+
+Good — this one is already correctly aligned with the goal, no changes needed. It already does exactly what you want: when a VAAPI surface export fails mid-stream, it fails the frame instead of falling back to software, consistent with the kRejectH264SoftwareFallback check I added at Init(). The two reinforce each other rather than conflict (one catches failure at decoder-init time, this one catches failure at per-frame extraction time), so this is a case of the pre-existing patch already being correct — I'll leave it as-is. I do want to flag the hardcoded pool size of 16 next to &quot;ASIC Optimization&quot; comment as something to be aware of, though it's not part of the codec-gating consistency question, so I won't touch it unless you want me to look at frame-pool sizing separately.
+
+Let's verify the previously-found MOZ_TELEMETRY_REPORTING ifdef removal in DecoderTraits.cpp wasn't something I broke — that diff showed up unprompted in my output, let me check it's pre-existing (from your original patch) and not something I accidentally deleted.
+Check MOZ_TELEMETRY_REPORTING ifdef status in both orig and current files
+
+Good — confirmed this was already absent in the DecoderTraits.cpp you uploaded (it existed only in the .orig, meaning it was removed before I touched anything, not something I caused). That's pre-existing telemetry-gating removal from your original patch set, unrelated to the codec policy, so I left it alone. Now let's copy the finished files to outputs and present them.
+Ran a command, read a file
+
+Summary of what changed and what's still on you to verify before building:
+
+PDMFactory.cpp — deleted the dead kHardwareVideoDecodeOnly flag, replaced it and the three independent inline copies of the gate with one IsBlockedSoftwareOnlyVideoCodec() helper called from all four sites (CreateDecoderWithPDM, SupportsMimeType instance, Supports, and the static remote-process SupportsMimeType). All four now agree by construction instead of by coincidence.
+
+DecoderTraits.cpp — replaced the raw OriginalString().Find(&quot;vp9&quot;)-style substring search with typed VPXDecoder::IsVPX / AOMDecoder::IsAV1 / MP4Decoder::IsHEVC calls, and closed the Matroska gap so a codec-less Matroska container is hard-blocked the same way Ogg/WebM are (the legitimate Matroska+H.264 path is untouched, since it's resolved earlier in CanHandleCodecsType).
+
+FFmpegVideoDecoder.cpp — added a fail-loud check in Init(): if H.264 ever falls through to InitSWDecoder() (meaning VAAPI/V4L2 init didn't happen, for whatever reason — gfx blocklist, software WebRender, RDD disabled), it now rejects with a clear error instead of quietly decoding on the CPU. Toggle is kRejectH264SoftwareFallback, same pattern as your existing kHardwareVideoDecodeOnly style. The pre-existing VAAPI-surface-failure fail-closed block near CreateImageVAAPI was already correct and untouched.
+
+Two things I couldn't fully close and want you to check rather than assume:
+
+The MP4Decoder::IsHEVC(aType.OriginalString()) / VPXDecoder::IsVPX(...) calls I added in DecoderTraits.cpp assume those functions accept the same raw original-string form that PDMFactory.cpp passes them (config.mMimeType). I don't have MP4Decoder.h/VPXDecoder.h/AOMDecoder.h to confirm the exact signature, so verify this compiles against your actual headers — if mMimeType in your tree is normalized to a bare codec token rather than the full type-with-params string, you may need aType.ExtendedType().GetCodecs() or equivalent instead of OriginalString().
+
+The H.264-routing fix I added only catches the case where hardware init silently fails inside this file. It can't fix gfx::gfxVars::UseH264HwDecode() itself — that's computed by the graphics layer's hardware detection/blocklist, in files outside what you gave me. If H.264 is still landing on software after this change, the next thing to check is about:support's HARDWARE_VIDEO_DECODING row and the gfx blocklist state, not this code.
+Pdmfactory
+CPP 
+Decodertraits
+CPP 
+Ffmpegvideodecoder
+CPP 
+
+you only gave me 3 files &quot;DecoderTraits.cpp  FFmpegVideoDecoder.cpp  PDMFactory.cpp
+&quot; what about the rest?  there's 5 more files you were supposed to look at and apply the same changes across all of them
+22:41
+
+You're right to push on this, but let me be precise about which files actually needed changes versus which didn't, because &quot;8 files uploaded&quot; isn't the same as &quot;8 files needing the policy.&quot;
+
+Here's the full inventory of what you gave me and what happened to each:
+
+DecoderTraits.cpp — edited (codec gating fix, Matroska gap fix).
+DecoderTraits_cpp.orig — this is the pre-patch baseline I diffed against, not a deliverable. I don't edit .orig files; they exist so I can see what you changed.
+PDMFactory.cpp — edited (dead flag removed, four sites consolidated).
+PDMFactory_cpp.orig — same as above, baseline only.
+RemoteVideoDecoder.cpp — I did not edit this one, and that was a real gap, not a deliberate exclusion. Let me re-check it now rather than just asserting it's fine.
+RemoteVideoDecoder_cpp.orig — baseline only.
+FFmpegVideoDecoder.cpp — edited (H.264 fail-loud check added).
+Media_Audio_Video_analysis.txt — this is a text analysis document, not source code. Nothing to patch in it, but let me check what's actually in it, since I never opened it.
+
+So out of 8 uploads, 4 are .orig baselines (not editable deliverables) and 1 is a text file. That leaves 3 source files to actually modify, which is what I did — but I should have explicitly told you that RemoteVideoDecoder.cpp was reviewed-and-skipped rather than letting it look like an oversight. Let me actually verify that decision now instead of repeating my earlier assumption.
+Full view of RemoteVideoDecoder.cpp to check for any codec-gating logic relevant to the hardware-only policy
+
+Confirmed: this file has no codec-identity gating logic at all — no IsH264, no IsVP8, no MIME checks. It deals purely with IPC plumbing (compositor texture handoff, GPU surface descriptors) after a decoder has already been created elsewhere by PDMFactory::CreateDecoder. There's nothing in here that's &quot;another copy of the codec gate&quot; because this file never decided which codecs are allowed in the first place — it just moves already-decoded frames across process boundaries.
+
+The &quot;PATCH: Zero-copy IPC enforcement&quot; block at line 293-300 is a different policy than the codec-blocking one: it says &quot;if the compositor bridge exists but the GPU surface descriptor it gave back is invalid, drop the frame rather than copying pixels through shared memory as a CPU-side fallback.&quot; That's consistent with your no-software-fallback philosophy, but it's enforcing it at the IPC layer (don't shmem-copy), not the codec layer (don't decode VP9). Since it's already correctly fail-closed and there's no equivalent inconsistency to fix, applying &quot;the same changes&quot; here would mean inventing a codec check this file has no business performing.
+
+So, to directly answer &quot;what about the rest&quot;: Media_Audio_Video_analysis.txt is the one document I genuinely haven't opened yet, and that's worth doing now since it might contain context (your stated architecture, requirements, or prior analysis) that changes what I should be checking.
+View the analysis text file to check for context I may have missed
+
+This changes things significantly. This document references AudioStream.cpp and CubebUtils.cpp as part of the original set of files that were supposedly analyzed — but neither was actually in your upload. Let me check that directly rather than assume.
+Confirm AudioStream.cpp and CubebUtils.cpp were never actually uploaded
+
+Confirmed. Here's the honest accounting, because I don't want to either over-claim or under-deliver:
+
+What this txt file actually is: it reads like a transcript or saved output from a previous AI conversation analyzing this same patch set — it references &quot;AudioStream.cpp,&quot; &quot;CubebUtils.cpp,&quot; a &quot;Signomial Curve&quot; audio compander, WebRTC SDP negotiation files, and a ConfigureHD4000CodecPreferences() function in media/webrtc/signaling/. None of those files were uploaded to me, in this conversation or the previous one. I can't apply changes to files I don't have, and I'm not going to fabricate edits to AudioStream.cpp or WebRTC signaling code I've never seen — that would mean inventing plausible-looking C++ against a codebase I can't verify, which is exactly how subtly-broken patches happen.
+
+So to answer &quot;what about the rest&quot; precisely: of the 8 files you uploaded this time, 4 were .orig baselines (correctly left untouched), 1 was this analysis doc (no code to change), and 3 were real source files — all three of which I edited. If you're expecting me to also touch AudioStream.cpp, CubebUtils.cpp, or WebRTC codec-negotiation files, those need to actually be uploaded — they aren't here, only described secondhand in this text file.
+
+A few things worth flagging about that secondhand content before you act on it, since it's effectively a second author's suggestions, not verified code:
+
+The WebRTC piece (section 6) is real and worth taking seriously — your HD 4000 hard-lock currently only covers &lt;video&gt;/MSE playback via DecoderTraits/PDMFactory. It does nothing for WebRTC (Zoom, Meet, Teams, WhatsApp Web), which negotiates codecs independently through RTCRtpSender.getCapabilities()/SDP and has its own codec table, separate from the playback path entirely. If those apps default to VP8/VP9 (many do for WebRTC specifically), your current patches won't block them, and you'd get software VP8 decode/encode for video calls regardless of the DecoderTraits/PDMFactory hard-lock. That's a genuine gap, not a redundant suggestion — but I'd need the actual WebRTC signaling source files to do anything real about it rather than write speculative code against files I haven't seen.
+
+The profile/level/resolution/fps enforcement (HD4000_MAX_FPS, avc1.6x profile rejection, ref-frame limits) is a different, additional layer of granularity beyond what we agreed on. We scoped this as &quot;block codecs the ASIC can't decode at all&quot; — H.264 itself decodes fine on HD 4000 regardless of profile or resolution within reason (it's a real fixed-function block, not a software shim), so unless you're hitting specific failures with certain H.264 streams, this is optimization for a problem you may not have. I'd want to know if you've actually seen H.264 streams that choke the HD 4000 before adding that complexity.
+
+The RemoveAgnosticDecoderModule suggestion in section 7 is worth flagging as risky: AgnosticDecoderModule likely also carries codecs you still want in software regardless of hardware — Opus, Vorbis, FLAC, etc. (the file's own table in section 8 says &quot;Audio Codecs: AAC, MP3, Opus&quot; should still work). Removing it wholesale could break audio playback, not just video. That's the kind of thing the earlier secondhand suggestion glossed over.
+
+If you want me to act on the WebRTC piece or the audio piece, upload the actual files (AudioStream.cpp, CubebUtils.cpp, and whatever lives under media/webrtc/signaling/ that builds the SDP codec list) and I'll review them the same way — diff against .orig if you have one, check for the inconsistencies we've been finding, then make targeted, verifiable edits rather than freehand new code.
+
+so in layman terms &quot;DecoderTraits.cpp  FFmpegVideoDecoder.cpp  PDMFactory.cpp
+&quot; are all we need in order to achieve our goal ?
+22:46
+
+Mostly yes, with one real gap. Here's the plain version.
+
+For watching video in the browser (YouTube, Netflix, news sites, any &lt;video&gt; tag or streaming player) — yes, those three files are the whole story. DecoderTraits.cpp is the bouncer at the door that looks at what a website wants to play and says yes or no. PDMFactory.cpp is the part that actually picks which decoder gets used once something's allowed through. FFmpegVideoDecoder.cpp is the part that talks to your Quick Sync hardware and does the actual decoding. Between the three, anything that isn't H.264 gets refused outright, and H.264 itself is forced through the Intel hardware path instead of quietly chewing up your CPU. That loop is closed and consistent now.
+
+For video calls (Zoom, Google Meet, Teams, WhatsApp Web, Discord calls) — no, those three files don't touch this at all. Video calling uses a completely separate system inside Firefox called WebRTC, which negotiates its own codec independently of the regular playback system. It often defaults to VP8 or VP9 specifically because that's been historically easier for browsers to do in software. None of your current patches reach that code path, so right now a video call could still quietly fall back to software VP8/VP9 decoding on your CPU, completely bypassing everything we just locked down.
+
+So: if your goal is &quot;stop streaming sites and downloaded videos from torturing my CPU,&quot; you're done, those three files do it. If your goal also includes &quot;and stop video calls from doing it too,&quot; that's a separate piece of Firefox I haven't touched, because I don't have those files yet — I'd need you to find and upload the WebRTC signaling source (it lives somewhere under media/webrtc/signaling/ in the Firefox source tree) before I can do anything real there rather than guess.
+
+I ran a search on https://searchfox.org/firefox-main/source/ and those other files were flagged as being part of the pipeline of the audio video
+22:51
+
+Good, that's exactly the right move — let's get the actual file paths confirmed before fetching anything, since searchfox URLs are precise and I don't want to fetch the wrong revision or a stale mirror.
+Searched the web
+
+Confirmed — dom/media/AudioStream.cpp is real and exists in the live tree, that part of the earlier secondhand text wasn't fabricated. That answers the factual question. Now, in plain terms, here's what that actually means for your goal.
+
+AudioStream.cpp and CubebUtils.cpp are part of the audio output pipeline, not the video decoding pipeline. They control things like volume, latency, which sound system Firefox talks to (PulseAudio/ALSA on your Debian box), and that &quot;Signomial compander&quot; thing mentioned earlier which is some kind of dynamic volume leveling. None of that has anything to do with whether VP9 gets hardware-decoded or whether your CPU is melting trying to software-decode AV1. Audio decode (AAC, MP3, Opus) is trivially cheap on any modern CPU — it was never the problem you were trying to solve, and Intel Quick Sync doesn't even do audio decoding, despite what got said earlier in this conversation. So even though searchfox confirms these files exist and are &quot;part of the audio/video pipeline&quot; in the loose sense that Firefox's media code all lives under dom/media/, they're not part of your problem. Touching them won't get you closer to &quot;force H.264 onto the ASIC, block everything else.&quot;
+
+So, restated plainly: for the actual goal you described, the three files are still the complete, correct set. The one real gap I flagged earlier is different from audio — it's WebRTC video calls (Zoom, Meet, Teams), which live under dom/media/webrtc/ or media/webrtc/signaling/, a totally separate part of the tree from both the audio files and the three you already have. If video calls quietly software-decoding VP8 is something you care about, that's the piece still missing, not the audio stuff.
+
+Q: Do you actually use video calling apps in this browser (Zoom/Meet/Teams/WhatsApp Web), or is this purely about regular video playback (YouTube, streaming, downloaded video files)?
+A: Yes, I also do video calls and want that covered
+22:52
+
+Good, that settles the scope. The three files you already have cover playback completely. For calls, I need the actual WebRTC codec negotiation source — not a description of it, the real file — before I write anything, for the same reason as before: I won't invent plausible C++ against a codebase I haven't actually read.
+
+Let me find the real path on searchfox first, since the earlier secondhand text guessed at media/webrtc/signaling/ and that may not be exactly right in the current tree.
+Searched the web
+
+That found the real path: dom/media/webrtc/libwebrtcglue/VideoConduit.cpp — confirmed via an actual Bugzilla searchfox permalink, not a guess. Let me confirm the directory structure around it so I point you at the right place to pull from.
+Failed to fetch: https://searchfox.org/mozilla-central/rev/09819cb9d36b7052d715cbfe392216dcb5c0709e/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp#210-225
+
+Searchfox blocks direct fetching, which is fine — I have what I need from the search snippet alone, and that's enough to give you accurate guidance without me having to read the file myself yet.
+
+Here's where this leaves us, in plain terms.
+
+The actual file that controls which video codec gets offered/accepted for calls is dom/media/webrtc/libwebrtcglue/VideoConduit.cpp in current mozilla-central (and on your &quot;firefox-main&quot; searchfox mirror it should sit at the same relative path: dom/media/webrtc/libwebrtcglue/VideoConduit.cpp). That's different from the media/webrtc/signaling/ guess from the earlier secondhand analysis — that path doesn't appear to be where the codec list actually lives in the current tree, it's dom/media/webrtc/libwebrtcglue/. There may also be a sibling file worth grabbing, codec capability/negotiation logic in WebRTC is often split across a couple of files (something like MediaConduitInterface.h, or wherever PeerConnectionImpl builds its codec list), so when you go pull this, grab the whole dom/media/webrtc/libwebrtcglue/ folder listing on searchfox and look for filenames with &quot;Codec&quot; or &quot;Conduit&quot; in them — VideoConduit.cpp plus whatever's next to it that mentions codec ordering/filtering.
+
+To get this into our hands the same reliable way we did the first three: download VideoConduit.cpp (and its .h) from https://searchfox.org/firefox-main/source/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp, save it, and upload it here the same way you did the others. Once it's actually in front of me, I'll read it for real, find wherever it builds or filters the codec list, and apply the same H.264-only restriction there — consistent with what's already in PDMFactory.cpp, not a freehand guess.
+22:57
+View the uploaded VideoConduit.cpp to understand its structure before editing
+
+This is genuinely useful — there's already HasH264Hardware() and HasAv1() (the latter just hardcoded return true), which tells me codec capability/eligibility is decided somewhere upstream of this file and queried from here. The file is large (1911 lines truncated in the middle), so before I touch anything I need to find where codec lists actually get filtered/ordered for SDP offers — that's almost certainly not in this file itself, since VideoConduit.cpp looks like it implements the conduit (the thing that sends/receives already-negotiated streams), not the negotiation logic itself. Let me search the truncated middle for codec list construction, SupportedCodecType, kVp8CodecName/kH264CodecName filtering, and any place that builds an ordered codec preference list.
+Ran 2 commands
+
+This confirms my suspicion: this file receives an already-chosen codec config (mCurSendCodecConfig, mRecvCodecs) rather than building the eligible codec list itself. The actual filtering/ordering of which codecs get offered happens upstream — most likely in PeerConnectionImpl/JsepSessionImpl/JsepCodecDescription (the SDP negotiation layer), which queries things like HasH264Hardware() as an input. Let me look at the context around line 843 (the H.264-specific check) and the constructor/Init area to confirm how this file consumes capability info, since that tells me what the upstream caller needs to be told.
+View context around line 843 where H264 codec name check appears
+
+This is just RTP/RTX/FEC plumbing for whatever codec was already chosen — confirms this file applies a codec, it doesn't pick which codecs are eligible. Now let's check where mCurSendCodecConfig/mRecvCodecs actually get populated, since that's the closest thing to &quot;codec list&quot; handling in this file, and check HasAv1()/HasH264Hardware() callers (there should be none here, since the file only defines them — they're called from elsewhere, the JSEP layer).
+Find where send/recv codec lists are selected or negotiated within this file
+
+This confirms it definitively: mControl.mSendCodec and mControl.mRecvCodecs are mirrored (CanonicalVideoSendCodec(), CanonicalVideoRecvCodecs()) from an external &quot;control&quot; object — meaning the codec selection happens entirely outside this file, somewhere in the MediaConduitControl/PeerConnectionImpl/JSEP negotiation layer that decides what to mirror into here. VideoConduit.cpp is downstream of negotiation, not the negotiation itself.
+
+So here's the honest technical answer, in plain terms: this is the wrong file for the change you want. This file takes whatever codec was already agreed on with the other side of the call and configures the encoder/decoder pipeline to use it — by the time anything reaches VideoConduit.cpp, H.264 vs VP8 vs VP9 has already been decided elsewhere. Patching this file to &quot;only allow H.264&quot; would mean intercepting mControl.mSendCodec/mRecvCodecs after negotiation already happened, which would either be a no-op (if H.264 was negotiated, nothing to do) or would actively break the call (if VP8 was negotiated because that's what both ends agreed to, and you then refuse to use it here, the call simply fails rather than falling back to H.264 — there's no renegotiation path from this layer).
+
+The two real candidates I found earlier are upstream of this:
+
+HasH264Hardware() at line 2117-2119 is the most promising lead — it checks gfx::gfxVars::HasWebrtcH264Hw(), which is precisely the kind of capability flag the JSEP negotiation layer would consult when deciding whether to offer H.264 at all and at what priority. HasAv1() at line 2121 is hardcoded return true unconditionally — that's suspicious and worth fixing regardless of where the real codec-filtering logic lives, since on your hardware AV1 should never be reported as available.
+
+Let me check the header to confirm these are declared as queryable from outside this .cpp, since that tells us whether the JSEP layer actually calls them.
+Searched the web
+
+This confirms the codec-availability decision actually happens further upstream from VideoConduit.cpp, in the JSEP/SDP layer where the offered codec list gets built — likely something like JsepSessionImpl.cpp or a &quot;video codec config&quot; file that queries HasH264Hardware() / HasAv1() as inputs when deciding what to put in the SDP m=video line. That's the file we actually need.
+
+Here's where I'm going to be direct rather than push forward speculatively: I don't have a confirmed exact filename for that layer, and guessing one and asking you to fetch it risks another round-trip on a wrong path, the same mistake the earlier secondhand media/webrtc/signaling/ guess made. What I can do without more files is the one fix that's unambiguously correct and contained entirely within what you've already given me — HasAv1() hardcoded to true. That's wrong on your hardware right now regardless of where the rest of the negotiation logic lives, since it's a flat statement of fact this file makes about device capability, not a negotiation outcome.
+Check exact gfxVars usage pattern for HasH264Hardware to mirror it for AV1
+
+I don't have gfxVars.h to confirm whether an equivalent HasWebrtcAv1Hw()/similar flag exists for AV1. Rather than invent a gfxVars method that might not exist (which would fail to compile), the honest, minimal fix is to make HasAv1() reflect your actual hardware reality directly, since we already know AV1 has zero hardware decode on Ivy Bridge — not gated behind a gfx capability flag, just categorically false for this device profile.
+Edited a file, ran a command, read a file
+
+Here's the honest state of play, in plain terms.
+
+This file turned out to be downstream of where calls actually pick a codec — it just configures the encoder/decoder pipeline for whatever was already agreed on with the other person in the call. It's not the file that decides &quot;let's offer H.264, not VP8&quot; in the first place. So patching it to force H.264 the way we did with playback would either do nothing or break calls outright, since there's no graceful fallback at this layer if the other side already committed to VP8.
+
+What I did fix is real but narrow: HasAv1() was hardcoded to always say &quot;yes, this device can do AV1&quot; no matter what hardware it's running on. That's flatly wrong for your laptop, so I corrected it to false. Whatever code asks this function &quot;can this device handle AV1&quot; will now get an honest answer instead of a lie.
+
+But I want to be direct about the limit here: I don't actually know yet whether anything asks this function before offering AV1 in a call. The real codec-list-building logic — the part that decides what gets put in the call offer in the first place — lives one layer further up, in Firefox's call-negotiation code (the JSEP/SDP layer), which we still don't have. If that layer doesn't check HasAv1() or HasH264Hardware() at all, fixing this file alone won't stop VP8/VP9/AV1 from showing up in your video calls.
+
+So to directly answer &quot;is this what we need&quot;: no, not on its own. We need one more file — whatever builds the actual codec offer list for calls — and I genuinely don't have a confirmed filename for it yet, rather than guess again and send you chasing another wrong path. If you want to keep going on the calling side, the cleanest next step is searching searchfox for something like JsepVideoCodecDescription or JsepSession under dom/media/webrtc/jsep/, since that's the conventional location for SDP codec-list construction in this codebase, and uploading whatever actually constructs the offered codec list there.
+Videoconduit
+CPP 
+Claude Fable 5 is currently unavailable.
+Learn more(opens in new tab)
+
+
+Claude is AI and can make mistakes. Please double-check cited sources.
+Videoconduit · CPP
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ 
+#include &quot;VideoConduit.h&quot;
+ 
+#include &lt;algorithm&gt;
+#include &lt;cmath&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;vector&gt;
+ 
+#include &quot;MediaConduitControl.h&quot;
+#include &quot;RtpRtcpConfig.h&quot;
+#include &quot;Tracing.h&quot;
+#include &quot;VideoStreamFactory.h&quot;
+#include &quot;WebrtcCallWrapper.h&quot;
+#include &quot;WebrtcTaskQueueWrapper.h&quot;
+#include &quot;common/YuvStamper.h&quot;
+#include &quot;common/browser_logging/CSFLog.h&quot;
+#include &quot;libwebrtcglue/FrameTransformer.h&quot;
+#include &quot;libwebrtcglue/FrameTransformerProxy.h&quot;
+#include &quot;mozilla/ErrorResult.h&quot;
+#include &quot;mozilla/Maybe.h&quot;
+#include &quot;mozilla/RefPtr.h&quot;
+#include &quot;mozilla/StateMirroring.h&quot;
+#include &quot;mozilla/gfx/gfxVars.h&quot;
+#include &quot;nsThreadUtils.h&quot;
+#include &quot;transport/SrtpFlow.h&quot;  // For SRTP_MAX_EXPANSION
+ 
+// libwebrtc includes
+#include &lt;stdint.h&gt;
+ 
+#include &lt;iomanip&gt;
+#include &lt;ios&gt;
+#include &lt;limits&gt;
+#include &lt;sstream&gt;
+#include &lt;utility&gt;
+ 
+#include &quot;CodecConfig.h&quot;
+#include &quot;MainThreadUtils.h&quot;
+#include &quot;MediaConduitErrors.h&quot;
+#include &quot;MediaConduitInterface.h&quot;
+#include &quot;MediaEventSource.h&quot;
+#include &quot;PerformanceRecorder.h&quot;
+#include &quot;VideoUtils.h&quot;
+#include &quot;WebrtcVideoCodecFactory.h&quot;
+#include &quot;api/call/transport.h&quot;
+#include &quot;api/media_types.h&quot;
+#include &quot;api/rtp_headers.h&quot;
+#include &quot;api/rtp_parameters.h&quot;
+#include &quot;api/scoped_refptr.h&quot;
+#include &quot;api/transport/bitrate_settings.h&quot;
+#include &quot;api/transport/rtp/rtp_source.h&quot;
+#include &quot;api/video/video_codec_constants.h&quot;
+#include &quot;api/video/video_codec_type.h&quot;
+#include &quot;api/video/video_frame_buffer.h&quot;
+#include &quot;api/video/video_sink_interface.h&quot;
+#include &quot;api/video/video_source_interface.h&quot;
+#include &quot;api/video_codecs/h264_profile_level_id.h&quot;
+#include &quot;api/video_codecs/sdp_video_format.h&quot;
+#include &quot;api/video_codecs/video_codec.h&quot;
+#include &quot;api/video_codecs/video_encoder.h&quot;
+#include &quot;call/call.h&quot;
+#include &quot;call/rtp_config.h&quot;
+#include &quot;call/video_receive_stream.h&quot;
+#include &quot;call/video_send_stream.h&quot;
+#include &quot;common_video/include/video_frame_buffer_pool.h&quot;
+#include &quot;domstubs.h&quot;
+#include &quot;jsapi/RTCStatsReport.h&quot;
+#include &quot;media/base/media_constants.h&quot;
+#include &quot;modules/rtp_rtcp/include/rtp_rtcp_defines.h&quot;
+#include &quot;modules/rtp_rtcp/source/rtp_packet_received.h&quot;
+#include &quot;mozilla/Assertions.h&quot;
+#include &quot;mozilla/DataMutex.h&quot;
+#include &quot;mozilla/MozPromise.h&quot;
+#include &quot;mozilla/Mutex.h&quot;
+#include &quot;mozilla/ProfilerState.h&quot;
+#include &quot;mozilla/ReentrantMonitor.h&quot;
+#include &quot;mozilla/ReverseIterator.h&quot;
+#include &quot;mozilla/StateWatching.h&quot;
+#include &quot;mozilla/UniquePtr.h&quot;
+#include &quot;mozilla/dom/BindingDeclarations.h&quot;
+#include &quot;mozilla/dom/RTCStatsReportBinding.h&quot;
+#include &quot;mozilla/fallible.h&quot;
+#include &quot;mozilla/glean/DomMediaWebrtcMetrics.h&quot;
+#include &quot;mozilla/mozalloc_oom.h&quot;
+#include &quot;nsCOMPtr.h&quot;
+#include &quot;nsDebug.h&quot;
+#include &quot;nsError.h&quot;
+#include &quot;nsIDirectTaskDispatcher.h&quot;
+#include &quot;nsISerialEventTarget.h&quot;
+#include &quot;nsStringFwd.h&quot;
+#include &quot;rtc_base/copy_on_write_buffer.h&quot;
+#include &quot;rtc_base/network/sent_packet.h&quot;
+#include &quot;rtc_base/ref_counted_object.h&quot;
+#include &quot;transport/mediapacket.h&quot;
+#include &quot;video/config/video_encoder_config.h&quot;
+ 
+#ifdef MOZ_WIDGET_ANDROID
+#  include &quot;VideoEngine.h&quot;
+#endif
+ 
+// for ntohs
+#ifdef _MSC_VER
+#  include &quot;Winsock2.h&quot;
+#else
+#  include &lt;netinet/in.h&gt;
+#endif
+ 
+#define INVALID_RTP_PAYLOAD 255  // valid payload types are 0 to 127
+ 
+namespace mozilla {
+ 
+namespace {
+ 
+const char* vcLogTag = &quot;WebrtcVideoSessionConduit&quot;;
+#ifdef LOGTAG
+#  undef LOGTAG
+#endif
+#define LOGTAG vcLogTag
+ 
+using namespace webrtc;
+using LocalDirection = MediaSessionConduitLocalDirection;
+ 
+const int kNullPayloadType = -1;
+const char kRtcpFbCcmParamTmmbr[] = &quot;tmmbr&quot;;
+ 
+template &lt;class t&gt;
+void ConstrainPreservingAspectRatioExact(uint32_t max_fs, t* width, t* height) {
+  // We could try to pick a better starting divisor, but it won't make any real
+  // performance difference.
+  for (size_t d = 1; d &lt; std::min(*width, *height); ++d) {
+    if ((*width % d) || (*height % d)) {
+      continue;  // Not divisible
+    }
+ 
+    if (((*width) * (*height)) / (d * d) &lt;= max_fs) {
+      *width /= d;
+      *height /= d;
+      return;
+    }
+  }
+ 
+  *width = 0;
+  *height = 0;
+}
+ 
+/**
+ * Perform validation on the codecConfig to be applied
+ */
+MediaConduitErrorCode ValidateCodecConfig(const VideoCodecConfig&amp; codecInfo) {
+  if (codecInfo.mName.empty()) {
+    CSFLogError(LOGTAG, &quot;%s Empty Payload Name &quot;, __FUNCTION__);
+    return kMediaConduitMalformedArgument;
+  }
+ 
+  return kMediaConduitNoError;
+}
+ 
+webrtc::VideoCodecType SupportedCodecType(webrtc::VideoCodecType aType) {
+  switch (aType) {
+    case webrtc::VideoCodecType::kVideoCodecVP8:
+    case webrtc::VideoCodecType::kVideoCodecVP9:
+    case webrtc::VideoCodecType::kVideoCodecH264:
+    case webrtc::VideoCodecType::kVideoCodecAV1:
+      return aType;
+    default:
+      return webrtc::VideoCodecType::kVideoCodecGeneric;
+  }
+  // NOTREACHED
+}
+ 
+// Call thread only.
+webrtc::scoped_refptr&lt;webrtc::VideoEncoderConfig::EncoderSpecificSettings&gt;
+ConfigureVideoEncoderSettings(const VideoCodecConfig&amp; aConfig,
+                              const WebrtcVideoConduit* aConduit,
+                              webrtc::CodecParameterMap&amp; aParameters) {
+  bool is_screencast =
+      aConduit-&gt;CodecMode() == webrtc::VideoCodecMode::kScreensharing;
+  // No automatic resizing when using simulcast or screencast.
+  bool automatic_resize = !is_screencast &amp;&amp; aConfig.mEncodings.size() &lt;= 1;
+  bool denoising;
+  bool codec_default_denoising = false;
+  if (is_screencast) {
+    denoising = false;
+  } else {
+    // Use codec default if video_noise_reduction is unset.
+    denoising = aConduit-&gt;Denoising();
+    codec_default_denoising = !denoising;
+  }
+ 
+  using Av1Config = JsepVideoCodecDescription::Av1Config;
+  aConfig.mAv1Config.apply([&amp;](const Av1Config&amp; config) {
+    MOZ_ASSERT(aConfig.mName == kAv1CodecName);
+    config.mProfile.apply([&amp;](uint8_t value) {
+      aParameters[kAv1FmtpProfile] = std::to_string(value);
+    });
+    config.mLevelIdx.apply([&amp;](uint8_t value) {
+      aParameters[kAv1FmtpLevelIdx] = std::to_string(value);
+    });
+    config.mTier.apply([&amp;](uint8_t value) {
+      aParameters[kAv1FmtpTier] = std::to_string(value);
+    });
+  });
+ 
+  if (aConfig.mName == kH264CodecName) {
+    aParameters[kH264FmtpPacketizationMode] =
+        std::to_string(aConfig.mPacketizationMode);
+    {
+      std::stringstream ss;
+      ss &lt;&lt; std::hex &lt;&lt; std::setfill('0');
+      ss &lt;&lt; std::setw(2) &lt;&lt; static_cast&lt;uint32_t&gt;(aConfig.mProfile);
+      ss &lt;&lt; std::setw(2) &lt;&lt; static_cast&lt;uint32_t&gt;(aConfig.mConstraints);
+      ss &lt;&lt; std::setw(2) &lt;&lt; static_cast&lt;uint32_t&gt;(aConfig.mLevel);
+      std::string profileLevelId = ss.str();
+      auto parsedProfileLevelId =
+          webrtc::ParseH264ProfileLevelId(profileLevelId.c_str());
+      MOZ_DIAGNOSTIC_ASSERT(parsedProfileLevelId);
+      if (parsedProfileLevelId) {
+        aParameters[kH264FmtpProfileLevelId] = profileLevelId;
+      }
+    }
+    aParameters[kH264FmtpSpropParameterSets] = aConfig.mSpropParameterSets;
+  }
+  if (aConfig.mName == kVp8CodecName) {
+    webrtc::VideoCodecVP8 vp8_settings =
+        webrtc::VideoEncoder::GetDefaultVp8Settings();
+    vp8_settings.automaticResizeOn = automatic_resize;
+    // VP8 denoising is enabled by default.
+    vp8_settings.denoisingOn = codec_default_denoising ? true : denoising;
+    return webrtc::scoped_refptr&lt;
+        webrtc::VideoEncoderConfig::EncoderSpecificSettings&gt;(
+        new webrtc::RefCountedObject&lt;
+            webrtc::VideoEncoderConfig::Vp8EncoderSpecificSettings&gt;(
+            vp8_settings));
+  }
+  if (aConfig.mName == kVp9CodecName) {
+    webrtc::VideoCodecVP9 vp9_settings =
+        webrtc::VideoEncoder::GetDefaultVp9Settings();
+    if (!is_screencast) {
+      // Always configure only 1 spatial layer for screencapture as libwebrtc
+      // has some special requirements when SVC is active. For non-screencapture
+      // the spatial layers are experimentally configurable via a pref.
+      vp9_settings.numberOfSpatialLayers = aConduit-&gt;SpatialLayers();
+    }
+    // VP9 denoising is disabled by default.
+    vp9_settings.denoisingOn = codec_default_denoising ? false : denoising;
+    return webrtc::scoped_refptr&lt;
+        webrtc::VideoEncoderConfig::EncoderSpecificSettings&gt;(
+        new webrtc::RefCountedObject&lt;
+            webrtc::VideoEncoderConfig::Vp9EncoderSpecificSettings&gt;(
+            vp9_settings));
+  }
+  return nullptr;
+}
+ 
+uint32_t GenerateRandomSSRC() {
+  uint32_t ssrc;
+  do {
+    SECStatus rv = PK11_GenerateRandom(reinterpret_cast&lt;unsigned char*&gt;(&amp;ssrc),
+                                       sizeof(ssrc));
+    MOZ_RELEASE_ASSERT(rv == SECSuccess);
+  } while (ssrc == 0);  // webrtc.org code has fits if you select an SSRC of 0
+ 
+  return ssrc;
+}
+ 
+// TODO: Make this a defaulted operator when we have c++20 (bug 1731036).
+bool operator!=(
+    const webrtc::VideoReceiveStreamInterface::Config::Rtp&amp; aThis,
+    const webrtc::VideoReceiveStreamInterface::Config::Rtp&amp; aOther) {
+  return aThis.remote_ssrc != aOther.remote_ssrc ||
+         aThis.local_ssrc != aOther.local_ssrc ||
+         aThis.rtcp_mode != aOther.rtcp_mode ||
+         aThis.rtcp_xr.receiver_reference_time_report !=
+             aOther.rtcp_xr.receiver_reference_time_report ||
+         aThis.remb != aOther.remb || aThis.tmmbr != aOther.tmmbr ||
+         aThis.keyframe_method != aOther.keyframe_method ||
+         aThis.lntf.enabled != aOther.lntf.enabled ||
+         aThis.nack.rtp_history_ms != aOther.nack.rtp_history_ms ||
+         aThis.ulpfec_payload_type != aOther.ulpfec_payload_type ||
+         aThis.red_payload_type != aOther.red_payload_type ||
+         aThis.rtx_ssrc != aOther.rtx_ssrc ||
+         aThis.protected_by_flexfec != aOther.protected_by_flexfec ||
+         aThis.rtx_associated_payload_types !=
+             aOther.rtx_associated_payload_types ||
+         aThis.raw_payload_types != aOther.raw_payload_types;
+}
+ 
+#ifdef DEBUG
+// TODO: Make this a defaulted operator when we have c++20 (bug 1731036).
+bool operator==(
+    const webrtc::VideoReceiveStreamInterface::Config::Rtp&amp; aThis,
+    const webrtc::VideoReceiveStreamInterface::Config::Rtp&amp; aOther) {
+  return !(aThis != aOther);
+}
+#endif
+ 
+// TODO: Make this a defaulted operator when we have c++20 (bug 1731036).
+bool operator!=(const webrtc::RtpConfig&amp; aThis,
+                const webrtc::RtpConfig&amp; aOther) {
+  return aThis.ssrcs != aOther.ssrcs || aThis.rids != aOther.rids ||
+         aThis.mid != aOther.mid || aThis.rtcp_mode != aOther.rtcp_mode ||
+         aThis.max_packet_size != aOther.max_packet_size ||
+         aThis.extmap_allow_mixed != aOther.extmap_allow_mixed ||
+         aThis.extensions != aOther.extensions ||
+         aThis.payload_name != aOther.payload_name ||
+         aThis.payload_type != aOther.payload_type ||
+         aThis.raw_payload != aOther.raw_payload ||
+         aThis.lntf.enabled != aOther.lntf.enabled ||
+         aThis.nack.rtp_history_ms != aOther.nack.rtp_history_ms ||
+         !(aThis.ulpfec == aOther.ulpfec) ||
+         aThis.flexfec.payload_type != aOther.flexfec.payload_type ||
+         aThis.flexfec.ssrc != aOther.flexfec.ssrc ||
+         aThis.flexfec.protected_media_ssrcs !=
+             aOther.flexfec.protected_media_ssrcs ||
+         aThis.rtx.ssrcs != aOther.rtx.ssrcs ||
+         aThis.rtx.payload_type != aOther.rtx.payload_type ||
+         aThis.c_name != aOther.c_name;
+}
+ 
+#ifdef DEBUG
+// TODO: Make this a defaulted operator when we have c++20 (bug 1731036).
+bool operator==(const webrtc::RtpConfig&amp; aThis,
+                const webrtc::RtpConfig&amp; aOther) {
+  return !(aThis != aOther);
+}
+#endif
+ 
+}  // namespace
+ 
+void RecvSinkProxy::OnFrame(const webrtc::VideoFrame&amp; aFrame) {
+  MOZ_ALWAYS_SUCCEEDS(mOwner-&gt;mFrameRecvThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __FUNCTION__,
+      [owner = RefPtr(mOwner), aFrame] { owner-&gt;OnRecvFrame(aFrame); })));
+}
+ 
+void SendSinkProxy::OnFrame(const webrtc::VideoFrame&amp; aFrame) {
+  MOZ_ALWAYS_SUCCEEDS(mOwner-&gt;mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __FUNCTION__,
+      [owner = RefPtr(mOwner), aFrame] { owner-&gt;OnSendFrame(aFrame); })));
+}
+ 
+/**
+ * Factory Method for VideoConduit
+ */
+RefPtr&lt;VideoSessionConduit&gt; VideoSessionConduit::Create(
+    RefPtr&lt;WebrtcCallWrapper&gt; aCall, nsCOMPtr&lt;nsISerialEventTarget&gt; aStsThread,
+    Options aOptions, std::string aPCHandle,
+    const TrackingId&amp; aRecvTrackingId) {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aCall, &quot;missing required parameter: aCall&quot;);
+  CSFLogVerbose(LOGTAG, &quot;%s&quot;, __FUNCTION__);
+ 
+  if (!aCall) {
+    return nullptr;
+  }
+ 
+  auto obj = MakeRefPtr&lt;WebrtcVideoConduit&gt;(
+      std::move(aCall), std::move(aStsThread), std::move(aOptions),
+      std::move(aPCHandle), aRecvTrackingId);
+  if (obj-&gt;Init() != kMediaConduitNoError) {
+    CSFLogError(LOGTAG, &quot;%s VideoConduit Init Failed &quot;, __FUNCTION__);
+    return nullptr;
+  }
+  CSFLogVerbose(LOGTAG, &quot;%s Successfully created VideoConduit %p&quot;, __FUNCTION__,
+                obj.get());
+  return obj;
+}
+ 
+#define INIT_MIRROR(name, val) \
+  name(aCallThread, val, &quot;WebrtcVideoConduit::Control::&quot; #name &quot; (Mirror)&quot;)
+WebrtcVideoConduit::Control::Control(const RefPtr&lt;AbstractThread&gt;&amp; aCallThread)
+    : INIT_MIRROR(mReceiving, false),
+      INIT_MIRROR(mTransmitting, false),
+      INIT_MIRROR(mLocalSsrcs, Ssrcs()),
+      INIT_MIRROR(mLocalRtxSsrcs, Ssrcs()),
+      INIT_MIRROR(mLocalCname, std::string()),
+      INIT_MIRROR(mMid, std::string()),
+      INIT_MIRROR(mRemoteSsrc, 0),
+      INIT_MIRROR(mRemoteRtxSsrc, 0),
+      INIT_MIRROR(mSyncGroup, std::string()),
+      INIT_MIRROR(mLocalRecvRtpExtensions, RtpExtList()),
+      INIT_MIRROR(mLocalSendRtpExtensions, RtpExtList()),
+      INIT_MIRROR(mSendCodec, Nothing()),
+      INIT_MIRROR(mSendRtpRtcpConfig, Nothing()),
+      INIT_MIRROR(mRecvCodecs, std::vector&lt;VideoCodecConfig&gt;()),
+      INIT_MIRROR(mRecvRtpRtcpConfig, Nothing()),
+      INIT_MIRROR(mCodecMode, webrtc::VideoCodecMode::kRealtimeVideo),
+      INIT_MIRROR(mFrameTransformerProxySend, nullptr),
+      INIT_MIRROR(mFrameTransformerProxyRecv, nullptr),
+      INIT_MIRROR(mVideoDegradationPreference,
+                  webrtc::DegradationPreference::DISABLED) {}
+#undef INIT_MIRROR
+ 
+#define INIT_CANONICAL(name, thread, val) \
+  name(thread, val, &quot;WebrtcVideoConduit::&quot; #name &quot; (Canonical)&quot;)
+#define INIT_MIRROR(name, val)            \
+  name(AbstractThread::MainThread(), val, \
+       &quot;WebrtcVideoConduit::&quot; #name &quot; (Mirror)&quot;)
+WebrtcVideoConduit::WebrtcVideoConduit(
+    RefPtr&lt;WebrtcCallWrapper&gt; aCall, nsCOMPtr&lt;nsISerialEventTarget&gt; aStsThread,
+    Options aOptions, std::string aPCHandle, const TrackingId&amp; aRecvTrackingId)
+    : mRendererMonitor(&quot;WebrtcVideoConduit::mRendererMonitor&quot;),
+      mCall(std::move(aCall)),
+      mCallThread(mCall-&gt;mCallThread),
+      mStsThread(std::move(aStsThread)),
+      mFrameRecvThread(CreateWebrtcTaskQueueWrapper(
+          GetMediaThreadPool(MediaThreadType::WEBRTC_WORKER),
+          &quot;WebrtcVideoConduit::mFrameRecvThread&quot;_ns,
+          /* aSupportsTailDispatch= */ true)),
+      mControl(mCall-&gt;mCallThread),
+      INIT_CANONICAL(mReceivingSize, mFrameRecvThread, {}),
+      mWatchManager(this, mCall-&gt;mCallThread),
+      mMutex(&quot;WebrtcVideoConduit::mMutex&quot;),
+      mDecoderFactory(MakeUnique&lt;WebrtcVideoDecoderFactory&gt;(
+          mCallThread.get(), aPCHandle, aRecvTrackingId)),
+      mEncoderFactory(MakeUnique&lt;WebrtcVideoEncoderFactory&gt;(
+          mCallThread.get(), std::move(aPCHandle))),
+      mRecvSinkProxy(this),
+      mSendSinkProxy(this),
+      mEngineTransmitting(false),
+      mEngineReceiving(false),
+      mVideoLatencyTestEnable(aOptions.mVideoLatencyTestEnable),
+      mMinBitrate(aOptions.mMinBitrate),
+      mStartBitrate(aOptions.mStartBitrate),
+      mPrefMaxBitrate(aOptions.mPrefMaxBitrate),
+      mMinBitrateEstimate(aOptions.mMinBitrateEstimate),
+      mDenoising(aOptions.mDenoising),
+      mLockScaling(aOptions.mLockScaling),
+      mSpatialLayers(aOptions.mSpatialLayers),
+      mTemporalLayers(aOptions.mTemporalLayers),
+      mSendTransport(this),
+      mRecvTransport(this),
+      mSendStreamConfig(&amp;mSendTransport),
+      mVideoStreamFactory(&quot;WebrtcVideoConduit::mVideoStreamFactory&quot;),
+      mRecvStreamConfig(&amp;mRecvTransport),
+      INIT_CANONICAL(mCanonicalRtpSources, mCall-&gt;mCallThread, {}),
+      INIT_MIRROR(mRtpSources, {}) {
+  mRecvStreamConfig.rtp.rtcp_event_observer = this;
+}
+#undef INIT_MIRROR
+#undef INIT_CANONICAL
+ 
+WebrtcVideoConduit::~WebrtcVideoConduit() {
+  CSFLogDebug(LOGTAG, &quot;%s &quot;, __FUNCTION__);
+  MOZ_ASSERT(!mSendStream &amp;&amp; !mRecvStream,
+             &quot;Call DeleteStreams prior to ~WebrtcVideoConduit.&quot;);
+}
+ 
+#define CONNECT(aCanonical, aMirror)                                       \
+  do {                                                                     \
+    /* Ensure the watchmanager is wired up before the mirror receives its  \
+     * initial mirrored value. */                                          \
+    mCall-&gt;mCallThread-&gt;DispatchStateChange(                               \
+        NS_NewRunnableFunction(__func__, [this, self = RefPtr(this)] {     \
+          mWatchManager.Watch(aMirror,                                     \
+                              &amp;WebrtcVideoConduit::OnControlConfigChange); \
+        }));                                                               \
+    (aCanonical).ConnectMirror(&amp;(aMirror));                                \
+  } while (0)
+ 
+void WebrtcVideoConduit::InitControl(VideoConduitControlInterface* aControl) {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  CONNECT(aControl-&gt;CanonicalReceiving(), mControl.mReceiving);
+  CONNECT(aControl-&gt;CanonicalTransmitting(), mControl.mTransmitting);
+  CONNECT(aControl-&gt;CanonicalLocalSsrcs(), mControl.mLocalSsrcs);
+  CONNECT(aControl-&gt;CanonicalLocalVideoRtxSsrcs(), mControl.mLocalRtxSsrcs);
+  CONNECT(aControl-&gt;CanonicalLocalCname(), mControl.mLocalCname);
+  CONNECT(aControl-&gt;CanonicalMid(), mControl.mMid);
+  CONNECT(aControl-&gt;CanonicalRemoteSsrc(), mControl.mRemoteSsrc);
+  CONNECT(aControl-&gt;CanonicalRemoteVideoRtxSsrc(), mControl.mRemoteRtxSsrc);
+  CONNECT(aControl-&gt;CanonicalSyncGroup(), mControl.mSyncGroup);
+  CONNECT(aControl-&gt;CanonicalLocalRecvRtpExtensions(),
+          mControl.mLocalRecvRtpExtensions);
+  CONNECT(aControl-&gt;CanonicalLocalSendRtpExtensions(),
+          mControl.mLocalSendRtpExtensions);
+  CONNECT(aControl-&gt;CanonicalVideoSendCodec(), mControl.mSendCodec);
+  CONNECT(aControl-&gt;CanonicalVideoSendRtpRtcpConfig(),
+          mControl.mSendRtpRtcpConfig);
+  CONNECT(aControl-&gt;CanonicalVideoRecvCodecs(), mControl.mRecvCodecs);
+  CONNECT(aControl-&gt;CanonicalVideoRecvRtpRtcpConfig(),
+          mControl.mRecvRtpRtcpConfig);
+  CONNECT(aControl-&gt;CanonicalVideoCodecMode(), mControl.mCodecMode);
+  CONNECT(aControl-&gt;CanonicalFrameTransformerProxySend(),
+          mControl.mFrameTransformerProxySend);
+  CONNECT(aControl-&gt;CanonicalFrameTransformerProxyRecv(),
+          mControl.mFrameTransformerProxyRecv);
+  CONNECT(aControl-&gt;CanonicalVideoDegradationPreference(),
+          mControl.mVideoDegradationPreference);
+}
+ 
+#undef CONNECT
+ 
+void WebrtcVideoConduit::OnControlConfigChange() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  bool encoderReconfigureNeeded = false;
+  bool remoteSsrcUpdateNeeded = false;
+  bool sendStreamRecreationNeeded = false;
+  bool sendSourceUpdateNeeded = false;
+ 
+  if (mControl.mRemoteSsrc.Ref() != mControl.mConfiguredRemoteSsrc) {
+    mControl.mConfiguredRemoteSsrc = mControl.mRemoteSsrc;
+    remoteSsrcUpdateNeeded = true;
+  }
+ 
+  if (mControl.mRemoteRtxSsrc.Ref() != mControl.mConfiguredRemoteRtxSsrc) {
+    mControl.mConfiguredRemoteRtxSsrc = mControl.mRemoteRtxSsrc;
+    remoteSsrcUpdateNeeded = true;
+  }
+ 
+  if (mControl.mSyncGroup.Ref() != mRecvStreamConfig.sync_group) {
+    mRecvStreamConfig.sync_group = mControl.mSyncGroup;
+  }
+ 
+  if (const auto [codecConfigList, rtpRtcpConfig] = std::make_pair(
+          mControl.mRecvCodecs.Ref(), mControl.mRecvRtpRtcpConfig.Ref());
+      !codecConfigList.empty() &amp;&amp; rtpRtcpConfig.isSome() &amp;&amp;
+      (codecConfigList != mControl.mConfiguredRecvCodecs ||
+       rtpRtcpConfig != mControl.mConfiguredRecvRtpRtcpConfig)) {
+    mControl.mConfiguredRecvCodecs = codecConfigList;
+    mControl.mConfiguredRecvRtpRtcpConfig = rtpRtcpConfig;
+    webrtc::VideoReceiveStreamInterface::Config::Rtp newRtp(
+        mRecvStreamConfig.rtp);
+    MOZ_ASSERT(newRtp == mRecvStreamConfig.rtp);
+    newRtp.rtx_associated_payload_types.clear();
+    newRtp.rtcp_mode = rtpRtcpConfig-&gt;GetRtcpMode();
+    newRtp.nack.rtp_history_ms = 0;
+    newRtp.remb = false;
+    newRtp.tmmbr = false;
+    newRtp.keyframe_method = webrtc::KeyFrameReqMethod::kNone;
+    newRtp.ulpfec_payload_type = kNullPayloadType;
+    newRtp.red_payload_type = kNullPayloadType;
+    bool use_fec = false;
+    std::vector&lt;webrtc::VideoReceiveStreamInterface::Decoder&gt; recv_codecs;
+ 
+    // Try Applying the codecs in the list
+    // we treat as success if at least one codec was applied and reception was
+    // started successfully.
+    for (const auto&amp; codec_config : codecConfigList) {
+      if (auto condError = ValidateCodecConfig(codec_config);
+          condError != kMediaConduitNoError) {
+        CSFLogError(LOGTAG, &quot;Invalid recv codec config for %s decoder: %i&quot;,
+                    codec_config.mName.c_str(), condError);
+        continue;
+      }
+ 
+      if (codec_config.mName == kUlpfecCodecName) {
+        newRtp.ulpfec_payload_type = codec_config.mType;
+        continue;
+      }
+ 
+      // Set RTX associated PT here so we can set it for RED without additional
+      // checks for things like preventing creating an unncessary decoder for
+      // RED. This assumes that any codecs created with RTX enabled
+      // (including those not found in SupportedCodecType) intend to use it.
+      if (codec_config.RtxPayloadTypeIsSet()) {
+        newRtp.rtx_associated_payload_types[codec_config.mRTXPayloadType] =
+            codec_config.mType;
+      }
+ 
+      if (codec_config.mName == kRedCodecName) {
+        newRtp.red_payload_type = codec_config.mType;
+        continue;
+      }
+ 
+      if (SupportedCodecType(
+              webrtc::PayloadStringToCodecType(codec_config.mName)) ==
+          webrtc::VideoCodecType::kVideoCodecGeneric) {
+        CSFLogError(LOGTAG, &quot;%s Unknown decoder type: %s&quot;, __FUNCTION__,
+                    codec_config.mName.c_str());
+        continue;
+      }
+ 
+      // Check for the keyframe request type: PLI is preferred over FIR, and FIR
+      // is preferred over none.
+      if (codec_config.RtcpFbNackIsSet(kRtcpFbNackParamPli)) {
+        newRtp.keyframe_method = webrtc::KeyFrameReqMethod::kPliRtcp;
+      } else if (newRtp.keyframe_method !=
+                     webrtc::KeyFrameReqMethod::kPliRtcp &amp;&amp;
+                 codec_config.RtcpFbCcmIsSet(kRtcpFbCcmParamFir)) {
+        newRtp.keyframe_method = webrtc::KeyFrameReqMethod::kFirRtcp;
+      }
+ 
+      // What if codec A has Nack and REMB, and codec B has TMMBR, and codec C
+      // has none? In practice, that's not a useful configuration, and
+      // VideoReceiveStream::Config can't represent that, so simply union the
+      // (boolean) settings
+      if (codec_config.RtcpFbNackIsSet(kParamValueEmpty)) {
+        newRtp.nack.rtp_history_ms = 1000;
+      }
+      newRtp.tmmbr |= codec_config.RtcpFbCcmIsSet(kRtcpFbCcmParamTmmbr);
+      newRtp.remb |= codec_config.RtcpFbRembIsSet();
+      use_fec |= codec_config.RtcpFbFECIsSet();
+ 
+      auto&amp; decoder = recv_codecs.emplace_back();
+      decoder.video_format = webrtc::SdpVideoFormat(codec_config.mName);
+      decoder.payload_type = codec_config.mType;
+    }
+ 
+    if (!use_fec) {
+      // Reset to defaults
+      newRtp.ulpfec_payload_type = kNullPayloadType;
+      newRtp.red_payload_type = kNullPayloadType;
+    }
+ 
+    // TODO: This would be simpler, but for some reason gives
+    //       &quot;error: invalid operands to binary expression
+    //       ('webrtc::VideoReceiveStreamInterface::Decoder' and
+    //       'webrtc::VideoReceiveStreamInterface::Decoder')&quot;
+    // if (recv_codecs != mRecvStreamConfig.decoders) {
+    if (!std::equal(recv_codecs.begin(), recv_codecs.end(),
+                    mRecvStreamConfig.decoders.begin(),
+                    mRecvStreamConfig.decoders.end(),
+                    [](const auto&amp; aLeft, const auto&amp; aRight) {
+                      return aLeft == aRight;
+                    })) {
+      if (recv_codecs.empty()) {
+        CSFLogError(LOGTAG, &quot;%s Found no valid receive codecs&quot;, __FUNCTION__);
+      }
+      mRecvStreamConfig.decoders = std::move(recv_codecs);
+    }
+ 
+    if (mRecvStreamConfig.rtp != newRtp) {
+      mRecvStreamConfig.rtp = newRtp;
+      remoteSsrcUpdateNeeded = true;
+    }
+  }
+ 
+  {
+    // mSendStreamConfig and other members need the lock
+    MutexAutoLock lock(mMutex);
+    if (mControl.mLocalSsrcs.Ref() != mSendStreamConfig.rtp.ssrcs) {
+      mSendStreamConfig.rtp.ssrcs = mControl.mLocalSsrcs;
+      sendStreamRecreationNeeded = true;
+ 
+      const uint32_t localSsrc = mSendStreamConfig.rtp.ssrcs.empty()
+                                     ? 0
+                                     : mSendStreamConfig.rtp.ssrcs.front();
+      if (localSsrc != mRecvStreamConfig.rtp.local_ssrc) {
+        mRecvStreamConfig.rtp.local_ssrc = localSsrc;
+      }
+    }
+ 
+    {
+      Ssrcs localRtxSsrcs = mControl.mLocalRtxSsrcs.Ref();
+      if (!mControl.mSendCodec.Ref()
+               .map([](const auto&amp; aCodec) {
+                 return aCodec.RtxPayloadTypeIsSet();
+               })
+               .valueOr(false)) {
+        localRtxSsrcs.clear();
+      }
+      if (localRtxSsrcs != mSendStreamConfig.rtp.rtx.ssrcs) {
+        mSendStreamConfig.rtp.rtx.ssrcs = localRtxSsrcs;
+        sendStreamRecreationNeeded = true;
+      }
+    }
+ 
+    if (mControl.mLocalCname.Ref() != mSendStreamConfig.rtp.c_name) {
+      mSendStreamConfig.rtp.c_name = mControl.mLocalCname;
+      sendStreamRecreationNeeded = true;
+    }
+ 
+    if (mControl.mMid.Ref() != mSendStreamConfig.rtp.mid) {
+      mSendStreamConfig.rtp.mid = mControl.mMid;
+      sendStreamRecreationNeeded = true;
+    }
+ 
+    if (mControl.mLocalSendRtpExtensions.Ref() !=
+        mSendStreamConfig.rtp.extensions) {
+      mSendStreamConfig.rtp.extensions = mControl.mLocalSendRtpExtensions;
+      sendStreamRecreationNeeded = true;
+    }
+ 
+    if (const auto [codecConfig, rtpRtcpConfig] = std::make_pair(
+            mControl.mSendCodec.Ref(), mControl.mSendRtpRtcpConfig.Ref());
+        codecConfig.isSome() &amp;&amp; rtpRtcpConfig.isSome() &amp;&amp;
+        (codecConfig != mControl.mConfiguredSendCodec ||
+         rtpRtcpConfig != mControl.mConfiguredSendRtpRtcpConfig)) {
+      CSFLogDebug(LOGTAG, &quot;Configuring codec %s&quot;, codecConfig-&gt;mName.c_str());
+ 
+      if (mControl.mConfiguredSendCodec.isSome() &amp;&amp;
+          (mControl.mConfiguredSendCodec-&gt;mName != codecConfig-&gt;mName)) {
+        // This tends to happen if the codec is changed mid call.
+        // We need to delete the stream now, if we continue to setup the new
+        // codec before deleting the send stream libwebrtc will throw erros.
+        MemoSendStreamStats();
+        DeleteSendStream();
+      }
+      mControl.mConfiguredSendCodec = codecConfig;
+      mControl.mConfiguredSendRtpRtcpConfig = rtpRtcpConfig;
+ 
+      if (ValidateCodecConfig(*codecConfig) == kMediaConduitNoError) {
+        encoderReconfigureNeeded = true;
+        sendSourceUpdateNeeded = true;
+ 
+        mCurSendCodecConfig = codecConfig;
+ 
+        size_t streamCount = std::min(codecConfig-&gt;mEncodings.size(),
+                                      (size_t)webrtc::kMaxSimulcastStreams);
+        MOZ_RELEASE_ASSERT(streamCount &gt;= 1,
+                           &quot;streamCount should be at least one&quot;);
+ 
+        CSFLogDebug(LOGTAG,
+                    &quot;Updating send codec for VideoConduit:%p stream count:%zu&quot;,
+                    this, streamCount);
+ 
+        // So we can comply with b=TIAS/b=AS/maxbr=X when input resolution
+        // changes
+        MOZ_ASSERT(codecConfig-&gt;mTias &lt; INT_MAX);
+        mNegotiatedMaxBitrate = static_cast&lt;int&gt;(codecConfig-&gt;mTias);
+ 
+        if (!mLastSize &amp;&amp; mMinBitrateEstimate != 0) {
+          // Only do this at the start; use &quot;have we sent a frame&quot; as a
+          // reasonable stand-in. min &lt;= start &lt;= max (but all three parameters
+          // are optional)
+          webrtc::BitrateSettings settings;
+          settings.min_bitrate_bps = mMinBitrateEstimate;
+          settings.start_bitrate_bps = mMinBitrateEstimate;
+          mCall-&gt;Call()-&gt;SetClientBitratePreferences(settings);
+        }
+ 
+        // XXX parse the encoded SPS/PPS data and set
+        // spsData/spsLen/ppsData/ppsLen
+        mEncoderConfig.video_format =
+            webrtc::SdpVideoFormat(codecConfig-&gt;mName);
+        mEncoderConfig.encoder_specific_settings =
+            ConfigureVideoEncoderSettings(
+                *codecConfig, this, mEncoderConfig.video_format.parameters);
+ 
+        mEncoderConfig.codec_type = SupportedCodecType(
+            webrtc::PayloadStringToCodecType(codecConfig-&gt;mName));
+        MOZ_RELEASE_ASSERT(mEncoderConfig.codec_type !=
+                           webrtc::VideoCodecType::kVideoCodecGeneric);
+ 
+        mEncoderConfig.content_type =
+            mControl.mCodecMode.Ref() == webrtc::VideoCodecMode::kRealtimeVideo
+                ? webrtc::VideoEncoderConfig::ContentType::kRealtimeVideo
+                : webrtc::VideoEncoderConfig::ContentType::kScreen;
+ 
+        mEncoderConfig.frame_drop_enabled = true;
+ 
+        mEncoderConfig.min_transmit_bitrate_bps = mMinBitrate;
+ 
+        // Set the max bitrate, defaulting to 10Mbps, checking:
+        // - pref
+        // - b=TIAS
+        // - codec constraints
+        // - encoding parameter if there's a single stream
+        int maxBps = KBPS(10000);
+        maxBps = MinIgnoreZero(maxBps, mPrefMaxBitrate);
+        maxBps = MinIgnoreZero(maxBps, mNegotiatedMaxBitrate);
+        maxBps = MinIgnoreZero(
+            maxBps,
+            SaturatingCast&lt;int&gt;(codecConfig-&gt;mEncodingConstraints.maxBr));
+        if (codecConfig-&gt;mEncodings.size() == 1) {
+          maxBps = MinIgnoreZero(
+              maxBps, SaturatingCast&lt;int&gt;(
+                          codecConfig-&gt;mEncodings[0].constraints.maxBr));
+        }
+        mEncoderConfig.max_bitrate_bps = maxBps;
+ 
+        // TODO this is for webrtc-priority, but needs plumbing bits
+        mEncoderConfig.bitrate_priority = 1.0;
+ 
+        // Populate simulcast_layers with their config.
+        mEncoderConfig.simulcast_layers.clear();
+        const auto&amp; codecConstraints = codecConfig-&gt;mEncodingConstraints;
+        for (size_t idx = 0; idx &lt; streamCount; ++idx) {
+          webrtc::VideoStream video_stream;
+          const auto&amp; encoding = codecConfig-&gt;mEncodings[idx];
+          const auto&amp; encodingConstraints = encoding.constraints;
+ 
+          video_stream.active = encoding.active;
+ 
+          // Dimensions set here are used by libwebrtc to set the maximum to
+          // request from the source, to support scaleDownTo without another
+          // encoder reconfiguration on the first frame.
+          // We don't support scaleDownTo but use max-width and max-height if
+          // signaled.
+          video_stream.width = codecConfig-&gt;mEncodingConstraints.maxWidth;
+          video_stream.height = codecConfig-&gt;mEncodingConstraints.maxHeight;
+ 
+          // Max framerate is also used to cap the source, to avoid processing
+          // frames that will have to be dropped. Our signals here are both
+          // RTCRtpEncodingParameters.maxFramerate (per encoding) and max-fr
+          // for supported codecs.
+          video_stream.max_framerate = static_cast&lt;int&gt;(([&amp;]() {
+            if (codecConstraints.maxFps &amp;&amp; encodingConstraints.maxFps) {
+              return std::min(*codecConstraints.maxFps,
+                              *encodingConstraints.maxFps);
+            }
+            return codecConstraints.maxFps
+                .orElse([&amp;] { return encodingConstraints.maxFps; })
+                .valueOr(-1);
+          })());
+ 
+          // Set each layer's max-bitrate explicitly or libwebrtc may ignore all
+          // stream-specific max-bitrate settings later on, as provided by the
+          // VideoStreamFactory. Default to our max of 10Mbps, overridden by
+          // SDP/JS.
+          int maxBps = KBPS(10000);
+          maxBps = MinIgnoreZero(maxBps, mPrefMaxBitrate);
+          maxBps = MinIgnoreZero(maxBps, mNegotiatedMaxBitrate);
+          maxBps = MinIgnoreZero(
+              maxBps, SaturatingCast&lt;int&gt;(encodingConstraints.maxBr));
+          video_stream.max_bitrate_bps = maxBps;
+ 
+          // At this time, other values are not used until after
+          // CreateEncoderStreams(). We fill these in directly from the codec
+          // config in VideoStreamFactory.
+ 
+          mEncoderConfig.simulcast_layers.push_back(video_stream);
+        }
+ 
+        // Expected max number of encodings
+        mEncoderConfig.number_of_streams =
+            mEncoderConfig.simulcast_layers.size();
+ 
+        // libwebrtc disables this by default.
+        mSendStreamConfig.suspend_below_min_bitrate = false;
+ 
+        webrtc::RtpConfig newRtp = mSendStreamConfig.rtp;
+        MOZ_ASSERT(newRtp == mSendStreamConfig.rtp);
+        newRtp.payload_name = codecConfig-&gt;mName;
+        newRtp.payload_type = codecConfig-&gt;mType;
+        newRtp.rtcp_mode = rtpRtcpConfig-&gt;GetRtcpMode();
+        newRtp.extmap_allow_mixed = rtpRtcpConfig-&gt;GetExtmapAllowMixed();
+        newRtp.max_packet_size = kVideoMtu;
+        newRtp.rtx.payload_type = codecConfig-&gt;RtxPayloadTypeIsSet()
+                                      ? codecConfig-&gt;mRTXPayloadType
+                                      : kNullPayloadType;
+ 
+        {
+          // See Bug 1297058, enabling FEC when basic NACK is to be enabled in
+          // H.264 is problematic
+          const bool useFECDefaults =
+              !codecConfig-&gt;RtcpFbFECIsSet() ||
+              (codecConfig-&gt;mName == kH264CodecName &amp;&amp;
+               codecConfig-&gt;RtcpFbNackIsSet(kParamValueEmpty));
+          newRtp.ulpfec.ulpfec_payload_type =
+              useFECDefaults ? kNullPayloadType
+                             : codecConfig-&gt;mULPFECPayloadType;
+          newRtp.ulpfec.red_payload_type =
+              useFECDefaults ? kNullPayloadType : codecConfig-&gt;mREDPayloadType;
+          newRtp.ulpfec.red_rtx_payload_type =
+              useFECDefaults ? kNullPayloadType
+                             : codecConfig-&gt;mREDRTXPayloadType;
+        }
+ 
+        newRtp.nack.rtp_history_ms =
+            codecConfig-&gt;RtcpFbNackIsSet(kParamValueEmpty) ? 1000 : 0;
+ 
+        newRtp.rids.clear();
+        if (!codecConfig-&gt;mEncodings.empty() &amp;&amp;
+            !codecConfig-&gt;mEncodings[0].rid.empty()) {
+          for (const auto&amp; encoding : codecConfig-&gt;mEncodings) {
+            newRtp.rids.push_back(encoding.rid);
+          }
+        }
+ 
+        if (mSendStreamConfig.rtp != newRtp) {
+          mSendStreamConfig.rtp = newRtp;
+          sendStreamRecreationNeeded = true;
+        }
+      }
+    }
+ 
+    if (mControl.mConfiguredDegradationPreference !=
+        mControl.mVideoDegradationPreference) {
+      mControl.mConfiguredDegradationPreference =
+          mControl.mVideoDegradationPreference.Ref();
+      if (mSendStream) {
+        mSendStream-&gt;SetSource(mTrackSource, DegradationPreference());
+      }
+    }
+ 
+    {
+      const auto&amp; mode = mControl.mCodecMode.Ref();
+      MOZ_ASSERT(mode == webrtc::VideoCodecMode::kRealtimeVideo ||
+                 mode == webrtc::VideoCodecMode::kScreensharing);
+ 
+      auto contentType =
+          mode == webrtc::VideoCodecMode::kRealtimeVideo
+              ? webrtc::VideoEncoderConfig::ContentType::kRealtimeVideo
+              : webrtc::VideoEncoderConfig::ContentType::kScreen;
+ 
+      if (contentType != mEncoderConfig.content_type) {
+        encoderReconfigureNeeded = true;
+        sendSourceUpdateNeeded = true;
+        mEncoderConfig.content_type = contentType;
+      }
+    }
+ 
+    if (mControl.mConfiguredFrameTransformerProxySend.get() !=
+        mControl.mFrameTransformerProxySend.Ref().get()) {
+      mControl.mConfiguredFrameTransformerProxySend =
+          mControl.mFrameTransformerProxySend.Ref();
+      if (!mSendStreamConfig.frame_transformer) {
+        mSendStreamConfig.frame_transformer =
+            new webrtc::RefCountedObject&lt;FrameTransformer&gt;(true);
+        sendStreamRecreationNeeded = true;
+      }
+      static_cast&lt;FrameTransformer*&gt;(mSendStreamConfig.frame_transformer.get())
+          -&gt;SetProxy(mControl.mConfiguredFrameTransformerProxySend);
+    }
+ 
+    if (mControl.mConfiguredFrameTransformerProxyRecv.get() !=
+        mControl.mFrameTransformerProxyRecv.Ref().get()) {
+      mControl.mConfiguredFrameTransformerProxyRecv =
+          mControl.mFrameTransformerProxyRecv.Ref();
+      if (!mRecvStreamConfig.frame_transformer) {
+        mRecvStreamConfig.frame_transformer =
+            new webrtc::RefCountedObject&lt;FrameTransformer&gt;(true);
+      }
+      static_cast&lt;FrameTransformer*&gt;(mRecvStreamConfig.frame_transformer.get())
+          -&gt;SetProxy(mControl.mConfiguredFrameTransformerProxyRecv);
+      // No flag to set, we always recreate recv streams
+    }
+ 
+    if (remoteSsrcUpdateNeeded) {
+      SetRemoteSSRCConfig(mControl.mConfiguredRemoteSsrc,
+                          mControl.mConfiguredRemoteRtxSsrc);
+    }
+ 
+    // Handle un-signalled SSRCs by creating random ones and then when they
+    // actually get set, we'll destroy and recreate.
+    if (mControl.mReceiving || mControl.mTransmitting) {
+      const auto remoteSsrc = mRecvStreamConfig.rtp.remote_ssrc;
+      const auto localSsrc = mRecvStreamConfig.rtp.local_ssrc;
+      const auto localSsrcs = mSendStreamConfig.rtp.ssrcs;
+      EnsureLocalSSRC();
+      if (mControl.mReceiving) {
+        EnsureRemoteSSRC();
+      }
+      if (localSsrc != mRecvStreamConfig.rtp.local_ssrc ||
+          remoteSsrc != mRecvStreamConfig.rtp.remote_ssrc) {
+      }
+      if (localSsrcs != mSendStreamConfig.rtp.ssrcs) {
+        sendStreamRecreationNeeded = true;
+      }
+    }
+ 
+    // Recreate receiving streams
+    if (mControl.mReceiving) {
+      DeleteRecvStream();
+      CreateRecvStream();
+    }
+    if (sendStreamRecreationNeeded) {
+      encoderReconfigureNeeded = false;
+      MemoSendStreamStats();
+      DeleteSendStream();
+    }
+    if (mControl.mTransmitting) {
+      CreateSendStream();
+    }
+  }
+ 
+  // We make sure to not hold the lock while stopping/starting/reconfiguring
+  // streams, so as to not cause deadlocks. These methods can cause our platform
+  // codecs to dispatch sync runnables to main, and main may grab the lock.
+ 
+  if (mSendStream) {
+    if (encoderReconfigureNeeded) {
+      MOZ_DIAGNOSTIC_ASSERT(
+          mSendStreamConfig.rtp.ssrcs.size() ==
+              mEncoderConfig.number_of_streams,
+          &quot;Each video substream must have a corresponding ssrc.&quot;);
+      mEncoderConfig.video_stream_factory = CreateVideoStreamFactory();
+      for (const auto&amp; stream : mEncoderConfig.simulcast_layers) {
+        CSFLogDebug(
+            LOGTAG,
+            &quot;%s Reconfigure with simulcast stream maxFps=%d, &quot;
+            &quot;bitrate=[%dkbps, %dkbps, %dkbps]&quot;,
+            __FUNCTION__, stream.max_framerate, stream.min_bitrate_bps / 1000,
+            stream.target_bitrate_bps / 1000, stream.max_bitrate_bps / 1000);
+      }
+      mSendStream-&gt;ReconfigureVideoEncoder(mEncoderConfig.Copy());
+    }
+    if (sendSourceUpdateNeeded &amp;&amp; mTrackSource) {
+      mSendStream-&gt;SetSource(mTrackSource, DegradationPreference());
+    }
+  }
+ 
+  if (!mControl.mReceiving) {
+    StopReceiving();
+  }
+  if (!mControl.mTransmitting) {
+    StopTransmitting();
+  }
+ 
+  if (mControl.mReceiving) {
+    StartReceiving();
+  }
+  if (mControl.mTransmitting) {
+    StartTransmitting();
+  }
+}
+ 
+std::vector&lt;unsigned int&gt; WebrtcVideoConduit::GetLocalSSRCs() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  return mSendStreamConfig.rtp.ssrcs;
+}
+ 
+Maybe&lt;Ssrc&gt; WebrtcVideoConduit::GetAssociatedLocalRtxSSRC(Ssrc aSsrc) const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  for (size_t i = 0; i &lt; mSendStreamConfig.rtp.ssrcs.size() &amp;&amp;
+                     i &lt; mSendStreamConfig.rtp.rtx.ssrcs.size();
+       ++i) {
+    if (mSendStreamConfig.rtp.ssrcs[i] == aSsrc) {
+      return Some(mSendStreamConfig.rtp.rtx.ssrcs[i]);
+    }
+  }
+  return Nothing();
+}
+ 
+Maybe&lt;gfx::IntSize&gt; WebrtcVideoConduit::GetLastResolution() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  return mLastSize;
+}
+ 
+void WebrtcVideoConduit::DeleteSendStream() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  if (!mSendStream) {
+    return;
+  }
+  mCall-&gt;Call()-&gt;DestroyVideoSendStream(mSendStream);
+  mEngineTransmitting = false;
+  mSendStream = nullptr;
+ 
+  // Reset base_seqs in case ssrcs get re-used.
+  mRtpSendBaseSeqs.clear();
+}
+ 
+void WebrtcVideoConduit::MemoSendStreamStats() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  // If we are going to be recreating the send stream, we hold onto stats until
+  // libwebrtc stats collection catches up.
+  if (mControl.mTransmitting &amp;&amp; mSendStream) {
+    const auto stats = mSendStream-&gt;GetStats();
+    // If we have no streams we don't need to hold onto anything
+    if (stats.substreams.size()) {
+      mTransitionalSendStreamStats = Some(stats);
+    }
+  }
+}
+ 
+void WebrtcVideoConduit::CreateSendStream() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  if (mSendStream) {
+    return;
+  }
+ 
+  glean::webrtc_video::send_codec_used
+      .Get(nsDependentCString(mSendStreamConfig.rtp.payload_name.c_str()))
+      .Add(1);
+ 
+  mEncoderConfig.video_stream_factory = CreateVideoStreamFactory();
+ 
+  mSendStreamConfig.encoder_settings.encoder_factory = mEncoderFactory.get();
+  mSendStreamConfig.encoder_settings.bitrate_allocator_factory =
+      mCall-&gt;mVideoBitrateAllocatorFactory.get();
+ 
+  MOZ_DIAGNOSTIC_ASSERT(
+      mSendStreamConfig.rtp.ssrcs.size() == mEncoderConfig.number_of_streams,
+      &quot;Each video substream must have a corresponding ssrc.&quot;);
+ 
+  mSendStream = mCall-&gt;Call()-&gt;CreateVideoSendStream(mSendStreamConfig.Copy(),
+                                                     mEncoderConfig.Copy());
+ 
+  if (mTrackSource) {
+    mSendStream-&gt;SetSource(mTrackSource, DegradationPreference());
+  }
+}
+ 
+void WebrtcVideoConduit::DeleteRecvStream() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  if (!mRecvStream) {
+    return;
+  }
+ 
+  mCall-&gt;Call()-&gt;DestroyVideoReceiveStream(mRecvStream);
+  mEngineReceiving = false;
+  mRecvStream = nullptr;
+}
+ 
+void WebrtcVideoConduit::CreateRecvStream() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  if (mRecvStream) {
+    return;
+  }
+ 
+  mRecvStreamConfig.renderer = &amp;mRecvSinkProxy;
+ 
+  for (auto&amp; decoder : mRecvStreamConfig.decoders) {
+    glean::webrtc_video::recv_codec_used
+        .Get(nsDependentCString(decoder.video_format.name.c_str()))
+        .Add(1);
+  }
+ 
+  mRecvStreamConfig.decoder_factory = mDecoderFactory.get();
+ 
+  mRecvStream =
+      mCall-&gt;Call()-&gt;CreateVideoReceiveStream(mRecvStreamConfig.Copy());
+  // Ensure that we set the jitter buffer target on this stream.
+  mRecvStream-&gt;SetBaseMinimumPlayoutDelayMs(mJitterBufferTargetMs);
+ 
+  CSFLogDebug(LOGTAG, &quot;Created VideoReceiveStream %p for SSRC %u (0x%x)&quot;,
+              mRecvStream, mRecvStreamConfig.rtp.remote_ssrc,
+              mRecvStreamConfig.rtp.remote_ssrc);
+}
+ 
+void WebrtcVideoConduit::NotifyUnsetCurrentRemoteSSRC() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  CSFLogDebug(LOGTAG, &quot;%s (%p): Unsetting SSRC %u in other conduits&quot;,
+              __FUNCTION__, this, mRecvStreamConfig.rtp.remote_ssrc);
+  mCall-&gt;UnregisterConduit(this);
+  mCall-&gt;UnsetRemoteSSRC(mRecvStreamConfig.rtp.remote_ssrc);
+  mCall-&gt;RegisterConduit(this);
+}
+ 
+void WebrtcVideoConduit::SetRemoteSSRCConfig(uint32_t aSsrc,
+                                             uint32_t aRtxSsrc) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  CSFLogDebug(LOGTAG, &quot;%s: SSRC %u (0x%x)&quot;, __FUNCTION__, aSsrc, aSsrc);
+ 
+  if (mRecvStreamConfig.rtp.remote_ssrc != aSsrc) {
+    nsCOMPtr&lt;nsIDirectTaskDispatcher&gt; dtd = do_QueryInterface(mCallThread);
+    MOZ_ALWAYS_SUCCEEDS(dtd-&gt;DispatchDirectTask(NewRunnableMethod(
+        &quot;WebrtcVideoConduit::NotifyUnsetCurrentRemoteSSRC&quot;, this,
+        &amp;WebrtcVideoConduit::NotifyUnsetCurrentRemoteSSRC)));
+  }
+ 
+  mRecvSSRC = mRecvStreamConfig.rtp.remote_ssrc = aSsrc;
+  // If we have no associated PT then ensure we don't have an rtx_ssrc set.
+  mRecvStreamConfig.rtp.rtx_ssrc =
+      mRecvStreamConfig.rtp.rtx_associated_payload_types.empty() ? 0 : aRtxSsrc;
+}
+ 
+void WebrtcVideoConduit::SetRemoteSSRCAndRestartAsNeeded(uint32_t aSsrc,
+                                                         uint32_t aRtxSsrc) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  if (mRecvStreamConfig.rtp.remote_ssrc == aSsrc &amp;&amp;
+      mRecvStreamConfig.rtp.rtx_ssrc == aRtxSsrc) {
+    return;
+  }
+ 
+  SetRemoteSSRCConfig(aSsrc, aRtxSsrc);
+ 
+  const bool wasReceiving = mEngineReceiving;
+  const bool hadRecvStream = mRecvStream;
+ 
+  StopReceiving();
+ 
+  if (hadRecvStream) {
+    MutexAutoLock lock(mMutex);
+    DeleteRecvStream();
+    CreateRecvStream();
+  }
+ 
+  if (wasReceiving) {
+    StartReceiving();
+  }
+}
+ 
+void WebrtcVideoConduit::EnsureRemoteSSRC() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  const auto&amp; ssrcs = mSendStreamConfig.rtp.ssrcs;
+  if (mRecvStreamConfig.rtp.remote_ssrc != 0 &amp;&amp;
+      std::find(ssrcs.begin(), ssrcs.end(),
+                mRecvStreamConfig.rtp.remote_ssrc) == ssrcs.end()) {
+    return;
+  }
+ 
+  uint32_t ssrc;
+  do {
+    ssrc = GenerateRandomSSRC();
+  } while (
+      NS_WARN_IF(std::find(ssrcs.begin(), ssrcs.end(), ssrc) != ssrcs.end()));
+  CSFLogDebug(LOGTAG, &quot;VideoConduit %p: Generated remote SSRC %u&quot;, this, ssrc);
+  SetRemoteSSRCConfig(ssrc, 0);
+}
+ 
+void WebrtcVideoConduit::EnsureLocalSSRC() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertCurrentThreadOwns();
+ 
+  auto&amp; ssrcs = mSendStreamConfig.rtp.ssrcs;
+  if (ssrcs.empty()) {
+    ssrcs.push_back(GenerateRandomSSRC());
+  }
+ 
+  // Reverse-iterating here so that the first dupe in `ssrcs` always wins.
+  for (auto&amp; ssrc : Reversed(ssrcs)) {
+    if (ssrc != 0 &amp;&amp; ssrc != mRecvStreamConfig.rtp.remote_ssrc &amp;&amp;
+        std::count(ssrcs.begin(), ssrcs.end(), ssrc) == 1) {
+      continue;
+    }
+    do {
+      ssrc = GenerateRandomSSRC();
+    } while (NS_WARN_IF(ssrc == mRecvStreamConfig.rtp.remote_ssrc) ||
+             NS_WARN_IF(std::count(ssrcs.begin(), ssrcs.end(), ssrc) &gt; 1));
+    CSFLogDebug(LOGTAG, &quot;%s (%p): Generated local SSRC %u&quot;, __FUNCTION__, this,
+                ssrc);
+  }
+  mRecvStreamConfig.rtp.local_ssrc = ssrcs[0];
+}
+ 
+void WebrtcVideoConduit::UnsetRemoteSSRC(uint32_t aSsrc) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertNotCurrentThreadOwns();
+ 
+  if (mRecvStreamConfig.rtp.remote_ssrc != aSsrc &amp;&amp;
+      mRecvStreamConfig.rtp.rtx_ssrc != aSsrc) {
+    return;
+  }
+ 
+  const auto&amp; ssrcs = mSendStreamConfig.rtp.ssrcs;
+  uint32_t our_ssrc = 0;
+  do {
+    our_ssrc = GenerateRandomSSRC();
+  } while (NS_WARN_IF(our_ssrc == aSsrc) ||
+           NS_WARN_IF(std::find(ssrcs.begin(), ssrcs.end(), our_ssrc) !=
+                      ssrcs.end()));
+ 
+  CSFLogDebug(LOGTAG, &quot;%s (%p): Generated remote SSRC %u&quot;, __FUNCTION__, this,
+              our_ssrc);
+ 
+  // There is a (tiny) chance that this new random ssrc will collide with some
+  // other conduit's remote ssrc, in which case that conduit will choose a new
+  // one.
+  SetRemoteSSRCAndRestartAsNeeded(our_ssrc, 0);
+}
+ 
+/*static*/
+unsigned WebrtcVideoConduit::ToLibwebrtcMaxFramerate(
+    const Maybe&lt;double&gt;&amp; aMaxFramerate) {
+  Maybe&lt;unsigned&gt; negotiatedMaxFps;
+  if (aMaxFramerate.isSome()) {
+    // libwebrtc does not handle non-integer max framerate.
+    unsigned integerMaxFps = static_cast&lt;unsigned&gt;(std::round(*aMaxFramerate));
+    // libwebrtc crashes with a max framerate of 0, even though the
+    // spec says this is valid. For now, we treat this as no limit.
+    if (integerMaxFps) {
+      negotiatedMaxFps = Some(integerMaxFps);
+    }
+  }
+  // We do not use DEFAULT_VIDEO_MAX_FRAMERATE here; that is used at the very
+  // end in VideoStreamFactory, once codec-wide and per-encoding limits are
+  // known.
+  return negotiatedMaxFps.refOr(std::numeric_limits&lt;unsigned int&gt;::max());
+}
+ 
+Maybe&lt;Ssrc&gt; WebrtcVideoConduit::GetRemoteSSRC() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  // libwebrtc uses 0 to mean a lack of SSRC. That is not to spec.
+  return mRecvStreamConfig.rtp.remote_ssrc == 0
+             ? Nothing()
+             : Some(mRecvStreamConfig.rtp.remote_ssrc);
+}
+ 
+Maybe&lt;webrtc::VideoReceiveStreamInterface::Stats&gt;
+WebrtcVideoConduit::GetReceiverStats() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  if (!mRecvStream) {
+    return Nothing();
+  }
+  return Some(mRecvStream-&gt;GetStats());
+}
+ 
+Maybe&lt;webrtc::VideoSendStream::Stats&gt; WebrtcVideoConduit::GetSenderStats()
+    const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  if (!mSendStream) {
+    return Nothing();
+  }
+  auto stats = mSendStream-&gt;GetStats();
+  if (stats.substreams.empty()) {
+    if (!mTransitionalSendStreamStats) {
+      CSFLogError(LOGTAG, &quot;%s: No SSRC in send stream stats&quot;, __FUNCTION__);
+    }
+    return mTransitionalSendStreamStats;
+  }
+  // Successfully got stats, so clear the transitional stats.
+  mTransitionalSendStreamStats = Nothing();
+  return Some(mSendStream-&gt;GetStats());
+}
+ 
+Maybe&lt;webrtc::Call::Stats&gt; WebrtcVideoConduit::GetCallStats() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  if (!mCall-&gt;Call()) {
+    return Nothing();
+  }
+  return Some(mCall-&gt;Call()-&gt;GetStats());
+}
+ 
+MediaConduitErrorCode WebrtcVideoConduit::Init() {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  CSFLogDebug(LOGTAG, &quot;%s this=%p&quot;, __FUNCTION__, this);
+ 
+#ifdef MOZ_WIDGET_ANDROID
+  if (mozilla::camera::VideoEngine::SetAndroidObjects() != 0) {
+    CSFLogError(LOGTAG, &quot;%s: could not set Android objects&quot;, __FUNCTION__);
+    return kMediaConduitSessionNotInited;
+  }
+#endif  // MOZ_WIDGET_ANDROID
+ 
+  mSendPluginCreated = mEncoderFactory-&gt;CreatedGmpPluginEvent().Connect(
+      GetMainThreadSerialEventTarget(),
+      [self = detail::RawPtr(this)](uint64_t aPluginID) {
+        self.get()-&gt;mSendCodecPluginIDs.AppendElement(aPluginID);
+      });
+  mSendPluginReleased = mEncoderFactory-&gt;ReleasedGmpPluginEvent().Connect(
+      GetMainThreadSerialEventTarget(),
+      [self = detail::RawPtr(this)](uint64_t aPluginID) {
+        self.get()-&gt;mSendCodecPluginIDs.RemoveElement(aPluginID);
+      });
+  mRecvPluginCreated = mDecoderFactory-&gt;CreatedGmpPluginEvent().Connect(
+      GetMainThreadSerialEventTarget(),
+      [self = detail::RawPtr(this)](uint64_t aPluginID) {
+        self.get()-&gt;mRecvCodecPluginIDs.AppendElement(aPluginID);
+      });
+  mRecvPluginReleased = mDecoderFactory-&gt;ReleasedGmpPluginEvent().Connect(
+      GetMainThreadSerialEventTarget(),
+      [self = detail::RawPtr(this)](uint64_t aPluginID) {
+        self.get()-&gt;mRecvCodecPluginIDs.RemoveElement(aPluginID);
+      });
+  mRtpSources.Connect(&amp;mCanonicalRtpSources);
+ 
+  MOZ_ALWAYS_SUCCEEDS(mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __func__, [this, self = RefPtr&lt;WebrtcVideoConduit&gt;(this)] {
+        mCall-&gt;RegisterConduit(this);
+      })));
+ 
+  CSFLogDebug(LOGTAG, &quot;%s Initialization Done&quot;, __FUNCTION__);
+  return kMediaConduitNoError;
+}
+ 
+RefPtr&lt;GenericPromise&gt; WebrtcVideoConduit::Shutdown() {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  mSendPluginCreated.DisconnectIfExists();
+  mSendPluginReleased.DisconnectIfExists();
+  mRecvPluginCreated.DisconnectIfExists();
+  mRecvPluginReleased.DisconnectIfExists();
+  mReceiverRtpEventListener.DisconnectIfExists();
+  mReceiverRtcpEventListener.DisconnectIfExists();
+  mSenderRtcpEventListener.DisconnectIfExists();
+  mRtpSources.DisconnectIfConnected();
+ 
+  return InvokeAsync(
+      mCallThread, __func__, [this, self = RefPtr&lt;WebrtcVideoConduit&gt;(this)] {
+        if (mSendBitrate.NumDataValues() &gt; 0) {
+          glean::webrtc::video_encoder_bitrate_avg_per_call_kbps
+              .AccumulateSingleSample(
+                  static_cast&lt;unsigned&gt;(mSendBitrate.Mean() / 1000));
+          glean::webrtc::video_encoder_bitrate_std_dev_per_call_kbps
+              .AccumulateSingleSample(static_cast&lt;unsigned&gt;(
+                  mSendBitrate.StandardDeviation() / 1000));
+          mSendBitrate.Clear();
+        }
+        if (mSendFramerate.NumDataValues() &gt; 0) {
+          glean::webrtc::video_encoder_framerate_avg_per_call
+              .AccumulateSingleSample(
+                  static_cast&lt;unsigned&gt;(mSendFramerate.Mean()));
+          glean::webrtc::video_encoder_framerate_10x_std_dev_per_call
+              .AccumulateSingleSample(static_cast&lt;unsigned&gt;(
+                  mSendFramerate.StandardDeviation() * 10));
+          mSendFramerate.Clear();
+        }
+ 
+        if (mRecvBitrate.NumDataValues() &gt; 0) {
+          glean::webrtc::video_decoder_bitrate_avg_per_call_kbps
+              .AccumulateSingleSample(
+                  static_cast&lt;unsigned&gt;(mRecvBitrate.Mean() / 1000));
+          glean::webrtc::video_decoder_bitrate_std_dev_per_call_kbps
+              .AccumulateSingleSample(static_cast&lt;unsigned&gt;(
+                  mRecvBitrate.StandardDeviation() / 1000));
+          mRecvBitrate.Clear();
+        }
+        if (mRecvFramerate.NumDataValues() &gt; 0) {
+          glean::webrtc::video_decoder_framerate_avg_per_call
+              .AccumulateSingleSample(
+                  static_cast&lt;unsigned&gt;(mRecvFramerate.Mean()));
+          glean::webrtc::video_decoder_framerate_10x_std_dev_per_call
+              .AccumulateSingleSample(static_cast&lt;unsigned&gt;(
+                  mRecvFramerate.StandardDeviation() * 10));
+          mRecvFramerate.Clear();
+        }
+ 
+        mControl.mReceiving.DisconnectIfConnected();
+        mControl.mTransmitting.DisconnectIfConnected();
+        mControl.mLocalSsrcs.DisconnectIfConnected();
+        mControl.mLocalRtxSsrcs.DisconnectIfConnected();
+        mControl.mLocalCname.DisconnectIfConnected();
+        mControl.mMid.DisconnectIfConnected();
+        mControl.mRemoteSsrc.DisconnectIfConnected();
+        mControl.mRemoteRtxSsrc.DisconnectIfConnected();
+        mControl.mSyncGroup.DisconnectIfConnected();
+        mControl.mLocalRecvRtpExtensions.DisconnectIfConnected();
+        mControl.mLocalSendRtpExtensions.DisconnectIfConnected();
+        mControl.mSendCodec.DisconnectIfConnected();
+        mControl.mSendRtpRtcpConfig.DisconnectIfConnected();
+        mControl.mRecvCodecs.DisconnectIfConnected();
+        mControl.mRecvRtpRtcpConfig.DisconnectIfConnected();
+        mControl.mCodecMode.DisconnectIfConnected();
+        mControl.mFrameTransformerProxySend.DisconnectIfConnected();
+        mControl.mFrameTransformerProxyRecv.DisconnectIfConnected();
+        mControl.mVideoDegradationPreference.DisconnectIfConnected();
+        mWatchManager.Shutdown();
+ 
+        if (mTrackSource) {
+          mTrackSource-&gt;RemoveSink(&amp;mSendSinkProxy);
+        }
+ 
+        mCall-&gt;UnregisterConduit(this);
+        {
+          MutexAutoLock lock(mMutex);
+          DeleteSendStream();
+          DeleteRecvStream();
+        }
+        mDecoderFactory-&gt;DisconnectAll();
+        mEncoderFactory-&gt;DisconnectAll();
+        // Clear the stats send stream stats cache
+        mTransitionalSendStreamStats = Nothing();
+ 
+        SetIsShutdown();
+ 
+        return GenericPromise::CreateAndResolve(true, __func__);
+      });
+}
+ 
+bool WebrtcVideoConduit::IsShutdown() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  return mIsShutdown;
+}
+ 
+void WebrtcVideoConduit::SetIsShutdown() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mIsShutdown = true;
+}
+ 
+webrtc::VideoCodecMode WebrtcVideoConduit::CodecMode() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  return mControl.mCodecMode;
+}
+ 
+webrtc::DegradationPreference WebrtcVideoConduit::DegradationPreference()
+    const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  if (mControl.mConfiguredDegradationPreference !=
+      webrtc::DegradationPreference::DISABLED) {
+    return mControl.mConfiguredDegradationPreference;
+  }
+ 
+  if (mLockScaling || CodecMode() == webrtc::VideoCodecMode::kScreensharing) {
+    return webrtc::DegradationPreference::MAINTAIN_RESOLUTION;
+  }
+  // Fall back to MAINTAIN_FRAMERATE by default. This is what libwebrtc/Chrome
+  // uses, because BALANCED hasn't been tuned yet. See
+  // https://source.chromium.org/chromium/chromium/src/+/main:third_party/webrtc/media/engine/webrtc_video_engine.cc;l=1939;drc=7c2b25f6a19cfeeea67f0f43ed33617840bab33d
+  return webrtc::DegradationPreference::MAINTAIN_FRAMERATE;
+}
+ 
+MediaConduitErrorCode WebrtcVideoConduit::AttachRenderer(
+    RefPtr&lt;mozilla::VideoRenderer&gt; aVideoRenderer) {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  CSFLogDebug(LOGTAG, &quot;%s&quot;, __FUNCTION__);
+ 
+  // null renderer
+  if (!aVideoRenderer) {
+    CSFLogError(LOGTAG, &quot;%s NULL Renderer&quot;, __FUNCTION__);
+    MOZ_ASSERT(false);
+    return kMediaConduitInvalidRenderer;
+  }
+ 
+  // This function is called only from main, so we only need to protect against
+  // modifying mRenderer while any webrtc.org code is trying to use it.
+  {
+    ReentrantMonitorAutoEnter enter(mRendererMonitor);
+    mRenderer = aVideoRenderer;
+  }
+ 
+  return kMediaConduitNoError;
+}
+ 
+void WebrtcVideoConduit::DetachRenderer() {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  ReentrantMonitorAutoEnter enter(mRendererMonitor);
+  if (mRenderer) {
+    mRenderer = nullptr;
+  }
+}
+ 
+webrtc::RefCountedObject&lt;mozilla::VideoStreamFactory&gt;*
+WebrtcVideoConduit::CreateVideoStreamFactory() {
+  auto videoStreamFactory = mVideoStreamFactory.Lock();
+  *videoStreamFactory = new webrtc::RefCountedObject&lt;VideoStreamFactory&gt;(
+      *mCurSendCodecConfig, mMinBitrate, mStartBitrate, mPrefMaxBitrate,
+      mNegotiatedMaxBitrate);
+  return videoStreamFactory-&gt;get();
+}
+ 
+void WebrtcVideoConduit::OnSendFrame(const webrtc::VideoFrame&amp; aFrame) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  // XXX Google uses a &quot;timestamp_aligner&quot; to translate timestamps from the
+  // camera via TranslateTimestamp(); we should look at doing the same.  This
+  // avoids sampling error when capturing frames, but google had to deal with
+  // some broken cameras, include Logitech c920's IIRC.
+ 
+  const gfx::IntSize size{aFrame.width(), aFrame.height()};
+ 
+  {
+    const auto ssrc = mSendStreamConfig.rtp.ssrcs.empty()
+                          ? 0u
+                          : mSendStreamConfig.rtp.ssrcs.front();
+    CSFLogVerbose(LOGTAG, &quot;WebrtcVideoConduit %p %s (send SSRC %u (0x%x))&quot;,
+                  this, __FUNCTION__, ssrc, ssrc);
+  }
+ 
+  if (Some(size) != mLastSize) {
+    MOZ_ASSERT(size != gfx::IntSize(0, 0));
+    // Note coverity will flag this since it thinks they can be 0
+    MOZ_ASSERT(mCurSendCodecConfig);
+    mLastSize = Some(size);
+  }
+ 
+  MOZ_ASSERT(!aFrame.color_space(), &quot;Unexpected use of color space&quot;);
+  MOZ_ASSERT(!aFrame.has_update_rect(), &quot;Unexpected use of update rect&quot;);
+ 
+#ifdef MOZ_REAL_TIME_TRACING
+  if (profiler_is_active()) {
+    MutexAutoLock lock(mMutex);
+    nsAutoCStringN&lt;256&gt; ssrcsCommaSeparated;
+    bool first = true;
+    for (auto ssrc : mSendStreamConfig.rtp.ssrcs) {
+      if (!first) {
+        ssrcsCommaSeparated.AppendASCII(&quot;, &quot;);
+      } else {
+        first = false;
+      }
+      ssrcsCommaSeparated.AppendInt(ssrc);
+    }
+ 
+    const webrtc::Timestamp currentTimestamp =
+        webrtc::Timestamp::Micros(aFrame.timestamp_us());
+    // The first frame has a delta of zero.
+    webrtc::TimeDelta timestampDelta =
+        mLastTimestampSend.isSome()
+            ? currentTimestamp - mLastTimestampSend.value()
+            : webrtc::TimeDelta::Zero();
+    mLastTimestampSend = Some(currentTimestamp);
+    TRACE_COMMENT(&quot;VideoConduit::OnSendFrame (async)&quot;,
+                  &quot;t-delta=%.1fms, ssrcs=%s&quot;, timestampDelta.ms&lt;double&gt;(),
+                  ssrcsCommaSeparated.get());
+  }
+#endif
+}
+ 
+void WebrtcVideoConduit::SetTrackSource(
+    webrtc::VideoTrackSourceInterface* aSource) {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ALWAYS_SUCCEEDS(mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __func__, [this, self = RefPtr(this), src = RefPtr(aSource)] {
+        if (mTrackSource) {
+          mTrackSource-&gt;RemoveSink(&amp;mSendSinkProxy);
+        }
+        if (src) {
+          src-&gt;AddOrUpdateSink(&amp;mSendSinkProxy, {});
+        }
+        mTrackSource = src;
+        if (mSendStream) {
+          mSendStream-&gt;SetSource(mTrackSource, DegradationPreference());
+        }
+      })));
+}
+ 
+// Transport Layer Callbacks
+ 
+void WebrtcVideoConduit::DeliverPacket(webrtc::CopyOnWriteBuffer packet,
+                                       PacketType type) {
+  // Currently unused.
+  MOZ_ASSERT(false);
+}
+ 
+void WebrtcVideoConduit::OnRtpReceived(webrtc::RtpPacketReceived&amp;&amp; aPacket,
+                                       webrtc::RTPHeader&amp;&amp; aHeader) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  // We should only be handling packets on this conduit if we are set to receive
+  // them.
+  if (!mControl.mReceiving) {
+    CSFLogVerbose(LOGTAG,
+                  &quot;VideoConduit %p: Discarding packet SEQ# %u SSRC %u as not &quot;
+                  &quot;configured to receive.&quot;,
+                  this, aPacket.SequenceNumber(), aHeader.ssrc);
+    return;
+  }
+ 
+  mRemoteSendSSRC = aHeader.ssrc;
+ 
+  if (mAllowSsrcChange || mRecvStreamConfig.rtp.remote_ssrc == 0) {
+    bool switchRequired = mRecvStreamConfig.rtp.remote_ssrc != aHeader.ssrc;
+    if (switchRequired) {
+      // Handle the unknown ssrc (and ssrc-not-signaled case).
+ 
+      // We need to check that the newly received ssrc is not already
+      // associated with ulpfec or rtx. This is how webrtc.org handles
+      // things, see https://codereview.webrtc.org/1226093002.
+      const webrtc::VideoReceiveStreamInterface::Config::Rtp&amp; rtp =
+          mRecvStreamConfig.rtp;
+      switchRequired =
+          rtp.rtx_associated_payload_types.find(aHeader.payloadType) ==
+              rtp.rtx_associated_payload_types.end() &amp;&amp;
+          rtp.ulpfec_payload_type != aHeader.payloadType;
+    }
+ 
+    if (switchRequired) {
+      CSFLogInfo(LOGTAG, &quot;VideoConduit %p: Switching remote SSRC from %u to %u&quot;,
+                 this, mRecvStreamConfig.rtp.remote_ssrc, aHeader.ssrc);
+      SetRemoteSSRCAndRestartAsNeeded(aHeader.ssrc, 0);
+    }
+  }
+ 
+  CSFLogVerbose(LOGTAG, &quot;%s: seq# %u, Len %zu, SSRC %u (0x%x) &quot;, __FUNCTION__,
+                aPacket.SequenceNumber(), aPacket.size(), aPacket.Ssrc(),
+                aPacket.Ssrc());
+ 
+  // Libwebrtc commit cde4b67d9d now expect calls to
+  // SourceTracker::GetSources() to happen on the call thread.  We'll
+  // grab the value now while on the call thread, and dispatch to main
+  // to store the cached value if we have new source information.
+  // See Bug 1845621.
+  if (mRecvStream) {
+    mCanonicalRtpSources = mRecvStream-&gt;GetSources();
+  }
+ 
+  mRtpPacketEvent.Notify();
+  if (mCall-&gt;Call()) {
+    mCall-&gt;Call()-&gt;Receiver()-&gt;DeliverRtpPacket(
+        webrtc::MediaType::VIDEO, std::move(aPacket),
+        [self = RefPtr&lt;WebrtcVideoConduit&gt;(this)](
+            const webrtc::RtpPacketReceived&amp; packet) {
+          CSFLogVerbose(
+              LOGTAG,
+              &quot;VideoConduit %p: failed demuxing packet, ssrc: %u seq: %u&quot;,
+              self.get(), packet.Ssrc(), packet.SequenceNumber());
+          return false;
+        });
+  }
+}
+ 
+void WebrtcVideoConduit::OnRtcpReceived(webrtc::CopyOnWriteBuffer&amp;&amp; aPacket) {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  if (mCall-&gt;Call()) {
+    mCall-&gt;Call()-&gt;Receiver()-&gt;DeliverRtcpPacket(
+        std::forward&lt;webrtc::CopyOnWriteBuffer&gt;(aPacket));
+  }
+}
+ 
+Maybe&lt;uint16_t&gt; WebrtcVideoConduit::RtpSendBaseSeqFor(uint32_t aSsrc) const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  auto it = mRtpSendBaseSeqs.find(aSsrc);
+  if (it == mRtpSendBaseSeqs.end()) {
+    return Nothing();
+  }
+  return Some(it-&gt;second);
+}
+ 
+const dom::RTCStatsTimestampMaker&amp; WebrtcVideoConduit::GetTimestampMaker()
+    const {
+  return mCall-&gt;GetTimestampMaker();
+}
+ 
+void WebrtcVideoConduit::StopTransmitting() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertNotCurrentThreadOwns();
+ 
+  if (!mEngineTransmitting) {
+    return;
+  }
+ 
+  if (mSendStream) {
+    CSFLogDebug(LOGTAG, &quot;%s Stopping send stream&quot;, __FUNCTION__);
+    mSendStream-&gt;Stop();
+  }
+ 
+  mEngineTransmitting = false;
+}
+ 
+void WebrtcVideoConduit::StartTransmitting() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  MOZ_ASSERT(mSendStream);
+  mMutex.AssertNotCurrentThreadOwns();
+ 
+  if (mEngineTransmitting) {
+    return;
+  }
+ 
+  CSFLogDebug(LOGTAG, &quot;%s Starting send stream&quot;, __FUNCTION__);
+ 
+  mSendStream-&gt;Start();
+  // XXX File a bug to consider hooking this up to the state of mtransport
+  mCall-&gt;Call()-&gt;SignalChannelNetworkState(webrtc::MediaType::VIDEO,
+                                           webrtc::kNetworkUp);
+  mEngineTransmitting = true;
+}
+ 
+void WebrtcVideoConduit::StopReceiving() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  mMutex.AssertNotCurrentThreadOwns();
+ 
+  // Are we receiving already? If so, stop receiving and playout
+  // since we can't apply new recv codec when the engine is playing.
+  if (!mEngineReceiving) {
+    return;
+  }
+ 
+  if (mRecvStream) {
+    CSFLogDebug(LOGTAG, &quot;%s Stopping receive stream&quot;, __FUNCTION__);
+    mRecvStream-&gt;Stop();
+  }
+ 
+  mEngineReceiving = false;
+}
+ 
+void WebrtcVideoConduit::StartReceiving() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+  MOZ_ASSERT(mRecvStream);
+  mMutex.AssertNotCurrentThreadOwns();
+ 
+  if (mEngineReceiving) {
+    return;
+  }
+ 
+  CSFLogDebug(LOGTAG, &quot;%s Starting receive stream (SSRC %u (0x%x))&quot;,
+              __FUNCTION__, mRecvStreamConfig.rtp.remote_ssrc,
+              mRecvStreamConfig.rtp.remote_ssrc);
+  // Start Receiving on the video engine
+  mRecvStream-&gt;Start();
+ 
+  // XXX File a bug to consider hooking this up to the state of mtransport
+  mCall-&gt;Call()-&gt;SignalChannelNetworkState(webrtc::MediaType::VIDEO,
+                                           webrtc::kNetworkUp);
+  mEngineReceiving = true;
+}
+ 
+bool WebrtcVideoConduit::SendRtp(const uint8_t* aData, size_t aLength,
+                                 const webrtc::PacketOptions&amp; aOptions) {
+  MOZ_ASSERT(aLength &gt;= 12);
+  const uint16_t seqno = ntohs(*((uint16_t*)&amp;aData[2]));
+  const uint32_t ssrc = ntohl(*((uint32_t*)&amp;aData[8]));
+ 
+  CSFLogVerbose(
+      LOGTAG,
+      &quot;VideoConduit %p: Sending RTP Packet seq# %u, len %zu, SSRC %u (0x%x)&quot;,
+      this, seqno, aLength, ssrc, ssrc);
+ 
+  if (!mTransportActive) {
+    CSFLogError(LOGTAG, &quot;VideoConduit %p: RTP Packet Send Failed&quot;, this);
+    return false;
+  }
+ 
+  MediaPacket packet;
+  packet.Copy(aData, aLength, aLength + SRTP_MAX_EXPANSION);
+  packet.SetType(MediaPacket::RTP);
+  mSenderRtpSendEvent.Notify(std::move(packet));
+ 
+  // Parse the sequence number of the first rtp packet as base_seq.
+  const auto inserted = mRtpSendBaseSeqs_n.insert({ssrc, seqno}).second;
+ 
+  if (inserted || aOptions.packet_id &gt;= 0) {
+    int64_t now_ms = PR_Now() / 1000;
+    MOZ_ALWAYS_SUCCEEDS(mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+        __func__, [this, self = RefPtr&lt;WebrtcVideoConduit&gt;(this),
+                   packet_id = aOptions.packet_id, now_ms, ssrc, seqno] {
+          mRtpSendBaseSeqs.insert({ssrc, seqno});
+          if (packet_id &gt;= 0) {
+            if (mCall-&gt;Call()) {
+              // TODO: This notification should ideally happen after the
+              // transport layer has sent the packet on the wire.
+              mCall-&gt;Call()-&gt;OnSentPacket({packet_id, now_ms});
+            }
+          }
+        })));
+  }
+  return true;
+}
+ 
+bool WebrtcVideoConduit::SendSenderRtcp(const uint8_t* aData, size_t aLength) {
+  CSFLogVerbose(
+      LOGTAG,
+      &quot;VideoConduit %p: Sending RTCP SR Packet, len %zu, SSRC %u (0x%x)&quot;, this,
+      aLength, (uint32_t)ntohl(*((uint32_t*)&amp;aData[4])),
+      (uint32_t)ntohl(*((uint32_t*)&amp;aData[4])));
+ 
+  if (!mTransportActive) {
+    CSFLogError(LOGTAG, &quot;VideoConduit %p: RTCP SR Packet Send Failed&quot;, this);
+    return false;
+  }
+ 
+  MediaPacket packet;
+  packet.Copy(aData, aLength, aLength + SRTP_MAX_EXPANSION);
+  packet.SetType(MediaPacket::RTCP);
+  mSenderRtcpSendEvent.Notify(std::move(packet));
+  return true;
+}
+ 
+bool WebrtcVideoConduit::SendReceiverRtcp(const uint8_t* aData,
+                                          size_t aLength) {
+  CSFLogVerbose(
+      LOGTAG,
+      &quot;VideoConduit %p: Sending RTCP RR Packet, len %zu, SSRC %u (0x%x)&quot;, this,
+      aLength, (uint32_t)ntohl(*((uint32_t*)&amp;aData[4])),
+      (uint32_t)ntohl(*((uint32_t*)&amp;aData[4])));
+ 
+  if (!mTransportActive) {
+    CSFLogError(LOGTAG, &quot;VideoConduit %p: RTCP RR Packet Send Failed&quot;, this);
+    return false;
+  }
+ 
+  MediaPacket packet;
+  packet.Copy(aData, aLength, aLength + SRTP_MAX_EXPANSION);
+  packet.SetType(MediaPacket::RTCP);
+  mReceiverRtcpSendEvent.Notify(std::move(packet));
+  return true;
+}
+ 
+void WebrtcVideoConduit::OnRecvFrame(const webrtc::VideoFrame&amp; aFrame) {
+  MOZ_ASSERT(mFrameRecvThread-&gt;IsOnCurrentThread());
+  const uint32_t localRecvSsrc = mRecvSSRC;
+  const uint32_t remoteSendSsrc = mRemoteSendSSRC;
+ 
+  CSFLogVerbose(
+      LOGTAG,
+      &quot;VideoConduit %p: Rendering frame, Remote SSRC %u (0x%x), size %ux%u&quot;,
+      this, static_cast&lt;uint32_t&gt;(remoteSendSsrc),
+      static_cast&lt;uint32_t&gt;(remoteSendSsrc), aFrame.width(), aFrame.height());
+  ReentrantMonitorAutoEnter enter(mRendererMonitor);
+ 
+  if (!mRenderer) {
+    CSFLogError(LOGTAG, &quot;VideoConduit %p: Cannot render frame, no renderer&quot;,
+                this);
+    return;
+  }
+ 
+  bool needsNewHistoryElement = mReceivedFrameHistory.mEntries.IsEmpty();
+  {
+    const Maybe frameSize = Some(gfx::IntSize{aFrame.width(), aFrame.height()});
+    if (frameSize != mReceivingSize.Ref()) {
+      mReceivingSize = frameSize;
+      needsNewHistoryElement = true;
+    }
+  }
+ 
+  if (!needsNewHistoryElement) {
+    auto&amp; currentEntry = mReceivedFrameHistory.mEntries.LastElement();
+    needsNewHistoryElement =
+        currentEntry.mRotationAngle !=
+            static_cast&lt;unsigned long&gt;(aFrame.rotation()) ||
+        currentEntry.mLocalSsrc != localRecvSsrc ||
+        currentEntry.mRemoteSsrc != remoteSendSsrc;
+  }
+ 
+  // Record frame history
+  const auto historyNow = mCall-&gt;GetTimestampMaker().GetNow().ToDom();
+  if (needsNewHistoryElement) {
+    dom::RTCVideoFrameHistoryEntryInternal frameHistoryElement;
+    frameHistoryElement.mConsecutiveFrames = 0;
+    frameHistoryElement.mWidth = aFrame.width();
+    frameHistoryElement.mHeight = aFrame.height();
+    frameHistoryElement.mRotationAngle =
+        static_cast&lt;unsigned long&gt;(aFrame.rotation());
+    frameHistoryElement.mFirstFrameTimestamp = historyNow;
+    frameHistoryElement.mLocalSsrc = localRecvSsrc;
+    frameHistoryElement.mRemoteSsrc = remoteSendSsrc;
+    if (!mReceivedFrameHistory.mEntries.AppendElement(frameHistoryElement,
+                                                      fallible)) {
+      mozalloc_handle_oom(0);
+    }
+  }
+  auto&amp; currentEntry = mReceivedFrameHistory.mEntries.LastElement();
+ 
+  currentEntry.mConsecutiveFrames++;
+  currentEntry.mLastFrameTimestamp = historyNow;
+  // Attempt to retrieve an timestamp encoded in the image pixels if enabled.
+  if (mVideoLatencyTestEnable &amp;&amp; mReceivingSize.Ref()) {
+    uint64_t now = PR_Now();
+    uint64_t timestamp = 0;
+    uint8_t* data =
+        const_cast&lt;uint8_t*&gt;(aFrame.video_frame_buffer()-&gt;GetI420()-&gt;DataY());
+    bool ok = YuvStamper::Decode(
+        mReceivingSize.Ref()-&gt;width, mReceivingSize.Ref()-&gt;height,
+        mReceivingSize.Ref()-&gt;width, data,
+        reinterpret_cast&lt;unsigned char*&gt;(&amp;timestamp), sizeof(timestamp), 0, 0);
+    if (ok) {
+      VideoLatencyUpdate(now - timestamp);
+    }
+  }
+#ifdef MOZ_REAL_TIME_TRACING
+  if (profiler_is_active()) {
+    MutexAutoLock lock(mMutex);
+    // The first frame has a delta of zero.
+    uint32_t rtpTimestamp = aFrame.rtp_timestamp();
+    uint32_t timestampDelta =
+        mLastRTPTimestampReceive.isSome()
+            ? rtpTimestamp - mLastRTPTimestampReceive.value()
+            : 0;
+    mLastRTPTimestampReceive = Some(rtpTimestamp);
+    TRACE_COMMENT(&quot;VideoConduit::OnRecvFrame&quot;, &quot;t-delta=%.1fms, ssrc=%u&quot;,
+                  timestampDelta * 1000.f / webrtc::kVideoPayloadTypeFrequency,
+                  localRecvSsrc);
+  }
+#endif
+ 
+  mRenderer-&gt;RenderVideoFrame(aFrame);
+}
+ 
+bool WebrtcVideoConduit::AddFrameHistory(
+    dom::Sequence&lt;dom::RTCVideoFrameHistoryInternal&gt;* outHistories) const {
+  ReentrantMonitorAutoEnter enter(mRendererMonitor);
+  if (!outHistories-&gt;AppendElement(mReceivedFrameHistory, fallible)) {
+    mozalloc_handle_oom(0);
+    return false;
+  }
+  return true;
+}
+ 
+void WebrtcVideoConduit::SetJitterBufferTarget(DOMHighResTimeStamp aTargetMs) {
+  MOZ_RELEASE_ASSERT(aTargetMs &lt;= std::numeric_limits&lt;uint16_t&gt;::max());
+  MOZ_RELEASE_ASSERT(aTargetMs &gt;= 0);
+ 
+  MOZ_ALWAYS_SUCCEEDS(mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __func__,
+      [this, self = RefPtr&lt;WebrtcVideoConduit&gt;(this), targetMs = aTargetMs] {
+        mJitterBufferTargetMs = static_cast&lt;uint16_t&gt;(targetMs);
+        if (mRecvStream) {
+          mRecvStream-&gt;SetBaseMinimumPlayoutDelayMs(targetMs);
+        }
+      })));
+}
+ 
+void WebrtcVideoConduit::DumpCodecDB() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  for (const auto&amp; entry : mControl.mConfiguredRecvCodecs) {
+    CSFLogDebug(LOGTAG, &quot;Payload Name: %s&quot;, entry.mName.c_str());
+    CSFLogDebug(LOGTAG, &quot;Payload Type: %d&quot;, entry.mType);
+    CSFLogDebug(LOGTAG, &quot;Payload Max Frame Size: %d&quot;,
+                entry.mEncodingConstraints.maxFs);
+    if (entry.mEncodingConstraints.maxFps.isSome()) {
+      CSFLogDebug(LOGTAG, &quot;Payload Max Frame Rate: %f&quot;,
+                  *entry.mEncodingConstraints.maxFps);
+    }
+  }
+}
+ 
+void WebrtcVideoConduit::VideoLatencyUpdate(uint64_t aNewSample) {
+  mRendererMonitor.AssertCurrentThreadIn();
+ 
+  mVideoLatencyAvg =
+      (sRoundingPadding * aNewSample + sAlphaNum * mVideoLatencyAvg) /
+      sAlphaDen;
+}
+ 
+uint64_t WebrtcVideoConduit::MozVideoLatencyAvg() {
+  mRendererMonitor.AssertCurrentThreadIn();
+ 
+  return mVideoLatencyAvg / sRoundingPadding;
+}
+ 
+void WebrtcVideoConduit::CollectTelemetryData() {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  if (mEngineTransmitting) {
+    webrtc::VideoSendStream::Stats stats = mSendStream-&gt;GetStats();
+    mSendBitrate.Push(stats.media_bitrate_bps);
+    mSendFramerate.Push(stats.encode_frame_rate);
+  }
+  if (mEngineReceiving) {
+    webrtc::VideoReceiveStreamInterface::Stats stats = mRecvStream-&gt;GetStats();
+    mRecvBitrate.Push(stats.total_bitrate_bps);
+    mRecvFramerate.Push(stats.decode_frame_rate);
+  }
+}
+ 
+void WebrtcVideoConduit::OnRtcpBye() { mRtcpByeEvent.Notify(); }
+ 
+void WebrtcVideoConduit::OnRtcpTimeout() { mRtcpTimeoutEvent.Notify(); }
+ 
+void WebrtcVideoConduit::SetTransportActive(bool aActive) {
+  MOZ_ASSERT(mStsThread-&gt;IsOnCurrentThread());
+  if (mTransportActive == aActive) {
+    return;
+  }
+ 
+  // If false, This stops us from sending
+  mTransportActive = aActive;
+}
+ 
+const std::vector&lt;webrtc::RtpSource&gt;&amp;
+WebrtcVideoConduit::GetUpstreamRtpSources() const {
+  MOZ_ASSERT(NS_IsMainThread());
+  return mRtpSources;
+}
+ 
+void WebrtcVideoConduit::RequestKeyFrame(FrameTransformerProxy* aProxy) {
+  mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __func__, [this, self = RefPtr&lt;WebrtcVideoConduit&gt;(this),
+                 proxy = RefPtr&lt;FrameTransformerProxy&gt;(aProxy)] {
+        if (mRecvStream &amp;&amp; mEngineReceiving) {
+          // This is a misnomer. This requests a keyframe from the other side.
+          mRecvStream-&gt;GenerateKeyFrame();
+        }
+        proxy-&gt;KeyFrameRequestDone();
+      }));
+}
+ 
+void WebrtcVideoConduit::GenerateKeyFrame(const Maybe&lt;std::string&gt;&amp; aRid,
+                                          FrameTransformerProxy* aProxy) {
+  // libwebrtc does not implement error handling in the way that
+  // webrtc-encoded-transform specifies. So, we'll need to do that here.
+  // Also, spec wants us to synchronously check whether there's an encoder, but
+  // that's not something that can be checked synchronously.
+ 
+  mCallThread-&gt;Dispatch(NS_NewRunnableFunction(
+      __func__, [this, self = RefPtr(this), proxy = RefPtr(aProxy), aRid] {
+        // If encoder is undefined, reject promise with InvalidStateError,
+        // abort these steps.
+ 
+        // If encoder is not processing video frames, reject promise with
+        // InvalidStateError, abort these steps.
+        if (!mSendStream || !mCurSendCodecConfig) {
+          CopyableErrorResult result;
+          result.ThrowInvalidStateError(&quot;No encoders&quot;);
+          proxy-&gt;GenerateKeyFrameError(aRid, result);
+          return;
+        }
+ 
+        // Gather a list of video encoders, named videoEncoders from encoder,
+        // ordered according negotiated RIDs if any.
+        // NOTE: This is represented by mCurSendCodecConfig-&gt;mEncodings
+ 
+        // If rid is defined, remove from videoEncoders any video encoder that
+        // does not match rid.
+ 
+        // If rid is undefined, remove from videoEncoders all video encoders
+        // except the first one.
+        bool found = false;
+        std::vector&lt;std::string&gt; rids;
+        if (!aRid.isSome()) {
+          // If rid is undefined, set rid to the RID value corresponding to
+          // videoEncoder.
+          if (!mCurSendCodecConfig-&gt;mEncodings.empty()) {
+            if (!mCurSendCodecConfig-&gt;mEncodings[0].rid.empty()) {
+              rids.push_back(mCurSendCodecConfig-&gt;mEncodings[0].rid);
+            }
+            found = true;
+          }
+        } else {
+          for (const auto&amp; encoding : mCurSendCodecConfig-&gt;mEncodings) {
+            if (encoding.rid == *aRid) {
+              found = true;
+              rids.push_back(encoding.rid);
+              break;
+            }
+          }
+        }
+ 
+        // If videoEncoders is empty, reject promise with NotFoundError and
+        // abort these steps. videoEncoders is expected to be empty if the
+        // corresponding RTCRtpSender is not active, or the corresponding
+        // RTCRtpSender track is ended.
+        if (!found) {
+          CopyableErrorResult result;
+          result.ThrowNotFoundError(&quot;Rid not in use&quot;);
+          proxy-&gt;GenerateKeyFrameError(aRid, result);
+        }
+ 
+        // NOTE: We don't do this stuff, because libwebrtc's interface is
+        // rid-based.
+        // Let videoEncoder be the first encoder in videoEncoders.
+        // If rid is undefined, set rid to the RID value corresponding to
+        // videoEncoder.
+ 
+        mSendStream-&gt;GenerateKeyFrame(rids);
+      }));
+}
+ 
+bool WebrtcVideoConduit::HasCodecPluginID(uint64_t aPluginID) const {
+  MOZ_ASSERT(NS_IsMainThread());
+ 
+  return mSendCodecPluginIDs.Contains(aPluginID) ||
+         mRecvCodecPluginIDs.Contains(aPluginID);
+}
+ 
+bool WebrtcVideoConduit::HasH264Hardware() {
+  return gfx::gfxVars::IsInitialized() &amp;&amp; gfx::gfxVars::HasWebrtcH264Hw();
+}
+ 
+bool WebrtcVideoConduit::HasAv1() {
+  // HW-ONLY POLICY: this build targets Intel HD Graphics 4000
+  // (Ivy Bridge Quick Sync), which has no AV1 decode (or encode) capability
+  // in hardware -- AV1 hardware decode didn't appear in Intel iGPUs until
+  // Tiger Lake/Gen11+. Reporting true here regardless of hardware (as this
+  // function previously did unconditionally) tells the JSEP/SDP negotiation
+  // layer this device can do AV1, which would route calls into AV1 decoded
+  // entirely in software -- exactly what the hardware-only policy in
+  // PDMFactory.cpp/DecoderTraits.cpp/FFmpegVideoDecoder.cpp exists to avoid
+  // for ordinary playback. WebRTC negotiation is a separate code path from
+  // that policy and was not covered by it until this change.
+  //
+  // NOTE: this only affects what WebrtcVideoConduit itself reports as
+  // capable when consulted. If AV1 still gets offered/accepted in calls
+  // after this change, the actual SDP codec list construction lives further
+  // upstream (JSEP/PeerConnection layer) and was not part of the files
+  // available when this was written -- that layer needs the equivalent
+  // fix independently; this function alone cannot guarantee AV1 is excluded
+  // from negotiation if that layer doesn't consult it.
+  return false;
+}
+ 
+Maybe&lt;int&gt; WebrtcVideoConduit::ActiveSendPayloadType() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  if (!mSendStream) {
+    return Nothing();
+  }
+ 
+  if (mSendStreamConfig.rtp.payload_type == -1) {
+    return Nothing();
+  }
+ 
+  return Some(mSendStreamConfig.rtp.payload_type);
+}
+ 
+Maybe&lt;int&gt; WebrtcVideoConduit::ActiveRecvPayloadType() const {
+  MOZ_ASSERT(mCallThread-&gt;IsOnCurrentThread());
+ 
+  auto stats = GetReceiverStats();
+  if (!stats) {
+    return Nothing();
+  }
+ 
+  if (stats-&gt;current_payload_type == -1) {
+    return Nothing();
+  }
+ 
+  return Some(stats-&gt;current_payload_type);
+}
+ 
+}  // namespace mozilla
+ 
+
+
+
+    </details>
+  <human_rationale>
+  [AUDIT VERDICT 2026-08-02 — HISTORICAL-TRUE (G2 transition transcript)] the session that deleted kHardwareVideoDecodeOnly and unified the gate into IsBlockedSoftwareOnlyVideoCodec; its prescriptions ARE the current design. Contains G1 context — read with the timeline in mind.
+
+</human_rationale>
+</concept>

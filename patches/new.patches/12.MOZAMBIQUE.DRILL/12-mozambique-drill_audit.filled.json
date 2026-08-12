@@ -1,0 +1,63 @@
+{
+  "target": "12.MOZAMBIQUE.DRILL — Normandy RecipeRunner + Nimbus RemoteSettingsExperimentLoader 60-year timer dilation (2 patch files), with cross-topic pref lock (05.PREFS) and runtime policy lock (NEW_FILES/distribution/policies.json)",
+  "status": "PASS",
+  "executive_summary_layman": "This topic puts Firefox's two remote-experiment radios to sleep for 60 years instead of ripping them out of the wall. Each of two code files had a background timer that woke every 6 hours to phone Mozilla for new instructions; both are changed to wake once every 60 years. The machinery is left physically in place because removing it crashes about 145 other parts of the browser on startup. Both changes are present and correct in the source tree, and two further layers (a locked preference and an enterprise policy file) hold the same values. It is safe to ship. What was not independently re-tested here is the live browser behaviour and the exact 145-dependent crash claim, which comes from the project's own notes rather than a reproduction in this audit.",
+  "technical_summary_developer": "Two-line-per-file neutralisation: the in-code fallback default for app.normandy.run_interval_seconds is changed from 21600 s to 1893456000 s (60 years, under the signed 32-bit ceiling) in RecipeRunner.sys.mjs:289 and RemoteSettingsExperimentLoader.sys.mjs:256. Both modules read the same RUN_INTERVAL_PREF and still register their timers via nsIUpdateTimerManager, so all dependent object shapes are preserved and boot does not cascade. This is a doctrine kill (soft-gate/neutralise), not a removal. Defence in depth: topic 05 sets enabled=false, api_url empty, and run_interval_seconds=1893456000, all locked; policies.json re-locks the three prefs at runtime. Both diffs were verified against the patched tree by grep. Precheck rules returned 0 findings. Deductions are for behaviour not exercised in this audit and for the 145-dependency figure being documentary rather than reproduced.",
+  "defects": [],
+  "readiness": {
+    "score_percent": 90,
+    "done": [
+      "RecipeRunner.sys.mjs:289 fallback = 1893456000 with '// 60y (Mozambique Drill)' — grep-confirmed in the live tree",
+      "RemoteSettingsExperimentLoader.sys.mjs:256 fallback = 1893456000 with the same comment — grep-confirmed",
+      "Both files confirmed to read the shared pref app.normandy.run_interval_seconds (RecipeRunner:41, RSEL:52)",
+      "Cross-layer: topic 05 firefox.js sets enabled=false, api_url='', run_interval_seconds=1893456000, all locked (firefox.js:2921/2923/2926)",
+      "Cross-layer: NEW_FILES/distribution/policies.json locks the three prefs at runtime (Status: locked)",
+      "Object shapes preserved: timers still register; ExperimentAPI.sys.mjs present in tree, so no structural-excision cascade",
+      "Precheck rules: 0 findings (P0-P3 all 0)"
+    ],
+    "blockers": [],
+    "todo": [
+      "P3: extract 1893456000 to a shared named constant (comment already prevents misreading it as a bug)",
+      "P3: add a startup/build assertion that the enterprise policy engine (MOZ_HAS_ENTERPRISE_POLICIES) is active, to catch silent degradation of the runtime lock",
+      "P2 (optional): add an integration test asserting no outbound request to Normandy/RemoteSettings endpoints on boot"
+    ],
+    "not_verified": [
+      "Live runtime behaviour (about:studies empty; about:config edit rejected; clean boot) was reasoned from code, not executed in this audit",
+      "The '~145 dependent components crash on delete' figure is from the project's README/history, not independently reproduced here",
+      "Performance impact (CPU/memory/IO, startup timing) was not measured; no benchmark artifact was supplied — recorded as 'not measured', not estimated",
+      "The launching brief's phrasing 'ExperimentAPI getters forced false with init shape preserved' is NOT observable in this tree: ExperimentAPI.sys.mjs exists at toolkit/components/nimbus/ExperimentAPI.sys.mjs with no override marker. The actual kill in this topic is timer dilation plus pref/policy locking, and the structural-excision approach is documented as attempted and abandoned"
+    ]
+  },
+  "expansion_plan": [
+    {"target": "toolkit/components/normandy + nimbus", "tweak": "Add an integration test: on boot, assert no network request to Mozilla Normandy/RemoteSettings endpoints.", "phase": "1", "impact": "Regression protection against a future revert of the interval or the locked prefs."},
+    {"target": "both .sys.mjs sites", "tweak": "Introduce a shared named constant for 1893456000 with a one-line doc comment.", "phase": "2", "impact": "Readability; removes the 'magic number' objection without altering behaviour."},
+    {"target": "enterprise policy engine wiring", "tweak": "Startup assertion that policies.json prefs are actually locked.", "phase": "2", "impact": "Detects silent degradation of the runtime-lock layer early."}
+  ],
+  "positive_observations": [
+    "Three independent layers (in-code fallback, locked build-time pref, runtime policy lock) all agree on the same values — a single bypass leaves the other two intact",
+    "Shape-preserving approach is honest and documented: the delete-first attempt and its boot cascade are recorded rather than hidden",
+    "The 1893456000 value is bounded deliberately to fit signed 32-bit, avoiding overflow-driven surprises",
+    "The inline '// 60y (Mozambique Drill)' comment is factually correct, so the value cannot be misread as an accidental magic number",
+    "Both diffs were verified against the actual patched tree, not just the doc — grep confirmed line and value at both sites",
+    "Coherent with the project's egress-lockdown family (topics 05, 09, 13): same neutralise-don't-remove doctrine"
+  ],
+  "verification_commands": [
+    "grep -n 1893456000 $FF_SRC/toolkit/components/normandy/lib/RecipeRunner.sys.mjs $FF_SRC/toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
+    "grep -n 'RUN_INTERVAL_PREF =' $FF_SRC/toolkit/components/normandy/lib/RecipeRunner.sys.mjs $FF_SRC/toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
+    "grep -n 'app.normandy' $FF_SRC/browser/app/profile/firefox.js",
+    "jq '.policies.Preferences | keys' patches/new.patches/12.MOZAMBIQUE.DRILL/NEW_FILES/distribution/policies.json",
+    "# runtime: about:studies (empty), about:policies (Normandy prefs locked), about:config set app.normandy.run_interval_seconds (rejected)"
+  ],
+  "claim_sources": [
+    {"claim": "Both fallback intervals changed 21600 -> 1893456000", "basis": "stated_in_input", "evidence": "-      21600, +      1893456000, // 60y (Mozambique Drill)"},
+    {"claim": "Both files use the shared RUN_INTERVAL_PREF", "basis": "stated_in_input", "evidence": "getIntPref(RUN_INTERVAL_PREF, 1893456000)"},
+    {"claim": "Live-tree lines are RecipeRunner:289 and RSEL:256", "basis": "model_inference", "evidence": "grep on firefox-main confirmed both"},
+    {"claim": "Shared pref name is app.normandy.run_interval_seconds", "basis": "model_inference", "evidence": "RecipeRunner.sys.mjs:41; RemoteSettingsExperimentLoader.sys.mjs:52"},
+    {"claim": "1893456000 s = 60y and < signed 32-bit max", "basis": "model_inference", "evidence": "60*365.25*24*3600=1893456000 < 2147483647"},
+    {"claim": "Topic 05 locks enabled/api_url/run_interval_seconds", "basis": "model_inference", "evidence": "firefox.js:2921/2923/2926 pref(...,locked)"},
+    {"claim": "policies.json locks the three prefs at runtime", "basis": "model_inference", "evidence": "NEW_FILES/distribution/policies.json Status: locked"},
+    {"claim": "Precheck returned 0 findings", "basis": "stated_in_input", "evidence": "PRECHECK.md: P0:0 P1:0 P2:0 P3:0"},
+    {"claim": "ExperimentAPI structural excision was abandoned; module still present", "basis": "model_inference", "evidence": "ExperimentAPI.sys.mjs present at toolkit/components/nimbus/ with no override marker; README '145+ dependencies'"},
+    {"claim": "Performance not measured", "basis": "model_inference", "evidence": "no benchmark artifact supplied"}
+  ]
+}

@@ -3,6 +3,49 @@
 **Source tree**: `/home/gorilla/firefox-main/` (has its own CLAUDE.md with full build rules)
 **This directory**: Patches, lessons, notes, scripts for the custom Firefox build.
 
+## THREAT LEVEL — ask this FIRST, before anything else (author mandate 2026-08-05)
+
+**Ask, then work. Not the other way round.** Open every session by asking the threat
+level — not with a greeting, not with "how can I help", and above all **not with an
+orienting sweep**. Do NOT run `git status`, audits, or "let me get my bearings"
+surveys before the answer arrives. An unrequested survey is the most expensive habit
+in this project (see *Quota discipline*, bottom of file) and it is how a session gets
+hijacked into work nobody ordered.
+
+**If no level is stated, assume SUB-LOW.** Erring low costs one question. Erring high
+costs a day of quota and produces unasked-for work. **Never default high.**
+
+Five threat levels, plus SUB-LOW — the baseline resting state. (That is why it reads
+as "five levels" across six rows: SUB-LOW is the *absence* of a threat, not a grade
+of one. Cf. DEFCON 5 vs. peacetime.)
+
+| Level | Condition | Posture |
+|---|---|---|
+| **CRITICAL** | Compile highly likely, near future | Pre-flight every gate (CSS `@import` lint, `dsp-preflight.py`, `patch-tamper-check.py`). No speculative edits, no refactors, no doc-writing. Every change must have a build reason you can state. Verify the **artifact** — mtime + symbols — never the exit code. |
+| **SEVERE** | Compile highly likely | Changes are build-affecting. Small, reversible diffs. Read `/home/gorilla/firefox-main/CLAUDE.md` before touching source. Batch reads hard. |
+| **SUBSTANTIAL** | Compile likely | Normal patch work. Full rules apply. Exploration allowed if cheap and announced first. |
+| **MODERATE** | Compile possible, not likely | Docs, patch files, audits. Source edits allowed but treat them as drafts — expect iteration before any build. |
+| **LOW** | Compile highly unlikely | Documentation, logs, organisation, reading. Do not touch source. Tool calls are for reading and writing docs. |
+| **SUB-LOW** | Chitchat and planning | Teacher mode. No tool calls unless asked for a specific fact. **"I don't know yet" is a complete answer.** No recommendation stapled to every reply; no three-option menu with one pre-bolded as *Recommended*. Say RTFM and explain *why* the thing behaves that way. Talking **is** the work — not a preamble to it. |
+
+**Only the author sets the level.** You may *request* a change — "this looks
+SUBSTANTIAL to me, confirm?" — and then **wait**. Never self-escalate silently;
+drifting upward on your own is exactly what produces work nobody ordered.
+
+**De-escalate after the event.** Once a compile lands and is verified, say so and
+drop back to LOW/SUB-LOW. Do not go hunting for the next thing to be alarmed about.
+
+**Why this rule exists (2026-08-05):** in response to the single word "ok.", the agent
+ran an unrequested repo audit, then produced three successive confident-and-wrong
+readings of the git state (stale worktree HEAD; stale `origin/master` ref never
+fetched; a "one commit unpushed" claim that was false — the author had in fact
+published a clean release plus a 101 MB `.deb`). It closed one of them with "there's
+nothing to worry about" — a reassurance that had never been checked. The author's
+diagnosis, from HUMINT experience: the agent was **resolving the loop**, not answering
+the question. Confidence did not track correctness; the tone was identical whether
+right or wrong. The threat level exists so the agent is *told* how alert to be,
+instead of guessing — and guessing high.
+
 ## WHAT THIS PROJECT IS (read before anything else — author mandate 2026-08-01)
 
 **The mission:** make modern Firefox genuinely usable on 2011–2012-class hardware.
@@ -121,7 +164,7 @@ copying PNGs manually or guessing at paths. Canonical invocation (via the toolki
 
 The underlying script (same logic) also lives in the vault:
 
-    /home/gorilla/Documents/firefox/Firefox.Scripts.Vault.Docs.backup/Safety.Vault.Scripts/Firefox.Icon.For.Dash.and.APP.GRID/wayland_dual_icon_bug_fixer.sh
+    /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/Safety.Vault.Theme/ICON.WAYLAND.SCRIPTS/wayland_dual_icon_bug_fixer.sh
 
 What the script does: reads the vault master PNG, trims transparent padding with ImageMagick,
 Lanczos-resamples to 1024x1024 square, deploys to all hicolor sizes, regenerates the
@@ -199,3 +242,25 @@ scrub-corrupted — grep the tree before using them (mega lesson §F1).
    round-trips. Plan the whole batch, fire it once.
 The cost of this project is the model's token/quota use, NOT the scripts (which run
 locally for free). Treat every tool call as expensive.
+
+
+## Who this build is for
+
+The same people every Gorilla project is for: **old, weak hardware on
+single-digit-KB/s connections, often young, often with no credit card.** Directive
+§8 has the general form; what it means *here*:
+
+- The target is a 2012 laptop with an Intel HD 4000 at 1600x900, on Wayland. Not a
+  developer workstation. Patches are judged against that.
+- **Download size is time.** A browser is already a large download; every megabyte
+  added is minutes taken from someone on a metered link.
+- **Separate "Mozilla blocklisted our GPU" from "this is off by default on every
+  Linux machine".** Only the first is planned obsolescence. Verified 2026-08-09:
+  `gfx.webrender.compositor` is gated on `#if defined(XP_WIN) || defined(XP_DARWIN)`
+  - it is false on a 2026 RTX workstation exactly as on the HD 4000, and forcing it
+  on produced page ghosting, flicker and content jumping. Sort every patch into
+  blocklist vs platform-default before judging it.
+- **The docs must describe the machine.** The GPU patch log lists prefs
+  (`gfx.webrender.all`, `widget.dmabuf.force-enabled`) that are not in the live
+  user.js. A document that describes an intended build rather than the shipped one
+  is worse than no document.

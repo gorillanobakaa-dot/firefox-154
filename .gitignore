@@ -79,3 +79,5 @@ Icon.app.grid.Dash/GATHERED_BRAIN_LESSONS/
 Icon.app.grid.Dash/MEGA_LESSONS/
 # the pre-commit gate itself lists the patterns it blocks — never publish it
 .git-hooks/
+release/
+patches/new.patches/15.AUDIO/EXTRACTION_RAW/audio_fx_tiers.json

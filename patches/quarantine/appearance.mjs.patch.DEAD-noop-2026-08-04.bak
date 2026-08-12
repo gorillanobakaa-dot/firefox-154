@@ -1,0 +1,4 @@
+# ZERO-DELTA as of 2026-07-31: this file is now IDENTICAL to FF154 vanilla.
+# The old patch here was an OLD-BASE copy that double-registered
+# sidebar.verticalTabs and crashed about:preferences init (THEME_FIX_LOG §16).
+# Applying nothing is the correct action. Do NOT resurrect the old patch.

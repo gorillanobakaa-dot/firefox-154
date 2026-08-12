@@ -1,0 +1,17 @@
+# Loudness_compressor_sink_installed_2026_08_10_SC4_filter_chain_paths_and_toggles
+
+**Source:** Loudness_compressor_sink_installed_2026_08_10_SC4_filter_chain_paths_and_toggles.xml
+
+## Rationale
+
+Installed the durable fix for the quiet VAIO speakers: a system-wide compressor that sits in front of the sound card, squashing peaks and lifting quiet content by up to 12 dB. All apps benefit. One command turns it off if ever needed.
+
+PROBLEM: Weak speaker ceiling needed dynamic range compression system-wide, not more gain.
+
+## Execution Logic
+
+SOLUTION: PipeWire filter-chain SC4 sink as default; verify after reboots that loudness-sink.service is active and the default sink is loudness_sink.
+
+Packages: swh-plugins (LADSPA SC4/sc4m). Config: ~/.config/pipewire/filter-chain.conf.d/60-loudness.conf (module-filter-chain, sc4m mono graph auto-replicated to stereo: RMS mode, attack 3 ms, release 150 ms, threshold -20 dB, ratio 4:1, knee 8 dB, makeup +12 dB; 0 dBFS input peaks land ~-3 dBFS so no clipping). Runner: ~/.config/systemd/user/loudness-sink.service = pipewire -c filter-chain.conf (stock /usr/share/pipewire/filter-chain.conf auto-includes the conf.d). Sink node loudness_sink (Speakers + Loudness) set as default; loudness_sink_out links to alsa_output.pci-0000_00_1b.0.analog-stereo which is pinned at 100 percent. GNOME slider now rides the loudness sink (pre-compressor). NOTE: a context.modules fragment in ~/.config/pipewire/pipewire.conf.d ALSO loads inside the main daemon (it worked; initially misread) - do not have both or the sink appears twice. Bypass: set default back to the ALSA sink (pavucontrol Output Devices or wpctl set-default). Disable fully: systemctl --user disable --now loudness-sink.service. With this active, keep media.volume_scale at 2.0 in the browser to avoid double compression. apt on this box may need -o Acquire::ForceIPv4=true (IPv6 resolution flaps).
+
+KEYWORDS: loudness sink installed, SC4, filter-chain, swh-plugins, loudness-sink.service, bypass toggle, double compression

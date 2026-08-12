@@ -1,5 +1,5 @@
---- a/remote/components/RemoteAgent.sys.mjs
-+++ b/remote/components/RemoteAgent.sys.mjs
+--- a/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.379563830 +0100
++++ b/remote/components/RemoteAgent.sys.mjs	2026-08-03 12:43:46.381629057 +0100
 @@ -43,7 +43,13 @@
    constructor() {
      this.#allowHosts = null;
@@ -15,18 +15,6 @@
      this.#browserStartupFinished = lazy.Deferred();
      this.#enabled = false;
  
-@@ -70,9 +76,9 @@
-       }
- 
-       // Following Bug 1220810 localhost is guaranteed to resolve to a loopback
--      // address (127.0.0.1 or ::1) unless network.proxy.allow_hijacking_localhost
-+      // address (0.0.0.0 or ::1) unless network.proxy.allow_hijacking_localhost
-       // is set to true, which should not be the case.
--      const loopbackAddresses = ["127.0.0.1", "[::1]"];
-+      const loopbackAddresses = ["0.0.0.0", "[::1]"];
- 
-       // If the server is bound to an IP address and this IP address is a localhost
-       // loopback address, return localhost as allowed host.
 @@ -94,15 +100,9 @@
    }
  

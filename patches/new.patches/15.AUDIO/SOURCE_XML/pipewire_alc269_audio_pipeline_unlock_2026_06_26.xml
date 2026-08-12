@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<concept>
+  <name>Debian Audio Pipeline Audit — PipeWire Subversion of Firefox DSP (ALC269 Unlock)</name>
+  <date>2026-06-26</date>
+  <tags>pipewire, alsa, cubeb, audiostream, dsp, alc269, sony-vaio, firefox, audio-pipeline, wireplumber</tags>
+
+  <summary>
+    Complete audit of how PipeWire intercepts and degrades Firefox AudioStream DSP output on the
+    Sony SVE14A3AJ, and the full resolution applied to unleash the ALC269 silicon. DSP work
+    inside Firefox was correct but neutralized at the OS audio layer by forced resampling,
+    a parasitic filter-chain daemon, and a cubeb double-hop through pipewire-pulse.
+  </summary>
+
+  &lt;pipeline&gt;
+    Firefox AudioStream.cpp (DSP) → cubeb → pipewire-pulse → PipeWire 1.4.2 → ALSA snd_hda_intel → ALC269 codec → SVE14A3AJ speakers
+  &lt;/pipeline&gt;
+
+  &lt;problems&gt;
+    &lt;problem id="1" name="Forced Resampling (PRIMARY OFFENDER)"&gt;
+      PipeWire was locked to only 48000 Hz via default.clock.allowed-rates = [48000].
+      Firefox DSP outputs at 44100 Hz. PipeWire force-resampled every stream, mathematically
+      smoothing peaks and flattening custom bass boost and make-up gain from AudioPsychoacousticEnhancer.
+    &lt;/problem&gt;
+    &lt;problem id="2" name="filter-chain Ghost Process"&gt;
+      A second PipeWire daemon ran as filter-chain.service: /usr/bin/pipewire -c filter-chain.conf.
+      Even with no EQ plugins, it inserted a libpipewire-module-adapter resampler node into
+      the audio graph — an extra conversion hop degrading signal fidelity.
+    &lt;/problem&gt;
+    &lt;problem id="3" name="cubeb Double-Hop via pipewire-pulse"&gt;
+      mozconfig had ac_add_options --with-system-pipewire, causing cubeb to route through
+      the PulseAudio shim (pipewire-pulse). Route: Firefox → PulseAudio layer → PipeWire → speakers.
+      Two hops with extra normalization potential.
+    &lt;/problem&gt;
+  &lt;/problems&gt;
+
+  &lt;hardware&gt;
+    &lt;device&gt;Sony SVE14A3AJ — Intel HDA PCH — Realtek ALC269&lt;/device&gt;
+    &lt;native_rates&gt;44100, 48000, 96000, 192000 Hz&lt;/native_rates&gt;
+    &lt;native_bits&gt;16-bit, 20-bit, 24-bit&lt;/native_bits&gt;
+    &lt;pipewire_node&gt;alsa_output.pci-0000_00_1b.0.analog-stereo&lt;/pipewire_node&gt;
+    &lt;note&gt;Hardware had ZERO limitations. PipeWire config was the entire bottleneck.&lt;/note&gt;
+    &lt;verified_via&gt;/proc/asound/card0/codec#0 and pw-dump&lt;/verified_via&gt;
+  &lt;/hardware&gt;
+
+  &lt;resolution&gt;
+    &lt;fix name="PipeWire Clock Unlock"&gt;
+      File: ~/.config/pipewire/pipewire.conf.d/10-unleashed.conf
+      Set default.clock.allowed-rates = [44100 48000 96000 192000].
+      PipeWire now switches master clock dynamically. Zero forced resampling for native rates.
+    &lt;/fix&gt;
+    &lt;fix name="WirePlumber Hardware Policy"&gt;
+      File: ~/.config/wireplumber/wireplumber.conf.d/10-alc269.conf
+      Matched alsa_output.pci-0000_00_1b.0.analog-stereo node explicitly.
+      Unlocked all native rates, upgraded bit depth to S24LE (true 24-bit native),
+      enabled api.alsa.multi-rate, disabled batch mode for better HDA timing accuracy.
+    &lt;/fix&gt;
+    &lt;fix name="filter-chain.service Killed"&gt;
+      Command: systemctl --user disable --now filter-chain.service
+      Parasitic second PipeWire process permanently gone. Now 3 clean daemons only.
+    &lt;/fix&gt;
+    &lt;fix name="Resample Quality Maximized"&gt;
+      File: ~/.config/pipewire/pipewire-pulse.conf.d/10-unleashed.conf
+      resample.quality = 15 — maximum quality IF resampling ever occurs.
+    &lt;/fix&gt;
+  &lt;/resolution&gt;
+
+  &lt;audiostream_v2&gt;
+    &lt;canonical&gt;/home/gorilla/Documents/FIrefox.153.Work/GitHub_Staging/Firefox_Unleashed_Zeroa_CPU/patches/Last.tweaks/AudioStream_v2/AudioStream.cpp&lt;/canonical&gt;
+    &lt;deployed&gt;/home/gorilla/Documents/FIrefox.153.Work/patches/dom/media/AudioStream.cpp&lt;/deployed&gt;
+    &lt;timestamp&gt;2026-06-25 22:10&lt;/timestamp&gt;
+    &lt;size_bytes&gt;35737&lt;/size_bytes&gt;
+    &lt;diff_status&gt;ZERO DIFF — perfect match verified&lt;/diff_status&gt;
+    &lt;v2_fixes&gt;
+      1. Always-active fixed gains: mBassBoostGain=1.8f, mXLoudBoost=0.6f (dynamic linking made DSP inert)
+      2. Pure tanh SoftClip — fixed piecewise threshold bug that caused harmonic artifacts
+      3. xLOUD drive reduced from 0.9 to 0.6 (0.9 caused distortion at loud volumes)
+      4. UpdateGains() hardened to always-on fixed values
+    &lt;/v2_fixes&gt;
+    &lt;archive_docs&gt;/home/gorilla/Documents/FIrefox.153.Work/GitHub_Staging/Firefox_Unleashed_Zeroa_CPU/patches/Last.tweaks/AudioStream_v2/ARCHIVE_DOCS/&lt;/archive_docs&gt;
+  &lt;/audiostream_v2&gt;
+
+  &lt;lesson&gt;
+    Always audit the full signal chain end-to-end. DSP work inside Firefox runs correctly
+    but can be neutralized at the OS audio layer. Hardware capability is NOT the same as
+    software configuration. Verify with pw-dump and /proc/asound/card0/codec#0 to see what
+    the silicon actually supports vs what the software allows.
+  &lt;/lesson&gt;
+  <human_rationale>
+  [AUDIT VERDICT 2026-08-02 — HISTORICAL-TRUE + 2 corrected claims] the end-to-end audit METHOD here is true and canonized 2026-08-02. Two claims were later corrected: the S24LE 'upgrade' was itself the no-sound bug (driver exposes S16/S32 only — see pipewire_s24le_format_rejection); filter-chain 'disabled' was insufficient (Debian preset resurrects it — mask required). xLOUD 0.6 was an intermediate value (current 0.4).
+
+</human_rationale>
+</concept>

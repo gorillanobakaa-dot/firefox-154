@@ -1,0 +1,33 @@
+# Compander_DSP_Signomial_Curve
+
+**Source:** Compander_DSP_Signomial_Curve.xml
+
+## Rationale
+
+[AUDIT VERDICT 2026-08-02 — ⚠ SUPERSEDED-DANGEROUS (in part)] dB-vs-linear and pipeline-ordering lessons remain TRUE. But the prescription 'InitPreferredSampleRate MUST query cubeb_get_preferred_sample_rate instead of hard-locking 48000' is G1/FF153-era and now WRONG: the 48000 pin under media.gorilla.hardware_only_mode is deliberate current design (CubebUtils.cpp, verified 2026-08-02) and InitPreferredSampleRate no longer exists. the G1 brand name for this curve (coined by a Gemini model after the test-clip performer of the test ballad) was RETIRED 2026-08-02 — the curve is the Signomial Curve, named for what it is; the signomial approach itself was replaced by FastTanh knee 0.9.
+
+
+  # 🦍 AUDIO COMPANDER: DSP SIGNOMIAL CURVE & LESSONS LEARNED
+  ## (Gemini-era search incantation removed 2026-08-02 — brand context preserved in the audit verdict above)
+
+  ### The Linear vs Decibel Domain Pitfall
+  Previous models confused the formula for a **decibel-domain (dB) compressor** with a **linear amplitude domain** implementation. Applying the dB formula `y = T + (1 - T) * tanh(...)` directly to raw `float32` samples in `[-1.0, 1.0]` causes catastrophic C0/C1 continuity failures, leading to output values jumping to ~1.70 and then hard-clamping to 0.95. This caused severe physical chassis vibration (square-wave clipping) on legacy hardware like Sony VAIOs.
+
+  ### Architectural Pipeline Blindness
+  Previous implementations placed a limiter in `AudioStream::DataCallback()` (which operates on pre-gain samples) while applying a 4.0x gain downstream in `cubeb_stream_set_volume`. Protecting a signal to 0.99 *before* multiplying it by 4.0 provides zero protection (output hits 3.96, clipping the DAC).
+
+  ### The Correct Implementation (audio_fixes_v2)
+  1. **Operates purely in the linear domain.**
+  2. **Precomputed `constexpr` coefficients** (`kW`, `kYLower`, `kKneeA`, `kYUpper`) to avoid per-sample division overhead.
+  3. **C1 Continuity:** Quadratic spline guarantees smooth derivative matching at both the expansion boundary and compression boundary.
+  4. **No Artificial Clamp:** `CubebUtils::GetVolumeScale()` must return `sVolumeScale` directly, without `std::max` clamping, to allow system-level volume reduction.
+  5. **Hardware Sample Rate:** `CubebUtils::InitPreferredSampleRate()` MUST query `cubeb_get_preferred_sample_rate` (while unlocking the mutex!) instead of hard-locking to 48000 Hz, to prevent realtime resampling distortion on 44100 Hz hardware.
+
+## Execution Logic
+
+# Reference Implementation Path:
+  /home/gorilla/Documents/FIrefox.153.Work/patches/01_Media_Audio_Video/audio_fixes_v2/AudioStream.cpp
+  /home/gorilla/Documents/FIrefox.153.Work/patches/01_Media_Audio_Video/audio_fixes_v2/CubebUtils.cpp
+  /home/gorilla/Documents/FIrefox.153.Work/patches/01_Media_Audio_Video/audio_fixes_v2/audio_bug_fix_postmortem.md
+
+  // Always refer to the postmortem for the exact mathematical proofs and parameter tuning guide.

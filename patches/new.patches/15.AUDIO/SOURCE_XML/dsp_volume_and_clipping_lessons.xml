@@ -1,0 +1,13 @@
+<concept>
+  <name>dsp_volume_and_clipping_lessons</name>
+  <human_rationale>
+    1. Cubeb Hardware Volume Failures: On VAIO hardware running PipeWire/pavucontrol, `cubeb_stream_set_volume` often fails silently or returns an error. If the player UI relies solely on OS-level hardware volume (like `cubeb`), users will experience no sound at low slider values or severely restricted volumes. 
+    2. Software Volume Fallback: Always implement a software volume scaling fallback in the `DataCallback` (e.g., `sample * volumeScale`) if the hardware backend reports failure.
+    3. Psychoacoustic Enhancers vs Hard Clipping: Digital audio floats max out at 1.0f. Hard-clamping (e.g. `out = kCeiling`) shears off the waveform, creating square-wave distortion that physically rattles the laptop chassis. A soft-knee compressor or compander must be used instead to dynamically squash peaks.
+  </human_rationale>
+  <execution_logic>
+    Before finalizing any audio DSP integration or volume UI change:
+    - Verify that a `cubeb` set-volume failure is caught and triggers a software-side scaling multiplier.
+    - Run `dsp_preflight_auditor.py` on modified audio C++ files to detect hard-clipping anti-patterns (`if (x &gt; threshold) x = threshold`) and ensure volume parameters are properly passed.
+  </execution_logic>
+</concept>

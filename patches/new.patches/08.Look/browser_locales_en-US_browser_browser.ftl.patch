@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/browser/locales/en-US/browser/browser.ftl	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/browser/locales/en-US/browser/browser.ftl	2026-07-31 17:28:18.832530665 +0100
+--- a/browser/locales/en-US/browser/browser.ftl
++++ b/browser/locales/en-US/browser/browser.ftl
 @@ -1,17 +1,17 @@
  # This Source Code Form is subject to the terms of the Mozilla Public
  # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -900,7 +900,7 @@
  urlbar-searchmode-exit-button2 =
      .title = Close
  urlbar-searchmode-default2 =
-@@ -897,14 +936,12 @@
+@@ -897,10 +936,8 @@
  # Label shown on the top of Searchmode Switcher popup when the search engine won't automatically
  # reset after submitting.
  urlbar-searchmode-popup-header = Search with:
@@ -913,11 +913,6 @@
  
  # Label prompting user to search with a particular search engine.
  #  $engine (String): the name of a search engine that searches a specific site
--urlbar-result-search-with = Search with { $engine }
-+urlbar-result-search-with = Search with Gorilla
- 
- # Label for the urlbar result row, prompting the user to use a local keyword to enter search mode.
- #  $keywords (String): the restrict keyword to enter search mode.
 @@ -920,10 +957,9 @@
  ## Action text shown in urlbar results, usually appended after the search
  ## string or the url, like "result value - action text".

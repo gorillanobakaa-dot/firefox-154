@@ -1,0 +1,82 @@
+<concept name="dsp_ab_lab_measure_simulate_listen_2026_08_02">
+  <category>06.AUDIO.Pipewire.Wireplumber</category>
+  <date>2026-08-02</date>
+  <aliases>"is the DSP making it sound bad", "measure audio instead of arguing", "A/B test the
+    enhancer", "simulate AudioStream chain offline", "why do I need 70-80% volume",
+    "whisper too quiet", "level-matched listening test", "dsp-ab-lab", "FastTanh vs softsign",
+    "yt-dlp SABR workaround"</aliases>
+
+  <symptoms>Suspicion that the browser's audio DSP is coloring/harming the sound, or that it
+    fails to make quiet content audible — with only subjective impressions to go on.</symptoms>
+
+  <when_to_recall>Before ANY retune of the AudioStream enhancer constants; whenever audio
+    quality is disputed; when designing the quiet-lifter; when a future model wants to "improve"
+    the audio chain based on vibes.</when_to_recall>
+
+  <wrong_instinct>Arguing from theory or tweaking constants by ear alone. Also: comparing
+    processed vs raw WITHOUT level-matching — the processed version is ~4 dB hotter and louder
+    ALWAYS sounds "better"; the level-matched clip (C) is the only honest tonal comparison.
+    Also: using softsign x/(1+|x|) as "FastTanh" in simulations — the shipped code is the
+    Pade (3,2) rational: w*(27+w^2)/(27+9w^2), clamped at |w|=3 where it equals exactly 1.0.</wrong_instinct>
+
+  <human_rationale>
+  LAYMAN: when people disagree about sound, the answer is not a louder opinion — it is three
+  short clips: the song untouched (A), the song through the browser's enhancement exactly as
+  shipped (B), and the enhanced version turned down to match the untouched loudness (C).
+  Played through the same speakers on a clean path, your ears become a measuring instrument.
+  On 2026-08-02 this protocol acquitted the browser's enhancer: no metal, no buzz, a touch of
+  warmth — and proved its LIMIT: it barely helps whispered voices, because it boosts bass and
+  treble while a whisper's intelligibility lives in the middle frequencies it leaves alone.
+
+  DEVELOPER — THE METHOD (tool: gorilla-firefox-toolkit/modules/dsp-ab-lab.py):
+  1. FETCH the disputed content itself (not a synthetic sweep):
+     yt-dlp --extractor-args "youtube:player_client=android" -x --audio-format wav URL
+     (2026-08 reality: default clients are SABR-blocked; android client passes.)
+  2. MEASURE: ffmpeg loudnorm (EBU R128) for integrated LUFS + LRA; 400ms-window RMS
+     percentiles to LOCATE the whispers (p25 floor) and the loud passages (p90);
+     band-split the whisper passages USING THE CHAIN'S OWN one-pole math at ITS OWN corners
+     (220/3500 Hz) to see which band the problem lives in.
+  3. SIMULATE the chain bit-exact (constants in the tool's SYNC BLOCK mirror
+     dom/media/AudioStream.cpp — keep them in sync or the lab lies):
+       bass=LP220(x); treble=x-LP3500(x); mid=x-bass-treble    # perfect reconstruction
+       eb=1.8*bass; eb+=0.2*FastTanh(0.4*eb); et=1.4*treble
+       y=(eb+mid+et)*1.1
+       out = y if |y|&lt;=0.9 else sign(y)*(0.9+0.1*FastTanh(10*(|y|-0.9)))
+  4. LISTEN, level-matched: build testA_raw / testB_dsp / testC_dsp_levelmatched from the
+     auto-found whisper+loud segments; play A->B->C with 8s gaps via pw-play on a clean
+     44.1-native path, browser paused. Three questions only: metallic/vibration in B that A
+     lacks? C vs A at equal loudness — warmer or dirtier? whispers more INTELLIGIBLE or just
+     bassier?
+  </human_rationale>
+
+  <execution_logic>
+    MEASURED RESULTS — G1 test ballad (the retired G1 brand traced to this clip), 2026-08-02:
+      source: -15.0 LUFS integrated, true peak 0.0 dBTP, LRA 13.7 LU (double-normal dynamics);
+      whispers -27.9 dBFS RMS; whisper energy: bass 49% / mid 49% / treble 2%.
+      Shipped chain delivers: whispers +4.4 dB, loud +3.9 dB (near-flat = fixed tone control,
+      NOT a loudness intelligence); per-band on whispers: bass +6.6 dB, MID +0.8 dB,
+      treble +3.8 dB (nothing up there to boost). Limiter engagement 0.138% (asleep).
+    LISTENING VERDICT (owner, 3 runs, silent system, sink@44100): B and C "sounded good",
+      differences "minor/minute", no metal, no vibration -> chain EXONERATED for harshness;
+      benefit real but subtle. Consistent with the numbers.
+    WHY THE 70-80% VOLUME CRANK EXISTS: whisper leaves the browser at ~-23.5 dBFS; the
+      missing ~20 dB comes from sliders + the kernel EAPD +5.5 dB. Working as designed;
+      the design was never going to solve a 13.7-LU ballad.
+    THE FIX STILL TO BUILD — envelope-tracked quiet-lifter (G1's GOAL was right, its
+      memoryless waveshaper math was the disaster; do it properly):
+      - envelope follower on post-volume signal (attack ~5-10ms, release ~250-400ms);
+      - upward gain curve: up to +10..12 dB when envelope below ~-30 dBFS, unity by ~-18 dBFS,
+        smooth (e.g. half-cosine) interpolation between — gain follows the ENVELOPE, never the
+        instantaneous sample (that distinction is the entire anti-distortion lesson);
+      - placement: in AudioStream after software volScale, before the enhancer; existing 0.9
+        FastTanh knee remains the final safety;
+      - validate with THIS lab first (simulate on the ballad, demand: whispers +8..12 dB, loud
+        +0..1 dB, limiter engagement still &lt;1%), then level-matched listen, then patch.
+    Related evidence: SECOND.BRAIN/Chroma.DB.and.Brain.xml/AUDIO.AUDIT.2026-08-02/.
+  </execution_logic>
+
+  <related>[[audio_path_forensics_and_config_regression_2026_08_02]],
+    [[dsp_pipeline_ordering_and_waveshapers]], [[Compander_DSP_Signomial_Curve]],
+    [[Lessons_Learned_Audio_Psychoacoustic_Enhancer_Audit]]</related>
+  <verified>2026-08-02 (measurements + owner listening test; tool committed to toolkit)</verified>
+</concept>

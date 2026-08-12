@@ -1,0 +1,47 @@
+# pipewire_volume_scaling_analysis
+
+**Source:** pipewire_volume_scaling_analysis.xml
+
+## Rationale
+
+[AUDIT VERDICT 2026-08-02 — HISTORICAL-TRUE (kernel 7.0.9 era)] EAPD kernel-flag groundwork; the running kernel 7.1.2-unleashed...eapd.5db carries the chosen +5.5 dB EAPD fixup.
+
+
+# 🦍 Lesson: Kernel Sound Configuration & Motherboard Amplifier Unlock (2026-06-27)
+
+## 🧑‍🏫 Layperson Overview
+We found the root cause of why your laptop's physical speakers are so quiet. 
+The laptop's sound card (Realtek ALC269) relies on physical amplifiers on the motherboard. To activate them at full power, the computer's kernel (the brain of the operating system) needs to support "jack retasking" and "boot patch loading." 
+In your custom "Unleashed" kernel configurations, these troubleshooting features were disabled. This prevented the sound card from fully driving the motherboard amplifiers.
+We have:
+1. Updated your kernel configuration generator tools to enable these flags by default.
+2. Injected the configuration flags directly into your active kernel build tree (`linux-7.0.9/.config`).
+Once you rebuild the kernel, you will have direct access to override these jacks, allowing you to bypass the hardware limits and drive the speakers at full power!
+
+## 👩‍💻 Developer Details
+- **Hardware Limitations:** The Realtek ALC269 codec on Sony VAIO motherboards requires explicit boot-time pin configuration modifications (specifically, configuring the External Amplifier Power Down — `EAPD` pins) to wake the physical amplifiers.
+- **Kernel Flag Audit:** Checked `/boot/config-$(uname -r)` and `/home/gorilla/kernel-build-workspace/linux-7.0.9/.config` and found that critical HDA troubleshooting features were disabled:
+  ```ini
+  # CONFIG_SND_HDA_HWDEP is not set
+  # CONFIG_SND_HDA_RECONFIG is not set
+  # CONFIG_SND_HDA_PATCH_LOADER is not set
+  ```
+- **Changes Applied:**
+  1. Updated [config_injector_2026.05.20--15.35.py](file:///home/gorilla/Documents/Debian.Kernel.Work/Do.not.touch.Gorilla.Kernel.Blueprint/config_injector_2026.05.20--15.35.py) to add these flags to the `MANDATORY_FLAGS` mapping.
+  2. Updated [config.maker](file:///home/gorilla/Documents/Debian.Kernel.Work/Do.not.touch.Gorilla.Kernel.Blueprint/config.maker) to enable the same flags in the Intel HDA hardware scanner block.
+  3. Executed the injector script to apply these settings directly to the active build config at `/home/gorilla/kernel-build-workspace/linux-7.0.9/.config`.
+- **Verified Configuration Output:**
+  ```ini
+  CONFIG_SND_HDA_HWDEP=y
+  CONFIG_SND_HDA_RECONFIG=y
+  CONFIG_SND_HDA_PATCH_LOADER=y
+  ```
+
+## 📂 Paths
+- **Kernel Build Workspace:** `/home/gorilla/kernel-build-workspace/`
+- **Active Build Config:** `/home/gorilla/kernel-build-workspace/linux-7.0.9/.config`
+- **Blueprint Config Directory:** `/home/gorilla/Documents/Debian.Kernel.Work/Do.not.touch.Gorilla.Kernel.Blueprint/`
+
+## Execution Logic
+
+(empty)

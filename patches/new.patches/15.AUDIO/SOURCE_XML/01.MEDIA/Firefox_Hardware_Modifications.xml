@@ -1,0 +1,10 @@
+<concept>
+    <title>Firefox Media and Hardware Modifications</title>
+    <category>DSP &amp; Codec Policies</category>
+    <description>Hardware-only video decode policy and audio DSP enhancement goals for the SVE14A3AJ.</description>
+    <details>
+        - Hardware-Only Video Decode: A strict policy implemented to force hardware decoding on the Intel HD 4000. It successfully covers DecoderTraits, PDMFactory, and WebRTC. A critical bug involving VP8/VP9/AV1 simulcast encoder bypass was identified and blocked to prevent software decoding overhead.
+        - Audio Enhancements: On Debian Linux, the laptop's original Sony xLOUD and Dolby Home Theater DSPs are lost, resulting in very poor audio at low volumes (2-20%). The mission includes building a low-latency, computationally efficient compander in AudioStream.cpp to safely boost low-volume clarity using mathematical models (like Fletcher-Munson contours) without clipping.
+        - File Deduplication: Strict patch management requires recursive scanning of `01_Media_Audio_Video`, `02_Networking_UDP_TCP`, and `03_Graphics_GPU_Acceleration` to consolidate duplicates (e.g., DecoderTraits.cpp, PDMFactory.cpp) before deployment.
+    </details>
+</concept>

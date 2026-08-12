@@ -1,0 +1,78 @@
+{
+  "target": "11.FONT.SYSTEM — five patches (browser/fonts/moz.build + gfxFcPlatformFontList, gfxFT2FontList, gfxDWriteFontList, gfxPlatformFontList), get-microsoft-fonts.sh, README.fonts.md",
+  "status": "PASS",
+  "executive_summary_layman": "This is safe to ship. The one part that could break text, a switch that makes the browser skip scanning your system fonts, is turned off in the code and is turned on nowhere. As delivered, the browser handles fonts exactly like normal Firefox and simply carries eight extra font files for reliable text in many languages. Think of it as a labour-saving button that ships taped over: the button exists and works, but it stays covered until someone proves the packed fonts cover everything, because using it blind can hide characters. Two honesty notes keep this from being a clean PASS with no caveats: the folder's claim of a big startup speed-up (about 40 seconds down to a few) has not been measured and should not be trusted as a number, and the Microsoft fonts it uses are legal to use but not to hand out to others.",
+  "technical_summary_developer": "Cross-platform, pref-gated skip of OS font enumeration (gfx.bundled_fonts.skip_system_scan, bool, hard-coded default false at gfxFcPlatformFontList.cpp:1754/1807, gfxFT2FontList.cpp:1551, gfxDWriteFontList.cpp:1656/1740, gfxPlatformFontList.cpp:791), plus static bundling of eight fonts via FINAL_TARGET_FILES.fonts (browser/fonts/moz.build:5-16). On the Linux reference target only the fontconfig backend executes; the DWrite and FT2 guards are portability spares, and the base-class patch only logs. The skip is dormant as shipped (pref set true nowhere; not registered, so absent from about:config until created). The always-active effect is the bundle, loaded because MOZ_BUNDLED_FONTS defaults on for Linux (toolkit/moz.configure:2191-2211). No new attack surface; the fingerprinting-reduction benefit is conditional on enabling the pref and therefore not realized as shipped. Precheck (rule-based) found 0 issues; all five patches reproduce the live tree byte-exact per the folder POR. Verdict: PASS to ship in the default-off state; enabling the pref is blocked on unmeasured glyph coverage.",
+  "defects": [
+    {"id": "P2-201", "severity": "P2", "track_a": "There is no automatic test that the packed fonts can actually draw every alphabet before someone turns the skip switch on. Turning it on blind is like sealing a first-aid kit without checking it has bandages.", "track_b": "Topic-wide; no coverage gate exists for gfx.bundled_fonts.skip_system_scan. Enabling it removes fontconfig fallback (gfxFcPlatformFontList.cpp:1754).", "remediation": "Add a preflight that renders a Latin/Cyrillic/Arabic/Hebrew/Thai/CJK/emoji corpus using only the bundled set and fails on tofu.", "effort": "2-4h"},
+    {"id": "P3-301", "severity": "P3", "track_a": "The folder's README states the browser starts far faster (about 40 seconds down to 2-4), but nobody measured it, and another note in the same folder gives a much smaller figure. A number no one measured should not be printed as if it were fact.", "track_b": "README.fonts.md startup claim; the topic's own audit lists the measurement as an open TODO and the history doc says 'font enumeration takes 50-200 ms'.", "remediation": "Relabel the figures 'not measured', or run a startup benchmark on a font-heavy system and cite the real delta.", "effort": "1h (benchmark) or 10min (doc fix)"},
+    {"id": "P3-302", "severity": "P3", "track_a": "On the Windows-only spare code, turning the skip on would trip a built-in sanity check that expects the font count to grow. It cannot happen on this Linux build, but it is a trap left for anyone who reuses the spare.", "track_b": "gfxDWriteFontList: kBundledCount captured before the skipped GetFontsFromCollection; NS_ASSERTION(mFontFamilies.Count() > kBundledCount, ...) then expects strictly greater.", "remediation": "Rebase the count after the skip decision or relax the assertion, if the DWrite path is ever enabled.", "effort": "30min"},
+    {"id": "P3-303", "severity": "P3", "track_a": "The switch does not show up in the settings page until you create it, but a note in the folder tells you to look for it there and expect it to already exist. Following that note as written would fail.", "track_b": "Pref is unregistered (no StaticPrefList/.js/.yaml/.mjs entry); 00_FONT_SYSTEM_HISTORY_AND_ROADMAP.md 'Post-Build Verification' claims it appears in about:config by default.", "remediation": "Correct the doc. Do NOT add a StaticPrefList entry unless about:config visibility is intended, as that changes behaviour.", "effort": "15min"},
+    {"id": "P3-304", "severity": "P3", "track_a": "The font-fetch script's opening comment says it grabs eight fonts, but it grabs seven. The eighth already ships with Firefox. Harmless, but it is a wrong number in a document meant to be trustworthy.", "track_b": "get-microsoft-fonts.sh header comment 'the 8 font files' vs NEEDED_FONTS array of 7 (Twemoji excluded, CC-BY).", "remediation": "Change the comment to 7.", "effort": "5min"}
+  ],
+  "readiness": {
+    "score_percent": 88,
+    "done": [
+      "Four backends patched consistently with one pref (gfxFcPlatformFontList, gfxFT2FontList, gfxDWriteFontList, gfxPlatformFontList).",
+      "Skip pref default false at every read site; set true nowhere; default-OFF invariant holds.",
+      "browser/fonts/moz.build wires the eight-font bundle; all eight files physically present in browser/fonts/.",
+      "MOZ_BUNDLED_FONTS defaults on for Linux, so the bundle is packaged/loaded on the reference target.",
+      "[GORILLA]/[Gorilla] provenance markers present at every edit site.",
+      ".gitignore excludes *.ttf/*.ttc with the TwemojiMozilla.ttf CC-BY exception.",
+      "get-microsoft-fonts.sh implements a legal acquisition path and README.fonts.md documents the use-vs-redistribution EULA line and the compiled-binary caveat.",
+      "All five patches reproduce the live tree byte-exact (folder POR); precheck rules found 0 issues."
+    ],
+    "blockers": [],
+    "todo": [
+      "P2-201: automated bundled-font glyph-coverage gate before the pref is ever enabled.",
+      "P3-301: measure or relabel the startup figures.",
+      "P3-302: fix the DWrite spare assertion if that path is reused.",
+      "P3-303: correct the about:config-visibility claim in the history doc.",
+      "P3-304: fix the '8 fonts' comment in get-microsoft-fonts.sh.",
+      "Build-time warning if Microsoft fonts are present in omni.ja at packaging (redistribution reminder)."
+    ],
+    "not_verified": [
+      "Startup-time delta from the skip: not measured on any hardware; the README's ~40s to ~2-4s / 10x figures are unverified and contradicted by the history doc.",
+      "Bundled-font glyph coverage across Latin/Cyrillic/Arabic/Hebrew/Thai/CJK/emoji: the corpus test was never run.",
+      "Runtime rendering of the bundled fonts by a running browser: inferred from MOZ_BUNDLED_FONTS defaulting on plus files present; not observed at runtime here.",
+      "Behaviour with the pref enabled: never exercised on the reference target, so the skip and content-process filter paths are unproven in practice.",
+      "The Segoe UI script-coverage claim (Latin/Greek/Cyrillic/Arabic/Hebrew/Thai) comes from the script comment; not independently checked against the font cmap.",
+      "get-microsoft-fonts.sh network path (ISO download, WIM extraction, per-font sha256): not executed in this audit."
+    ]
+  },
+  "expansion_plan": [
+    {"target": "toolchain / preflight", "tweak": "Bundled-font coverage gate: render the multi-script corpus using only the bundled set; fail on missing glyphs.", "phase": "1", "impact": "Removes the foot-gun of enabling the pref without proven coverage; converts P2-201 to done."},
+    {"target": "packaging step", "tweak": "Warn at build/packaging time if Microsoft fonts are present in omni.ja.", "phase": "1", "impact": "Surfaces the redistribution caveat at the moment it matters instead of in a README."},
+    {"target": "startup benchmark", "tweak": "Measure time-to-first-paint, pref off vs on, on a machine with 500+ system fonts and on the ~4 GB target profile.", "phase": "2", "impact": "Replaces the unverified README numbers with a real, citable delta."}
+  ],
+  "positive_observations": [
+    "Default-off is the mature choice: the machinery is present and documented, activation deliberate, and the tree confirms it is never enabled.",
+    "Cross-platform parity is honest about being parity: the Windows/Android guards are labelled spares, not pretended to be active on Linux.",
+    "README.fonts.md is candid about the EULA line, naming what is legal (use) and what is not (binary redistribution) with a concrete workaround.",
+    "The get-microsoft-fonts.sh + .gitignore-exclude pattern cleanly ships the method, not the restricted binaries, with a CC-BY exception for Twemoji.",
+    "Provenance markers are present at every edit, satisfying the transparency convention."
+  ],
+  "verification_commands": [
+    "grep -rn 'bundled_fonts.skip_system_scan' gfx/thebes/   # every hit ends in ', false)'",
+    "grep -rln 'bundled_fonts.skip_system_scan' --include='*.js' --include='*.yaml' --include='*.mjs' .   # no matches",
+    "ls browser/fonts/   # consola/segoeui/segoeuib/seguisb/SegUIVar/TwemojiMozilla/YuGothB/YuGothR",
+    "sed -n '2187,2211p' toolkit/moz.configure   # MOZ_BUNDLED_FONTS default-on for Linux browser build",
+    "grep -n 'ttf\\|ttc\\|Twemoji' .gitignore   # *.ttf, *.ttc, !TwemojiMozilla.ttf",
+    "grep -n 'NEEDED_FONTS\\|8 font' get-microsoft-fonts.sh   # 7-entry array vs '8 font files' comment"
+  ],
+  "claim_sources": [
+    {"claim": "Pref default false at every read site", "basis": "stated_in_input", "evidence": "Preferences::GetBool(\"gfx.bundled_fonts.skip_system_scan\", false)"},
+    {"claim": "Read sites across four backends", "basis": "model_inference", "evidence": null},
+    {"claim": "Eight fonts wired via FINAL_TARGET_FILES.fonts", "basis": "stated_in_input", "evidence": "FINAL_TARGET_FILES.fonts += ["},
+    {"claim": "MOZ_BUNDLED_FONTS defaults on for Linux (toolkit/moz.configure:2191-2211)", "basis": "model_inference", "evidence": null},
+    {"claim": "Content-process list filtered to app-bundled families when on", "basis": "stated_in_input", "evidence": "return !aEntry.appFontFamily();"},
+    {"claim": "Base-class patch only logs", "basis": "stated_in_input", "evidence": "Bundled-fonts-only mode active, system font scan will be skipped"},
+    {"claim": "DWrite assertion expects strictly greater count after the skipped collection", "basis": "stated_in_input", "evidence": "NS_ASSERTION(mFontFamilies.Count() > kBundledCount,"},
+    {"claim": "Pref unregistered; absent from about:config until created; set true nowhere", "basis": "model_inference", "evidence": null},
+    {"claim": ".gitignore excludes *.ttf/*.ttc with TwemojiMozilla exception", "basis": "model_inference", "evidence": null},
+    {"claim": "Script fetches seven fonts; comment says eight", "basis": "stated_in_input", "evidence": "out only the 8 font files this browser needs"},
+    {"claim": "EULA permits use, not redistribution; baked-in binary is redistribution", "basis": "stated_in_input", "evidence": "Handing that binary to others is redistribution too"},
+    {"claim": "Startup figures unmeasured and contradicted by history doc", "basis": "model_inference", "evidence": null},
+    {"claim": "Precheck rules found 0 issues; patches byte-exact per POR", "basis": "model_inference", "evidence": null}
+  ]
+}

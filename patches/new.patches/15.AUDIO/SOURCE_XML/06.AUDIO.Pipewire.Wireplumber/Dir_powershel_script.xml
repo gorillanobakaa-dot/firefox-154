@@ -1,0 +1,45 @@
+<concept>
+    <title>Directory Structure: powershel.script</title>
+    <category>Workspace Context</category>
+    <description>Directory tree (depth=3) of /home/gorilla/Documents/powershel.script</description>
+    <details>
+/home/gorilla/Documents/powershel.script
+├──  Research Link Auditor 
+│   ├── link_checker.py
+│   └── README.md
+├── Dell.Inspiron.7373.2x1
+│   ├── optimize.Dell.ps1
+│   ├── README.md
+│   ├── rollback.Dell.ps1
+│   └── Run_Optimizer_As_Admin.bat
+├── New.report.on.Lenovo.ps1
+│   ├── optimize.Lenovo.compatibility.report.md
+│   ├── optimize.Lenovo.ps1
+│   ├── recomandations.txt
+│   ├── rollback.optimize.Lenovo.ps1
+│   └── rollback.ps1
+├── Script.To.Generate.Documentation
+│   ├── doc_generator.py
+│   ├── doc_generator_developer.json
+│   ├── doc_generator_developer.md
+│   ├── doc_generator_layman.json
+│   ├── doc_generator_layman.md
+│   ├── README.md
+│   └── trigger.txt
+├── AUDIT_REPORT_FINAL.md
+├── AUDIT_SYSTEM_PROMPT_v3.md
+├── AUDIT_SYSTEM_PROMPT_v4.md
+├── AUDIT_SYSTEM_PROMPT_v5.md
+├── AUDIT_SYSTEM_PROMPT_v6_Markdown.md
+├── generic.optimize.ps1
+├── GENERIC_README.md
+├── How.to.Respect.your.LLMs_Part1.md
+├── Microsoft_Docs_Scraping_Chronicle.md
+├── README.md
+├── rollback.generic.ps1
+├── ROLLBACK_README.md
+├── scrape_ms_docs.py
+└── scraper.log
+
+    </details>
+</concept>

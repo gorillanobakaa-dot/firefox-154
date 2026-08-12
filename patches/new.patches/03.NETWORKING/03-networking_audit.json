@@ -1,0 +1,171 @@
+{
+  "target": "03.NETWORKING \u2014 4 Necko patches (nsSocketTransport2, nsHostResolver, HttpConnectionUDP, nsHttpTransaction) for the custom 7.1.2 BBR + FQ-CoDel kernel",
+  "status": "PASS",
+  "executive_summary_layman": "This room re-tunes four spots in Firefox's networking code so the browser cooperates with the computer's custom Linux kernel instead of fighting it. It sets bigger data buffers for video and uploads, keeps connections from silently dying on cheap routers, lets Firefox look up many web addresses at once, and retries failed lookups in 3 seconds instead of 60. Think of it as a car service that matches the engine to the road it actually drives on. None of it touches your private data. All three problems flagged in the older audit are fixed in the current code, and the code is written to keep working even on a machine whose kernel was never tuned. It is safe to ship, with one thing to keep an eye on: on a very low-memory machine, many big transfers at once use more RAM. One correction from the last review: earlier notes said this room blocks tracking \u2014 it does not, and that false claim has been removed.",
+  "technical_summary_developer": "Four numeric/behavioural Necko patches, all verified byte-consistent with the live tree on 2026-08-04 and previously via POR_2026-08-03. HTTP/3 UDP recv hardcoded to 64 MB (67108864) and send to 4 MB (4194304) with graceful degradation (log + continue) replacing vanilla's abort-on-failure; the recv size no longer reads network_http_http3_recvBufferSize. TCP keepalive forced 15/5/3 unconditionally per socket. DNS pool hardcoded 16 threads / 12 idle (was MaxResolverThreads()/8); NEGATIVE_RECORD_LIFETIME 60 -> 3 s. Upload pacing via kGorillaUploadChunkSize (256 KB) gated on mRequestSize > 10 MB in ReadSegments \u2014 the constant is live, closing the old MED-001 'unused constant' finding. All three 2026-07-10 defects (HIGH-001 send buffer, MED-001 pacing, LOW-001 negative cache) are closed in code. The 64 MB recv figure traces to the kernel BDP derivation (06-MATHEMATICAL-DERIVATIONS.md 6.2); the 4 MB send figure to master-log Part 4; keepalive/DNS/chunk values are operationally justified in-comment but have no located formal derivation. Telemetry fencing that prior docs claimed for HttpChannelParent/nsHttpConnectionMgr/Http3Session/nsUDPSocket was reverted (files vanilla, patches deleted, grep clean) \u2014 containment lives in locked prefs + topic 13, not here.",
+  "defects": [
+    {
+      "id": "P2-301",
+      "severity": "P2",
+      "track_a": "The browser asks the operating system for large buffers, but nothing checks that the operating system was set up to grant them. On a fresh machine where the companion kernel file was never installed, the request is quietly trimmed and the user just gets less speed with no warning.",
+      "track_b": "No build/preflight assertion that /etc/sysctl.d/99-gorilla-network.conf is active. HttpConnectionUDP.cpp:301/311 requests 64 MB/4 MB; if net.core.rmem_max/wmem_max are low, the request clamps silently (only a MOZ_LOG line records it).",
+      "remediation": "Add a preflight check that /proc/sys/net/core/rmem_max >= 67108864 and warns loudly otherwise.",
+      "effort": "1h"
+    },
+    {
+      "id": "P3-302",
+      "severity": "P3",
+      "track_a": "The project's own kernel-contract note lists a setting (fq_codel) as shipped in the config file, but that line is not actually in the file \u2014 the setting comes from the kernel build instead. Harmless, but a reader verifying the contract would look for a line that is not there.",
+      "track_b": "Master log 'Kernel Configuration Contract' lists net.core.default_qdisc = fq_codel as present in /etc/sysctl.d/99-gorilla-network.conf; the on-disk .conf has no default_qdisc line (verified 2026-08-04). fq_codel is the custom kernel's compiled-in default.",
+      "remediation": "Correct the master-log contract block to attribute fq_codel to the kernel build, not the sysctl file.",
+      "effort": "15min"
+    },
+    {
+      "id": "P3-303",
+      "severity": "P3",
+      "track_a": "The size that decides when to pace a big upload (10 MB) is typed straight into the code as a bare number, with no label. It works, but it is easy to miss when reading.",
+      "track_b": "nsHttpTransaction.cpp:847 uses the literal 10 * 1024 * 1024 inline; unlike kGorillaUploadChunkSize it is not a named constant.",
+      "remediation": "Extract to a named constexpr next to kGorillaUploadChunkSize with a rationale comment.",
+      "effort": "15min"
+    }
+  ],
+  "readiness": {
+    "score_percent": 90,
+    "done": [
+      "All 4 patches verified byte-consistent with the live tree (2026-08-04) and byte-exact vanilla+patch==live (POR 2026-08-03).",
+      "HIGH-001 closed: explicit 4 MB UDP send buffer at HttpConnectionUDP.cpp:311.",
+      "MED-001 closed: kGorillaUploadChunkSize is defined (:79) AND used (:847-851) \u2014 no longer dead.",
+      "LOW-001 closed and exceeded: NEGATIVE_RECORD_LIFETIME 60 -> 3 s (:69), past the audit's recommended 15 s.",
+      "TCP keepalive 15/5/3 forced unconditionally (nsSocketTransport2.cpp:1527-1541).",
+      "DNS pool 16/12 (nsHostResolver.cpp:190-191).",
+      "Graceful-degradation rewrite verified: recv/send failures log and continue instead of aborting (:306/:316) \u2014 correct for untuned distribution kernels.",
+      "Telemetry-fencing revert confirmed still in effect: zero GLEAN_DISABLED matches in the four ex-telemetry files (2026-08-04).",
+      "64 MB recv figure cross-referenced to the kernel BDP derivation (06-MATHEMATICAL-DERIVATIONS.md 6.2); 4 MB send to master-log Part 4.",
+      "Kernel-contract .conf present on the reference machine with rmem_max/wmem_max=64 MB and bbr."
+    ],
+    "blockers": [],
+    "todo": [
+      "P2-301: preflight assertion for the sysctl contract (silent-clamp risk on fresh installs).",
+      "P3-302: fix the master-log contract block's fq_codel attribution.",
+      "P3-303: name the 10 MB pacing threshold as a constexpr.",
+      "Optional: extract DNS/negative-TTL/keepalive literals behind a network.gorilla.* pref if runtime A/B is ever wanted."
+    ],
+    "not_verified": [
+      "Runtime sysctl values could not be re-measured this pass \u2014 `sysctl` is not on PATH in the doc-agent shell. The on-disk .conf is verified; the POR's live-kernel figures (128 MB, bbr, fq_codel) are carried from POR 2026-08-03, not re-measured today.",
+      "No performance was measured for this topic: no throughput, CPU %, RAM, or page-load before/after numbers exist. All 'faster/less stutter' statements are design intent, not measurement.",
+      "Only the 64 MB receive buffer and 4 MB send buffer have located derivations (kernel report 6.2 and master-log Part 4). Keepalive 15/5/3, DNS 16/12, NEGATIVE_RECORD_LIFETIME=3 and the 256 KB chunk have NO located formal kernel-side derivation \u2014 their rationale is the in-source comments only.",
+      "Exact vanilla effective TCP keepalive idle value not traced (in-source comment cites 300 s; Linux kernel default is 7200 s; upstream Firefox keepalive is per-socket opt-in). Verified fact is only the new value 15/5/3.",
+      "Upstream default of MaxResolverThreads() stated as '8' by prior docs but not re-derived here; it is pref-driven (network.dns.max_any_priority_threads + max_high_priority_threads).",
+      "happy_eyeballs_resolution_delay=50 (RFC 8305 aligned, cited in the room guardrails) is NOT one of these four C++ patches \u2014 it is a pref, out of scope for this room; not audited here."
+    ]
+  },
+  "expansion_plan": [
+    {
+      "target": "build/preflight \u2014 sysctl contract",
+      "tweak": "Assert /proc/sys/net/core/rmem_max >= 67108864 (and wmem_max), warn loudly on mismatch.",
+      "phase": "0",
+      "impact": "Removes the silent-clamp failure mode on fresh/untuned installs."
+    },
+    {
+      "target": "netwerk/protocol/http/nsHttpTransaction.cpp \u2014 pacing threshold",
+      "tweak": "Replace the inline 10 MB literal with a named constexpr; optionally make it adaptive to measured BBR bandwidth x RTT.",
+      "phase": "1",
+      "impact": "Removes the magic number; adaptive form improves BBR interaction across very slow and very fast links."
+    },
+    {
+      "target": "netwerk/base/nsSocketTransport2.cpp \u2014 TCP Fast Open",
+      "tweak": "Enable TFO to hosts that advertised a cookie (kernel net.ipv4.tcp_fastopen=3 already shipped in the .conf).",
+      "phase": "1",
+      "impact": "One-RTT saving on TCP reconnects \u2014 noticeable on slow links."
+    },
+    {
+      "target": "cross-topic \u2014 network.gorilla.* prefs",
+      "tweak": "Gate the Necko literals (DNS pool, negative TTL, buffer sizes) behind a master pref, mirroring 01.MEDIA's hardware_only_mode.",
+      "phase": "2",
+      "impact": "Runtime A/B against upstream; testability."
+    }
+  ],
+  "positive_observations": [
+    "All three prior-audit defects (HIGH-001/MED-001/LOW-001) are closed in code \u2014 a rare outcome; most audit findings age in a backlog.",
+    "The graceful-degradation rewrite (log + continue vs vanilla's Close + return rv) is the correct call for a heterogeneous distribution fleet: the reference machine gets the full buffer, an untuned ~4 GB target degrades instead of failing.",
+    "The 10 MB upload-pacing gate is a genuine nuance \u2014 small uploads skip the pacing overhead, only large uploads (where BBR's RTT estimation benefits) are chunked.",
+    "The room-clearing correctly caught and neutralised the false-VERIFIED telemetry claims; the current docs no longer overstate what the code does.",
+    "Buffer sizes are tied to explicit derivations rather than guessed \u2014 the 64 MB figure to a written kernel BDP calc, the 4 MB figure to a written project calc."
+  ],
+  "verification_commands": [
+    "grep -n 'NEGATIVE_RECORD_LIFETIME\\|SetThreadLimit\\|SetIdleThreadLimit' $FF_SRC/netwerk/dns/nsHostResolver.cpp   # expect 3 / 16 / 12",
+    "grep -n 'keepIdle\\|keepIntvl\\|keepCnt' $FF_SRC/netwerk/base/nsSocketTransport2.cpp   # expect 15 / 5 / 3",
+    "grep -n 'SetRecvBufferSize\\|SetSendBufferSize\\|graceful' $FF_SRC/netwerk/protocol/http/HttpConnectionUDP.cpp   # expect 67108864 / 4194304 / two graceful-degradation comments",
+    "grep -n 'kGorillaUploadChunkSize\\|mRequestSize > 10' $FF_SRC/netwerk/protocol/http/nsHttpTransaction.cpp   # expect defn :79 + gate :847",
+    "grep -rln 'GLEAN_DISABLED\\|MOZ_TELEMETRY_REPORTING 0' $FF_SRC/netwerk/protocol/http/HttpChannelParent.cpp $FF_SRC/netwerk/protocol/http/nsHttpConnectionMgr.cpp $FF_SRC/netwerk/protocol/http/Http3Session.cpp $FF_SRC/netwerk/base/nsUDPSocket.cpp   # expect NO output (revert intact)",
+    "ls $FF_SRC/../*/03.NETWORKING/*.patch 2>/dev/null; grep -E 'rmem_max|wmem_max|congestion_control' /etc/sysctl.d/99-gorilla-network.conf   # expect 4 patches; 67108864 / 67108864 / bbr",
+    "cat /proc/sys/net/core/rmem_max /proc/sys/net/ipv4/tcp_congestion_control /proc/sys/net/core/default_qdisc   # expect >=67108864 / bbr / fq_codel (qdisc from kernel build, not the .conf)"
+  ],
+  "claim_sources": [
+    {
+      "claim": "Recv 64 MB hardcoded, no longer from pref",
+      "basis": "stated_in_input",
+      "evidence": "rv = mSocket->SetRecvBufferSize(67108864);  // 64MB"
+    },
+    {
+      "claim": "Send 4 MB added; graceful degradation",
+      "basis": "stated_in_input",
+      "evidence": "rv = mSocket->SetSendBufferSize(4194304); ... // Do not abort \u2014 graceful degradation."
+    },
+    {
+      "claim": "Vanilla aborted on recv failure",
+      "basis": "stated_in_input",
+      "evidence": "-    mSocket->Close(); -    mSocket = nullptr; -    return rv;"
+    },
+    {
+      "claim": "Keepalive 15/5/3",
+      "basis": "stated_in_input",
+      "evidence": "keepIdle = 15; keepIntvl = 5; keepCnt = 3;"
+    },
+    {
+      "claim": "DNS 16/12",
+      "basis": "stated_in_input",
+      "evidence": "SetThreadLimit(16)) ... SetIdleThreadLimit(12))"
+    },
+    {
+      "claim": "NEGATIVE_RECORD_LIFETIME 3",
+      "basis": "stated_in_input",
+      "evidence": "static const unsigned int NEGATIVE_RECORD_LIFETIME = 3;"
+    },
+    {
+      "claim": "kGorillaUploadChunkSize used, gated at 10 MB",
+      "basis": "stated_in_input",
+      "evidence": "if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize)"
+    },
+    {
+      "claim": "Telemetry fencing reverted (files vanilla, patches deleted)",
+      "basis": "stated_in_input",
+      "evidence": "all four files are byte-identical to the vanilla vault; their four .patch files were deleted (POR_2026-08-03_room_clearing.md)"
+    },
+    {
+      "claim": "64 MB traces to kernel BDP 6.2",
+      "basis": "stated_in_input",
+      "evidence": "BDP = 125 MB/s * 0.150 s = 18.75 MB ... 64 MiB (06-MATHEMATICAL-DERIVATIONS.md 6.2)"
+    },
+    {
+      "claim": ".conf has bbr + 64 MB but no default_qdisc line",
+      "basis": "stated_in_input",
+      "evidence": "net.core.rmem_max = 67108864 ... net.ipv4.tcp_congestion_control = bbr (no default_qdisc line)"
+    },
+    {
+      "claim": "sysctl not re-measurable this pass; live figures carried from POR",
+      "basis": "model_inference",
+      "evidence": null
+    },
+    {
+      "claim": "No performance measured for this topic",
+      "basis": "model_inference",
+      "evidence": null
+    },
+    {
+      "claim": "happy_eyeballs_resolution_delay=50 is a pref, not in these 4 patches",
+      "basis": "model_inference",
+      "evidence": null
+    }
+  ]
+}

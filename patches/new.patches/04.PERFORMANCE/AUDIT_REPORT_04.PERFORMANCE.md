@@ -1,3 +1,6 @@
+> **⚠ SUPERSEDED 2026-08-03 — DO NOT RELY ON THIS FILE.** This 2026-07-10 "generation-1" audit is stale and, in multiple rooms, CONTENT-SWAPPED: its body describes an unrelated Necko/networking subsystem regardless of the files named in its own header (confirmed across 04/05/07 by the 2026-08-03 parallel fleet audit — see ../ORCHESTRATION.FLEET.2026-08-03/FLEET_FINDINGS_LEDGER_2026-08-03.md). Its "PASS" verdict is worthless. Current room status lives in this folder's MASTER_PROJECT_LOG and/or POR_DRAFT_2026-08-03.md. Retained for history per the append-only doctrine.
+
+---
 # IBM-Style Code Audit Report: 04.PERFORMANCE
 
 ## SECTION A: DOCUMENT CONTROL

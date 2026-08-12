@@ -1,0 +1,28 @@
+#!/bin/bash
+# Gives the desktop volume slider true authority when a compressor sink is the
+# default output. The slider writes the loudness (default) sink volume, which
+# sits BEFORE the compressor; a 4:1 compressor absorbs ~75% of that change.
+# This daemon mirrors slider moves onto the hardware sink (post-compressor)
+# using a 0.75-power map so pre+post combine to a normal-feeling taper.
+# Event-driven via pactl subscribe; ~zero CPU when idle.
+
+LOUD=loudness_sink
+HW=alsa_output.pci-0000_00_1b.0.analog-stereo
+
+get_vol() { pactl get-sink-volume "$1" 2>/dev/null | grep -oE '[0-9]+%' | head -1 | tr -d '%'; }
+get_mute() { pactl get-sink-mute "$1" 2>/dev/null | awk '{print $2}'; }
+
+LAST_V=""; LAST_M=""
+pactl subscribe 2>/dev/null | grep --line-buffered "'change' on sink" | while read -r _; do
+  V=$(get_vol $LOUD); M=$(get_mute $LOUD)
+  [ -z "$V" ] && continue
+  if [ "$V" != "$LAST_V" ]; then
+    HWV=$(awk -v v="$V" 'BEGIN{printf "%d", (v/100)^0.75*100}')
+    pactl set-sink-volume $HW "${HWV}%"
+    LAST_V=$V
+  fi
+  if [ "$M" != "$LAST_M" ]; then
+    pactl set-sink-mute $HW "$M"
+    LAST_M=$M
+  fi
+done

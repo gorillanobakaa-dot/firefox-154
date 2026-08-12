@@ -1,0 +1,23 @@
+<concept>
+  <name>Firefox 192kHz Audio Pipeline Build Success</name>
+  <description>Documentation of the successful compilation of Firefox with the 192kHz audio pipeline unlock for the ALC269 codec via PipeWire.</description>
+  <category>Audio DSP</category>
+  <tags>
+    &lt;tag&gt;Firefox&lt;/tag&gt;
+    &lt;tag&gt;PipeWire&lt;/tag&gt;
+    &lt;tag&gt;AudioStream&lt;/tag&gt;
+    &lt;tag&gt;192kHz&lt;/tag&gt;
+    &lt;tag&gt;ALC269&lt;/tag&gt;
+    &lt;tag&gt;Build&lt;/tag&gt;
+  </tags>
+  &lt;lessons_learned&gt;
+    &lt;lesson&gt;Incremental build of Firefox completed successfully in ~21 minutes after modifying CubebUtils.cpp to set sPreferredSampleRate to 192000.&lt;/lesson&gt;
+    &lt;lesson&gt;The compiler issued harmless warnings about unreachable code in gfxPlatform.cpp and deprecated mallinfo in nsMemoryReporterManager.cpp.&lt;/lesson&gt;
+    &lt;lesson&gt;The ALC269 hardware native playback of up to 192kHz/24-bit is unlocked with zero resampling across the pipeline.&lt;/lesson&gt;
+    &lt;lesson&gt;PipeWire is configured with default.clock.quantum = 4096 and min-quantum = 256 to ensure stability at 192kHz.&lt;/lesson&gt;
+  &lt;/lessons_learned&gt;
+  <human_rationale>
+  [AUDIT VERDICT 2026-08-02 — HISTORICAL-TRUE (G1 experiment)] the 192 kHz unlock built and ran once; superseded by the deliberate 48000 Hz pin under media.gorilla.hardware_only_mode. Do not re-apply sPreferredSampleRate=192000.
+
+</human_rationale>
+</concept>

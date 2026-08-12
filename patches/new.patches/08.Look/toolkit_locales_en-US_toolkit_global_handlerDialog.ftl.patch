@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/locales/en-US/toolkit/global/handlerDialog.ftl	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/toolkit/locales/en-US/toolkit/global/handlerDialog.ftl	2026-07-31 17:28:18.856774251 +0100
+--- a/toolkit/locales/en-US/toolkit/global/handlerDialog.ftl
++++ b/toolkit/locales/en-US/toolkit/global/handlerDialog.ftl
 @@ -1,47 +1,35 @@
  # This Source Code Form is subject to the terms of the Mozilla Public
  # License, v. 2.0. If a copy of the MPL was not distributed with this

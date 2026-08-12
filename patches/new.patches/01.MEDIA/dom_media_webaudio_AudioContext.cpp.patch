@@ -6,18 +6,18 @@
                                            bool aShouldResistFingerprinting) {
 -  if (aIsOffline || aSampleRate != 0.0) {
 +  if (aIsOffline) {
-+    return aSampleRate;
-+  }
-+  // GORILLA TWEAK: Force 48000Hz native playback to match ALC269 clock rate
-+  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
-+    return 48000.0f;
-+  }
-+  if (aSampleRate != 0.0) {
      return aSampleRate;
 -  } else {
 -    return static_cast<float>(
 -        CubebUtils::PreferredSampleRate(aShouldResistFingerprinting));
    }
++  // GORILLA TWEAK: Force 48000Hz native playback to match ALC269 clock rate
++  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
++    return 48000.0f;
++  }
++  if (aSampleRate != 0.0) {
++    return aSampleRate;
++  }
 +  return static_cast<float>(
 +      CubebUtils::PreferredSampleRate(aShouldResistFingerprinting));
  }
@@ -56,18 +56,3 @@
    const bool isAllowedToPlay = media::AutoplayPolicy::IsAllowedToPlay(*this);
    AUTOPLAY_LOG("Trying to resume AudioContext {}, IsAllowedToPlay={}",
                 fmt::ptr(this), isAllowedToPlay);
-@@ -1214,14 +1226,6 @@
-     return promise.forget();
-   }
- 
--  // A resume() deferred while interrupted can never reach the running state
--  // once the context is closing, so settle those promises now instead of
--  // leaving them pending until the global goes away.
--  for (const auto& p : mPendingResumePromises) {
--    p->MaybeRejectWithInvalidStateError("Closed before resume completed");
--  }
--  mPendingResumePromises.Clear();
--
-   mPromiseGripArray.AppendElement(promise);
- 
-   CloseInternal(promise, AudioContextOperationFlags::SendStateChange);

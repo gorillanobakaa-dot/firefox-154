@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/browser/components/preferences/dialogs/browserLanguages.js	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/browser/components/preferences/dialogs/browserLanguages.js	2026-07-05 22:14:35.000000000 +0100
+--- a/browser/components/preferences/dialogs/browserLanguages.js
++++ b/browser/components/preferences/dialogs/browserLanguages.js
 @@ -512,57 +512,9 @@
    },
  

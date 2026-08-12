@@ -1,0 +1,23 @@
+<concept name="Zero_Fallback_YouTube_Playback_Fix">
+  <human_rationale>
+  [AUDIT VERDICT 2026-08-02 — ⚠ SUPERSEDED-DANGEROUS] prescribes kHardwareVideoDecodeOnly=false and software H.264 fallback. Current doctrine (decision 2026-07-05; tree+binary verified 2026-08-02) is the OPPOSITE: STRICT hardware-only, loud failure, NO software video fallback; kHardwareVideoDecodeOnly was deleted; the gate is IsBlockedSoftwareOnlyVideoCodec under pref media.gorilla.hardware_only_mode. Do NOT re-add fallback. The audio-MIME 'video/' guard half of this lesson survived and IS current.
+
+
+    On legacy hardware (specifically Ivy Bridge Intel HD 4000 GPUs), hardware acceleration (VA-API/WebRender) is fragile and prone to failure.
+    A strict hardware-only video decoding policy (kHardwareVideoDecodeOnly = true) will cause video playback (such as on YouTube) to crash completely with error code NS_ERROR_DOM_MEDIA_FATAL_ERR rather than falling back to software decoding.
+    Additionally, the patch had a bug that blocked all codecs not matching H.264, inadvertently blocking audio MIME types.
+    By setting kHardwareVideoDecodeOnly = false and restricting non-H.264 blocks to video MIME types only, we force YouTube to serve lightweight H.264 video streams, fall back to software H.264 decoding if hardware initialization fails, and preserve all audio streams.
+  </human_rationale>
+  <execution_logic>
+    1. Working path: /home/gorilla/Documents/mozilla-central-24949d57b331/dom/media/platforms/PDMFactory.cpp
+    2. Registry mapping corrected: patches/dom/media/platforms/PDMFactory.cpp -&gt; dom/media/platforms/PDMFactory.cpp.
+    3. Code modifications:
+       - static constexpr bool kHardwareVideoDecodeOnly = false; (changed from true at line 75).
+       - if (StringBeginsWith(aMimeType, "video/"_ns) &amp;&amp; !MP4Decoder::IsH264(aMimeType)) { (changed from if (!MP4Decoder::IsH264(aMimeType)) at line 477).
+    4. Automation / Pre-flight check:
+       - Enhanced the pre-flight check script `cpp_preflight_protocol.py` with `run_semantic_checks` to check `PDMFactory.cpp` and block raw `!MP4Decoder::IsH264(aMimeType)` checks.
+    5. Build command monitored:
+       - Checked brace parity and semantic rules: python3 /home/gorilla/Documents/FIrefox.153.Work/scripts/cpp_preflight_protocol.py check /home/gorilla/Documents/mozilla-central-24949d57b331/dom/media/platforms/PDMFactory.cpp
+       - Monitored build: python3 /home/gorilla/Documents/FIrefox.153.Work/scripts/gorilla_setup_orchestrator.py build ./mach build
+  </execution_logic>
+</concept>

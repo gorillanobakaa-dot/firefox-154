@@ -1,0 +1,79 @@
+<concept name="alc269_king_kong_ported_to_7.1.2">
+  <title>ALC269 KING KONG ROAR (+60dB) Patch — Manually Ported to Kernel 7.1.2</title>
+  <category>Kernel Audio Driver / Sony VAIO SVE14A3AJ</category>
+  <date>2026-06-27</date>
+
+  <human_rationale>
+  
+  [AUDIT VERDICT 2026-08-10 — SUCCESSOR PATCH MEASURED AS PLACEBO] The ported fixup rewrites amp-capability metadata only (NID 0x14 out-amp is mute-only; NID 0x21 is a Vendor Defined Widget, not an amp) and adds zero dB acoustically (measured 2026-08-10). docs/alc269.c.md had already decided REMOVAL in 7.1.2; the port re-applied it with offset changed 0x04->0x14 undocumented. Reconciliation pending (task chip). See patches/new.patches/15.AUDIO/. 
+
+[AUDIT VERDICT 2026-08-02 — HISTORICAL-TRUE — ported but NOT adopted] the +60 dB King Kong quirk was ported yet rejected in favour of the +5.5 dB balanced EAPD fixup (see audio_unleashed_vs_king_kong_conflict; uname confirms eapd.5db).
+
+
+    The upstream Linux 7.1.2 kernel source for the Realtek ALC269 HDA codec driver
+    (sound/hda/codecs/realtek/alc269.c) is a clean, unpatched file. Our custom
+    KING KONG ROAR patch — which overrides the hardware amplifier capabilities on
+    the internal speaker (NID 0x14) and headphone (NID 0x21) pins to unlock a
+    +60dB power boost — had to be manually ported because an automatic `patch`
+    application failed. The failure was caused by upstream developers inserting new
+    laptop model quirks into the HDA fixup enum between v7.0.9 and v7.1.2, which
+    shifted line numbers and caused Hunk #1 of the patch to not apply cleanly.
+  </human_rationale>
+
+  <execution_logic>
+    Four surgical edits were made to the clean 7.1.2 driver using multi_replace_file_content:
+
+    1. ENUM INJECTION (~line 3819):
+       Added `ALC269_FIXUP_KING_KONG` immediately before `ALC269_FIXUP_SONY_VAIO`
+       in the fixup enum block.
+
+    2. FUNCTION IMPLEMENTATION (~line 4193):
+       Added the `alc269_fixup_king_kong()` function immediately before the
+       `alc269_fixups[]` array definition. Key improvements over the original 7.0.9 code:
+         - Uses `static const hda_nid_t nids[]` (read-only, correct qualifier)
+         - Uses `ARRAY_SIZE(nids)` instead of hardcoded `2` (safer, self-documenting)
+         - Checks the return value of `snd_hda_override_amp_caps()` and emits
+           `codec_warn()` on failure — the old code silently discarded errors.
+         - Emits `codec_info()` on success: "ALC269: KING KONG ROAR (+60dB) unleashed!"
+
+    3. FIXUP STRUCT ENTRY (~line 4197):
+       Added `[ALC269_FIXUP_KING_KONG]` to `alc269_fixups[]` with:
+         .type = HDA_FIXUP_FUNC
+         .v.func = alc269_fixup_king_kong
+         .chained = true
+         .chain_id = ALC269_FIXUP_SONY_VAIO
+       Chaining ensures pin configurations (VREFGRD on 0x19) run before amp overrides.
+
+    4. QUIRK TABLE REDIRECT (~line 7934):
+       Changed `alc269_fixup_vendor_tbl` entry for Sony VAIO (PCI vendor 0x104d)
+       from `ALC269_FIXUP_SONY_VAIO` to `ALC269_FIXUP_KING_KONG`, so all Sony VAIO
+       machines run through the amp override before the pin config chain.
+  </execution_logic>
+
+  &lt;validation&gt;
+    Pre-flight brace balance check (inline Python counter):
+      { = 2196, } = 2196, delta = 0 — PASS
+    Structural brace checker script was missing from its expected path
+    (/home/gorilla/Documents/FIrefox.153.Work/scripts/structural_brace_checker.py)
+    — needs to be investigated and restored.
+  &lt;/validation&gt;
+
+  &lt;patch_status_all_8_files&gt;
+    - alc269.c   → MANUALLY PORTED (this session, 2026-06-27) ✅
+    - reg.c      → CLEAN apply confirmed in prior session (no manual work needed) ✅
+    - tcp.c      → CLEAN apply confirmed ✅
+    - tcp.h      → CLEAN apply confirmed ✅
+    - hw.c       → CLEAN apply confirmed ✅
+    - init.c     → CLEAN apply confirmed ✅
+    - gpio.c     → CLEAN apply confirmed ✅
+    - btcoex.c   → CLEAN apply confirmed ✅
+    NOTE: The 7 clean-apply patches have NOT yet been physically applied to
+    linux-7.1.2. Dry-run only. Next step is to run: patch -p1 for each.
+  &lt;/patch_status_all_8_files&gt;
+
+  &lt;file_paths&gt;
+    - Target driver: /home/gorilla/Documents/Debian.Kernel.Work/linux-7.1.2/sound/hda/codecs/realtek/alc269.c
+    - Patch backup:  /home/gorilla/Documents/Debian.Kernel.Work/Kernel.7.1.2.Patches/alc269.c.patch
+    - Old patched reference: /home/gorilla/Documents/Debian.Kernel.Work/Kernel.7.1.2.Patches/alc269.c
+  &lt;/file_paths&gt;
+</concept>

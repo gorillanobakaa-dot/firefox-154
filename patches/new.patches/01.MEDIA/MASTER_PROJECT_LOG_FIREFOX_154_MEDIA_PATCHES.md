@@ -357,6 +357,14 @@ navigator.mediaCapabilities.decodingInfo({
 **Status:** ✅ ALL DONE
 
 #### 4.1 Web Audio Compressor Bypass
+
+> **[CORRECTION 2026-08-10]** The rationale below is architecturally wrong: WebAudio
+> graphs output via AudioCallbackDriver directly to cubeb and NEVER pass through
+> AudioStream's DSP — the two paths are parallel, not chained, so "re-compression"
+> cannot occur. The bypass also removes DynamicsCompressorNode's automatic make-up
+> gain for any site that depends on it. Verified 2026-08-10 (it was NOT the cause of
+> the whisper incident — see patches/new.patches/15.AUDIO/2026-08-10_WHISPER_SAGA.md
+> — but it remains mis-justified). Removal is recommended at next rebuild.
 **Risk:** Web Audio compressor re-compresses AudioStream DSP output, defeats careful tuning
 
 **File Patched (1):**
@@ -2108,3 +2116,674 @@ Let the chip work.
 - **Track B:** dom_media_webaudio_AudioContext.cpp.patch: added lines contain 1 TODO/FIXME markers.
 - **Remediation:** Resolve or convert to a tracked item in PATCH.READINESS.txt.
 
+
+---
+
+### 2026-08-03 — AudioContext close()-path pending-resume rejection RESTORED to vanilla (+ rationale gap closed)
+
+**What:** re-added, verbatim from the vault vanilla, the close()-time cleanup that rejects still-pending
+resume() promises with InvalidStateError ("Closed before resume completed") and clears
+mPendingResumePromises. Restore-to-vanilla → no GORILLA marker, per convention.
+**Why it had been removed:** it rode along with the v-takeover edit in resume() (page resume() takes over
+a media-control interruption suspend — the documented TODO(bug 2047321) design). With takeover in place,
+interruption-parked promises can no longer accumulate, so the cleanup looked obsolete. **No written
+rationale for the removal existed anywhere** (patch, this log, lessons, chroma — searched 2026-08-03);
+this entry closes that paper-trail gap.
+**Why restored:** promises can still park for a second reason — autoplay policy (resume() before user
+interaction). A page doing resume()+close() in that state previously kept an eternally-unsettled promise;
+vanilla (and the Web Audio spec's close behavior — spec text not re-verified offline, flagged) settles it.
+The restoration costs the takeover feature nothing: the rejection only executes inside close().
+**Verification:** regenerated dom_media_webaudio_AudioContext.cpp.patch = diff(vault, live); close-hunk
+absent; vanilla+patch reproduces live byte-exact; patch now 58 lines, sha256-16 ebe2925de953950a.
+**The takeover feature itself is UNCHANGED** (resume-path hunk + 10ms hardware-only latency + 48kHz lock
+all intact). Rebuild owed (same single pending build).
+
+
+---
+## DOC-SAFETY BANNER (2026-08-03, tree-verified)
+**Do NOT regenerate code from the v1.0 doc excerpts that show `featureZeroCopy.UserEnable(...)`.**
+Live correctly uses `UserForceEnable(...)` — `UserForceEnable` outranks the gfxInfo blocklist,
+`UserEnable` does NOT (GOLDEN_RULES). Regenerating from the older excerpt would silently
+reintroduce the blocklist bug. The excerpts are historical; the live tree is authoritative.
+(Audio DSP values in this log — incl. media.volume_scale=2.0 — are owner-ear-validated; see the
+dated all.js sign-off. Do not "correct" them on DSP math.)
+
+
+---
+
+# ═══════════════════════════════════════════════════════════════════════
+# REGENERATED DUAL-TRACK + IBM AUDIT — 2026-08-04 (dual-track toolkit, tree-verified)
+# ═══════════════════════════════════════════════════════════════════════
+
+This section supersedes the earlier v1.0/Aug-02 merged excerpts above wherever they
+conflict. It was regenerated from the 20 live `.patch` files and re-verified against the
+patched tree `/home/gorilla/firefox-main` (FF_SRC). Key re-verifications: `UserForceEnable`
+at gfxPlatformGtk.cpp:283 (NOT UserEnable); GPU_PROCESS ForceDisable on Wayland at line 333
+(VA-API in RDD); VA-API frame pool = 16 at four sites (2046/2144/2277/2408); pref
+media.gorilla.hardware_only_mode at StaticPrefList.yaml:12746; PDMFactory reject at 475-479.
+Offline pre-check (dual-track rules): 0 P0 / 0 P1 / 1 P2 (TODO bug 2047321 in AudioContext) / 0 P3.
+Quality gate (render --validate, threshold 85): LAYMAN 91 · DEVELOPER 85 · AUDIT 96 — all PASS.
+NOTE: audio DSP constants (bass 1.8x, treble 1.4x, xLOUD 0.4, makeup 1.1x, limiter 0.9,
+media.volume_scale) are OWNER-EAR-VALIDATED — never revert on DSP theory.
+
+# ═══ MERGED DOCUMENT: 01-media_layman.md (verbatim · sha256:e12c8b36cfb84274 · merged 2026-08-04) ═══
+
+# Making an old 2012 laptop play video without cooking itself — Plain Language Guide
+
+> Generated 2026-08-04 from `01.MEDIA`
+
+---
+
+## Should You Run This?
+
+Run it only on the hardware it targets, or very similar Intel hardware with working VA-API H.264 decode. On that hardware it does what it claims and adds no privacy risk. Do not run it on a machine that needs VP9 or AV1 video, and do not ship these binaries to other people's different hardware, because the audio tuning and the -march=native compile are locked to one laptop.
+
+## Worst Case, Honestly
+
+The realistic worst outcome is that some videos refuse to play. Because software video decode is deliberately removed, a site that only offers VP9 or AV1 (and no H.264) will show a playback error instead of falling back to slow software decode. A second real failure mode: if the graphics driver setting is lost, even H.264 hardware decode can fail, and then the browser reports a fatal media error for all video rather than limping along in software. This is by design, not a crash of the browser itself. The audio DSP is always on when the mode is on, so if you dislike the boosted sound you would need to turn the mode off.
+
+## What Data This Touches
+
+Nothing here sends any of your data anywhere. These patches only change how audio and video are decoded and played on your own machine. There is no new network connection, no telemetry added, no file written with your content. The audio processing and the codec decisions all happen locally, in memory, on the media that a page you visit already sends you.
+
+## Before You Trust It
+
+You cannot read C++, and you should not have to. These checks let a non-programmer confirm the main claims from the outside.
+
+**Step 1:** Open a new tab, type about:config in the address bar, press Enter, accept the warning, and search for media.gorilla.hardware_only_mode.
+  - Look for: The setting exists and shows true. That confirms the hardware-only policy is active and gives you the switch to turn it off.
+**Step 2:** Go to a YouTube video, right-click the video, and choose 'Stats for nerds'.
+  - Look for: The codec line shows avc1 (which is H.264), not vp09 or av01. That confirms the browser is being served the format the chip decodes in hardware.
+**Step 3:** While a 1080p video plays, open a terminal and run: intel_gpu_top
+  - Look for: The video engine shows activity while the processor stays low. If instead a processor core is pinned near 100 percent during video, hardware decode is not happening and you should check your graphics driver.
+**Step 4:** Play any video or music and listen, then compare with the mode turned off (set media.gorilla.hardware_only_mode to false and restart).
+  - Look for: With the mode on, the built-in speakers sound louder and fuller. That is the audio DSP working.
+
+## The Big Picture
+
+This is the part of Firefox that decides how your computer turns a video file into moving pictures, and how it turns a sound file into sound you can hear. These patches change those decisions for one specific old laptop: a 2012 Sony VAIO with an Intel HD 4000 graphics chip.
+
+That graphics chip has a small dedicated circuit that decodes one video format, H.264, in hardware. Doing it in that circuit is cheap and cool. Modern web video often uses newer formats (VP9, AV1) that this chip cannot decode in hardware, so normal Firefox falls back to decoding them on the main processor in software. On a machine this old that pins the processor at full load, drains the battery, and heats the case. These patches close every door that leads to software video decode, so websites are pushed to serve H.264 that the little hardware circuit handles instead.
+
+A second, separate change reshapes the sound. The laptop's tiny built-in speakers are quiet and thin, and its hardware volume knob does not work under Linux. The patches add an audio-processing stage that lifts the bass and treble, adds loudness, and gently stops peaks from distorting, so the speakers sound fuller at normal volume.
+
+## Key Concepts
+
+| Name | What It Means | Real-World Comparison |
+|------|--------------|------------------------|
+| `Hardware-only video decode` | Only let the graphics chip's dedicated circuit decode video; never make the main processor do it in software. | A pizza shop with a proper pizza oven. If a customer orders a burger, the shop says 'we only make pizza' rather than frying a burger on a candle. The oven (H.264 circuit) is efficient; the candle (software decode) would burn the place down. |
+| `H.264` | An older but still very common video format that the Intel HD 4000 chip can decode in dedicated hardware. | The one language the old translator in the building speaks fluently and effortlessly. |
+| `VP9 / AV1 / VP8` | Newer video formats the chip cannot decode in hardware, so they would be decoded slowly by the main processor. | Languages the old translator does not know. To handle them, someone has to sit and translate by hand, which is exhausting and slow. |
+| `VA-API in the RDD process` | The real hardware decoding happens through a Linux library called VA-API, running inside a separate sandboxed helper process called RDD, not the graphics process. | The oven is in a fireproof back room (RDD) with its own door, kept apart from the dining room for safety. |
+| `Psychoacoustic audio DSP` | Extra sound processing that boosts bass and treble and evens out loudness to suit these exact laptop speakers. | A small graphic equalizer wired permanently behind the speakers, set once by ear for this one laptop. |
+| `media.gorilla.hardware_only_mode` | A single on/off setting that turns this whole hardware-only-video and audio policy on or off. | One master light switch for the whole floor. Flip it off and every room goes back to how the building came from the factory. |
+
+## How It Works — Step by Step
+
+### Step 1: One master switch decides everything
+
+Almost every change checks one setting, media.gorilla.hardware_only_mode. When it is on, the hardware-only video rules and the audio processing all activate together. When it is off, the code behaves like normal Firefox. It is defined in the browser's settings list (StaticPrefList.yaml, line 12746).
+
+### Step 2: The front desk turns away formats the chip cannot handle
+
+When a page asks 'can you play this?', the first checkpoint (DecoderTraits.cpp) looks at the format name. If it sees av01, vp09, vp8, vp9, hev1 or hvc1, or a WebM, Ogg, or Matroska container, it answers a flat 'no'. This is like a receptionist who reads the request and turns away anything the back-room oven cannot cook, before anyone even walks in.
+
+### Step 3: The dispatcher refuses to hand video to a software worker
+
+The next stage (PDMFactory.cpp) picks who decodes the video. The patch removes the software decoder module entirely (AgnosticDecoderModule) and adds a rule: if the video is not H.264, reject it with a fatal error. There is no software worker left to fall back to. The comment in the code even warns future editors not to add one back.
+
+### Step 4: The hardware decoder either uses the chip or gives up loudly
+
+The real decoder (FFmpegVideoDecoder.cpp) talks to the Intel chip through VA-API. The patch adds: if H.264 cannot be decoded in the hardware, reject with a clear fatal error instead of quietly switching to software. It also fixes a resource leak and pins the pool of reusable video frames to exactly 16, so the shared memory this laptop uses for both processor and graphics is never starved.
+
+### Step 5: The decoded picture goes straight to the screen without a detour
+
+Decoded frames (RemoteVideoDecoder.cpp) are handed to the screen compositor directly in graphics memory, with no copy back through the main processor. The patch reads each frame's real color information so colors render correctly, and if a frame cannot travel the zero-copy path it is dropped rather than copied the slow way.
+
+### Step 6: Side doors for video are shut too
+
+Websites can request video decoding through other doors: video calls (WebRTC), the JavaScript WebCodecs API, the 'can you play this?' Media Capabilities query, and streaming buffers (MSE). The patches close each door to non-H.264 video so a clever page cannot sneak software decoding in through the back.
+
+### Step 7: The sound is reshaped for these speakers
+
+On the audio side (AudioStream.cpp), every chunk of sound passes through a processing chain: split into bass, middle and treble; boost bass and treble; add a little harmonic richness to the bass; apply a small overall lift; then gently round off any peaks so nothing distorts. The processor's volume is scaled in software first, because this laptop's hardware volume control does not work under Linux.
+
+### Step 8: The sound is kept at one clean rate and not squashed twice
+
+The audio is pinned to 48000 samples per second (CubebUtils.cpp and AudioContext.cpp), the rate the sound system already runs at, so the processor never wastes effort converting rates. A separate web-audio compressor is switched off (DynamicsCompressorNode.cpp) so it does not squash sound that the main chain already carefully shaped.
+
+## Quirky Things Worth Knowing
+
+### Turning off software decode is the whole point, not a bug
+
+It feels backwards to remove a fallback. Normally more fallbacks mean more things work. Here, the fallback is exactly what you do not want: it would drag the old processor into slow, hot, battery-draining work. Removing it forces websites to serve the format the chip handles for free.
+
+### The audio boost ignores the in-page volume slider on purpose
+
+The boost amounts are fixed and do not follow the YouTube volume slider. That is deliberate: the in-page slider always sits near full, so following it would make the boost do nothing. The volume you actually control lives in your system's sound settings, applied after this stage.
+
+### The graphics process is switched off, yet video still uses the GPU
+
+On Wayland (the modern Linux display system) the separate graphics process is force-disabled, because leaving it on paints a black window on this setup. Video hardware decode still works, because it runs in a different helper process (RDD), not the graphics process. People often assume 'GPU process off' means 'no GPU video'. Here it does not.
+
+### One special force-enable outranks the built-in block list
+
+Firefox keeps an internal list of graphics hardware it distrusts, and the HD 4000 can land on it. The patch uses a stronger 'force enable' for the zero-copy path so it wins against that block list. A weaker 'enable' would silently lose. The exact wording matters, and the code comment explains why.
+
+## What This Means For You
+
+### Battery, Processor & Memory
+
+Not measured in this documentation pass. The mechanism is clear: removing software video decode keeps the main processor out of the most expensive media work, and pinning the frame pool to 16 bounds video memory use on this 16 GiB shared-memory machine. Actual watt, percent, and megabyte figures were not measured here, so no number is claimed.
+
+### Speed
+
+Not measured. By design, H.264 videos decode on the dedicated chip and reach the screen without a processor copy. Videos offered only in VP9 or AV1 do not get slower; they simply do not play, because the slow software path was removed.
+
+### Your Privacy
+
+No change to your privacy in either direction. These patches add no tracking and send nothing. They only alter local decoding and sound.
+
+### Your Internet
+
+Small indirect effect. Because the browser reports that it can only play H.264 video, sites that adapt their format will send you H.264 streams. That can change how much data a video uses compared with VP9 or AV1, but no exact figure was measured.
+
+## The Off Switch
+
+**What it is:** The setting media.gorilla.hardware_only_mode, in about:config. It is the on/off switch for the whole policy: hardware-only video, the 48000 Hz audio pinning, the compressor bypass, the destination-node limiter, and the forced zero-copy path all read it.
+
+**Without it:** Turn it off and Firefox goes back to factory behavior: software video decode is allowed again, audio runs at the system default without the extra processing, and the graphics block list is respected as normal. Note that the always-on speaker DSP in AudioStream.cpp and the frame-pool-of-16 and the removed software decoder module in PDMFactory are compiled in and are not all behind this one switch, so a full revert means rebuilding, not just flipping the setting.
+
+**Think of it like:** A master switch on the wall for a room full of custom modifications. Most of the wiring listens to that switch. A few bolted-on fixtures were installed permanently and only come out with a screwdriver.
+
+## How to use this build
+
+**Before you start:**
+- The specific target hardware, or hardware close to it: an Intel GPU with working VA-API H.264 decode.
+- On the reference machine, the i965 VA-API driver selected (LIBVA_DRIVER_NAME=i965), because the newer iHD driver does not support Ivy Bridge.
+- A Linux desktop; the video decode design assumes VA-API and DMABuf.
+
+**Step 1:** Run the build and play an H.264 video (most MP4 files and most YouTube content on this hardware).
+  - You should see: Video plays smoothly with the processor staying cool.
+**Step 2:** If a specific video refuses to play, check its format with 'Stats for nerds'.
+  - You should see: If it is VP9 or AV1 only, that refusal is expected under this policy; try a source that offers H.264.
+
+## If Something Goes Wrong
+
+**A video shows an error and will not play at all.**
+The video is offered only in VP9 or AV1, which this build refuses because there is no hardware decode for them and software decode was removed.
+What to do: Use a source or quality setting that offers H.264, or temporarily set media.gorilla.hardware_only_mode to false and restart if you must play that specific video.
+
+**All videos fail with a fatal media error, even normal MP4s.**
+VA-API hardware H.264 decode is not available, often because the wrong graphics driver was selected. Under this strict policy, that turns into a fatal error instead of a slow software fallback.
+What to do: Make sure the i965 driver is selected (LIBVA_DRIVER_NAME=i965 in the launch environment), then restart the browser.
+
+**The window is black on a Wayland desktop.**
+This is the exact failure the patches prevent by force-disabling the separate GPU process on Wayland; a black window appears if that process is wrongly left on.
+What to do: Keep the GPU process disabled on Wayland (this build does that by default). Do not re-enable it.
+
+**The speaker sound is louder or brighter than you expected.**
+The always-on audio DSP boosts bass and treble and adds loudness, tuned by ear for the target laptop's speakers.
+What to do: Lower the volume in your system sound settings, or turn off media.gorilla.hardware_only_mode if you want the plain, unprocessed sound.
+
+## Why a Developer Would Do This
+
+A developer made these choices to keep a genuinely capable 2012 laptop useful, instead of letting modern default codecs quietly retire it. The honest cost is that some videos will not play and the sound is opinionated. The honest gain is that the machine stays cool, quiet, and responsive on the video it can play in hardware.
+
+## Why It Matters That You Can Read This
+
+You are trusting this build to decide what your machine will and will not decode, and to reshape every sound it plays. Because the source and these patch files are open, you can read exactly what changed and why: each change carries a plain comment (marked GORILLA) saying what it does and the reason. You can confirm there is no hidden network call, no data collection, and that the audio and codec rules are the only things touched. If you could not read this, you would be taking a stranger's word that an 'optimized' browser is not also doing something you did not ask for.
+
+## Glossary
+
+**Codec** — The method used to compress and decompress a video or audio stream, such as H.264 or VP9.
+
+**H.264** — A widely used video format that the Intel HD 4000 chip decodes in dedicated hardware.
+
+**VA-API** — The Linux interface Firefox uses to ask the graphics chip to decode video in hardware.
+
+**RDD process** — A separate, sandboxed helper process where the actual media decoding runs, kept apart from the rest of the browser for security.
+
+**Zero-copy** — Sending a decoded video frame straight to the screen in graphics memory, without copying it back through the main processor.
+
+**DSP** — Digital signal processing; math applied to sound to change how it sounds, here to boost and smooth the laptop speakers.
+
+**about:config** — A hidden Firefox settings page where you can view and change internal settings like the master switch.
+
+**UMA (shared memory)** — A design where the processor and graphics chip share the same physical memory, so wasting one wastes the other.
+
+## Claim Sources
+
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Master switch pref name | 📄 stated in input | StaticPrefs::media_gorilla_hardware_only_mode() |
+| Pref defined at StaticPrefList.yaml line 12746 | 🤖 model inference | *(none — model judgment)* |
+| Blocked codecs: av01, vp09, vp8, vp9, hev1, hvc1 | 📄 stated in input | FindInReadable("av01"_ns, aType.OriginalString() |
+| WebM/Ogg/Matroska containers blocked | 📄 stated in input | OggDecoder::IsSupportedType(mimeType) \|\| WebMDecoder::IsSupportedType(mimeType) \|\| MatroskaDecoder::IsSupportedType(mimeType, nullptr) |
+| Software decoder module removed | 📄 stated in input | Software decoder fallback removed - hardware-only enforcement |
+| Non-H.264 video rejected with fatal error in PDMFactory | 📄 stated in input | Software-only video codec blocked by Gorilla hardware-only policy. |
+| H.264 hardware-unavailable rejects instead of software fallback | 📄 stated in input | Gorilla policy: H.264 hardware decode required but unavailable. |
+| Frame pool pinned to 16 | 📄 stated in input | Exactly 16 to prevent RAM starvation on Ivy Bridge UMA |
+| Zero-copy: invalid frame dropped, not shmem-copied | 📄 stated in input | Strict HW decode mode: GPU descriptor invalid. Dropping frame. |
+| Audio bass +5.1 dB (1.8x), treble +2.9 dB (1.4x) | 📄 stated in input | +5.1 dB bass (1.8x), +2.9 dB treble (1.4x) |
+| Make-up gain 1.1x (+0.8 dB), limiter knee at 0.9 | 📄 stated in input | Make-up gain: 1.1x (~+0.8 dB) |
+| Audio gains fixed, decoupled from mVolume | 📄 stated in input | Gains are FIXED and ALWAYS ACTIVE — they do not track mVolume |
+| Cubeb hardware volume forced to 1.0, software volume used | 📄 stated in input | Force cubeb HW volume to 1.0 and always use software scaling. |
+| Sample rate pinned to 48000 Hz | 📄 stated in input | we pin output to 48000 Hz |
+| Web Audio compressor bypassed under policy | 📄 stated in input | Bypass compressor when hardware-only mode is active |
+| GPU process force-disabled on Wayland, VA-API runs in RDD | 📄 stated in input | VA-API decode still works via the RDD process (media.rdd-ffmpeg.enabled). |
+| Zero-copy forced via UserForceEnable outranking blocklist | 📄 stated in input | featureZeroCopy.UserForceEnable("Forced by Gorilla hardware-only policy") |
+| i965 VA-API driver required, iHD unsupported on Ivy Bridge | 📄 stated in input | LIBVA_DRIVER_NAME=i965 (pinned in /etc/environment) |
+| CPU/RAM/watt figures not measured in this pass | 🤖 model inference | *(none — model judgment)* |
+
+
+---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
+
+*Human Track. Its Developer Track twin covers the same changes in technical detail. Neither is a simplified copy of the other — they are the same truth in two languages.*
+
+# ═══ MERGED DOCUMENT: 01-media_developer.md (verbatim · sha256:e600fa9c830a26c5 · merged 2026-08-04) ═══
+
+# 01.MEDIA — H.264 hardware-only decode policy and per-device audio DSP (dom/media, gfx/thebes)
+
+> Generated 2026-08-04 | Source: `01.MEDIA`
+
+---
+
+## Purpose
+
+This topic is a 20-file patch set over dom/media (plus one gfx/thebes file) that enforces an H.264-only hardware video decode policy and installs a fixed, per-device psychoacoustic audio DSP. The trust level is high: these files sit on the media decode path that processes attacker-controlled bytes from any web page, and they change the browser's advertised capabilities. The target is a Sony VAIO SVE14A3AJ (Intel i7-3632QM, HD 4000 / Ivy Bridge, ALC269 codec, 16 GiB DDR3L UMA-shared with the GPU). The audience for the distributed build is lower-spec (~4 GB) Intel hardware with working VA-API H.264.
+
+## Design Rationale
+
+The HD 4000 has a fixed-function H.264 VLD ASIC but no VP9/AV1 hardware decode. Upstream Firefox will silently fall back to software VP9/AV1 on the CPU, which is thermally and power-prohibitive on this class of machine. Rather than merely de-prioritizing software decode, the policy removes it: AgnosticDecoderModule is excised and every non-H.264 video codec is rejected with NS_ERROR_DOM_MEDIA_FATAL_ERR at multiple layers, and H.264 itself fatal-errors if VA-API is not present. This 'fail loud' choice is deliberate — a silent software fallback would defeat the entire purpose without any visible signal. The audio DSP is fixed and always-on (decoupled from the in-page mVolume slider) because the SVE14A3AJ hardware volume controller is non-functional under Linux/cubeb, so the in-page slider carries no useful signal; real volume control lives downstream in PipeWire/PulseAudio.
+
+## Architecture
+
+- **Pattern:** Layered gate / defense-in-depth. A single StaticPref (media.gorilla.hardware_only_mode) gates parallel checks at every entry point a page can reach the decoder: container query (DecoderTraits), module dispatch (PDMFactory), hardware decoder init (FFmpegVideoDecoder), capability query (MediaCapabilities), WebCodecs (VideoDecoder/VideoEncoder/WebCodecsUtils), WebRTC (DefaultCodecPreferences/VideoConduit/WebrtcVideoCodecFactory), and MSE (MediaSource). The audio path is a linear DSP chain in AudioStream::DataCallback plus rate/latency pins in CubebUtils and AudioContext.
+- **Trust boundary:** These files run inside the RDD and content processes and parse untrusted, page-supplied media bytes and MIME/codec strings. They trust the StaticPref value and the local VA-API driver stack. They do not trust page-supplied codec strings — those are matched and rejected. The decode itself is isolated: VA-API runs in the RDD process, and the GPU process is force-disabled on Wayland.
+- **Attack surface:** MIME/codec strings via canPlayType, MediaSource.isTypeSupported, MediaCapabilities.decodingInfo/encodingInfo, WebCodecs configure(), and WebRTC SDP negotiation; raw compressed frames reaching FFmpegVideoDecoder and RemoteVideoDecoder. The patches narrow this surface for video to H.264 only, which reduces the amount of decoder code reachable by a hostile page (VP8/VP9/AV1/HEVC software decoders become unreachable for playback).
+- **Dependencies:** `mozilla/StaticPrefs_media.h (media_gorilla_hardware_only_mode())`, `MP4Decoder::IsH264 / IsHEVC`, `VA-API via libavcodec (FFmpegVideoDecoder), i965 driver (LIBVA_DRIVER_NAME=i965)`, `gfxConfig / FeatureState (DMABUF, GPU_PROCESS, HW_DECODED_VIDEO_ZERO_COPY)`, `cubeb (CubebUtils), PipeWire/PulseAudio downstream`, `CubebUtils::GetVolumeScale() (reads media.volume_scale, set in the 05.PREFS topic)`
+
+## Flags & Configuration
+
+| Name | Type | Default | Effect | Notes |
+|------|------|---------|--------|-------|
+| `media.gorilla.hardware_only_mode` | `bool` | `true (defined StaticPrefList.yaml:12746; runtime default set in 05.PREFS)` | Master gate. Enables: DecoderTraits container/codec hard-lock; PDMFactory non-H.264 reject; FFmpegVideoDecoder H.264-HW-required reject; MediaCapabilities H.264-only; WebCodecs H.264-only; MediaSource IsVP9Forced=false; CubebUtils 48000 Hz pin; AudioContext 48000 Hz + 10 ms latency + resume-takeover; AudioDestinationNode FastTanh limiter; DynamicsCompressorNode bypass; gfxPlatformGtk zero-copy UserForceEnable. | Not every media change is behind this flag. The AudioStream psychoacoustic DSP, the frame-pool-of-16, the AgnosticDecoderModule excision, and -march=native are compiled-in and independent of the pref. |
+| `media.volume_scale` | `float` | `1.0 in-code (sVolumeScale); runtime value configured in 05.PREFS (owner-ear-validated)` | Multiplier applied in AudioStream software volume scaling (mVolume.load() * CubebUtils::GetVolumeScale()). | The runtime value (owner reports 2.0) is not present in the 01.MEDIA files; it is set in the 05.PREFS topic. Owner-ear-validated — do not treat as clipping/poison. |
+| `CC_TYPE in (clang, gcc)` | `build guard` | `n/a` | Adds -march=native to CXXFLAGS for dom/media. | moz.build; non-portable by design — binary is bound to the build host's ISA. |
+
+## API Surface
+
+| Symbol | Description | Side Effects |
+|--------|-------------|--------------|
+| `AudioPsychoacousticEnhancer` | New per-stream DSP: 3-band crossover (kBassFreq 220 Hz, kTrebleFreq 3500 Hz), Fletcher-Munson EQ (bass 1.8x, treble 1.4x), xLOUD harmonic bass (drive 0.4, blend 0.2), make-up gain 1.1x, soft-knee FastTanh limiter @ 0.9. | Mutates the audio buffer in place. Handles mono/stereo only (returns early if mChannels>2). |
+| `AudioStream::DataCallback` | Runs software volume scale (mVolume.load() * GetVolumeScale()) then mPsychoEnhancer->Process on the RT audio thread. | In-place buffer mutation on the real-time audio thread. Enhancer is allocated in Init(), not here (no heap alloc on RT thread). |
+| `AudioStream::SetVolume` | Stores aVolume into mVolume; forces cubeb HW volume to 1.0; sets mUseSoftwareVolume=true. | cubeb_stream_set_volume(1.0f); the CUBEB_OK error check was dropped. |
+| `IsBlockedSoftwareOnlyVideoCodec` | Returns !MP4Decoder::IsH264(aMimeType); the single predicate PDMFactory uses to gate video. | None (pure). |
+| `PreferredSampleRate` | Returns 48000 early when the pref is on, before the sCubebForcedSampleRate check. | None beyond the existing sMutex lock. |
+| `GetSampleRateForAudioContext` | Forces 48000.0f when the pref is on (offline contexts still honor requested rate). | None. |
+| `WebrtcVideoConduit::HasAv1` | Returns !media_gorilla_hardware_only_mode() (was 'return true'). | None. Suppresses AV1 in WebRTC offers. |
+| `IsSupportedVideoCodec (WebCodecsUtils)` | Returns IsH264CodecString(aCodec) early when the pref is on. | None. |
+
+## Kill Switches
+
+### `DecoderTraits.cpp CanHandleCodecsType() (hunk @@ -52,+53) and CanHandleMediaType() (hunk @@ -154,+183)`
+- **Condition:** media_gorilla_hardware_only_mode() AND codec/container matches av01|vp09|vp8|vp9|hev1|hvc1 or WebM/x-webm/Ogg/Matroska
+- **Effect:** Returns CANPLAY_NO before decoder instantiation.
+- reversible
+- Uses FindInReadable over aType.OriginalString() with nsCaseInsensitiveCStringComparator; MOZ_ASSERT(HaveCodecs()) was moved below the new gate.
+
+### `PDMFactory.cpp CreateDecoder (hunk @@ -446,+453)`
+- **Condition:** config.IsVideo() && IsBlockedSoftwareOnlyVideoCodec(mMimeType) i.e. !MP4Decoder::IsH264
+- **Effect:** Rejects with NS_ERROR_DOM_MEDIA_FATAL_ERR (RESULT_DETAIL 'Software-only video codec blocked by Gorilla hardware-only policy.').
+- reversible
+- Not gated on the pref — always active in this build. Also enforced in SupportsMimeType() and Supports() returning empty DecodeSupportSet, and in GetDecodeSupportSet blocking all non-H264 video/*.
+
+### `FFmpegVideoDecoder.cpp InitVAAPIDecoder path (hunk @@ -992,+993)`
+- **Condition:** !IsHardwareAccelerated() && mCodecID == AV_CODEC_ID_H264
+- **Effect:** Rejects with NS_ERROR_DOM_MEDIA_FATAL_ERR instead of InitSWDecoder fallback.
+- reversible
+- Not gated on the pref. Non-H264 codecs still hit the original InitSWDecoder path below (they are already blocked upstream by DecoderTraits/PDMFactory).
+
+### `MediaSource.cpp IsVP9Forced() (hunk @@ -65,+65)`
+- **Condition:** media_gorilla_hardware_only_mode()
+- **Effect:** Returns false, so VP9/WebM is never force-enabled when H.264 HW decode is unavailable.
+- reversible
+- Closes the upstream 'force VP9 when no HW H.264' path that would otherwise route to software VP9.
+
+### `gfxPlatformGtk.cpp InitPlatformHardwareVideoConfig (hunk @@ -273,+ ~277)`
+- **Condition:** media_gorilla_hardware_only_mode() && gfxConfig::GetFeature(Feature::DMABUF).IsEnabled()
+- **Effect:** featureZeroCopy.UserForceEnable("Forced by Gorilla hardware-only policy") then SetHwDecodedVideoZeroCopy(true).
+- reversible
+- UserForceEnable sets mUser=ForceEnabled, checked before mEnvironment in FeatureState::GetValue(), so it overrides a gfxInfo environment block. UserEnable (mUser=Enabled) would lose to mEnvironment=Blocklisted — do not substitute it. Confirmed applied at gfxPlatformGtk.cpp:283.
+
+### `gfxPlatformGtk.cpp InitPlatformGPUProcessPrefs (hunk @@ -317,+326)`
+- **Condition:** MOZ_WAYLAND && IsWaylandDisplay()
+- **Effect:** GPU_PROCESS feature ForceDisable (added explanatory comment).
+- **not reversible**
+- wl_egl_window handles live in the parent process and cannot be shared to the GPU process; VA-API decode still runs in RDD (media.rdd-ffmpeg.enabled). Confirmed at gfxPlatformGtk.cpp:333.
+
+## Dead Code
+
+- **`PDMFactory.cpp — '#include "AgnosticDecoderModule.h"' commented out; all StartupPDM(AgnosticDecoderModule::Create(), ...) sites replaced with comments`** — Software video/audio fallback (VP8/VP9/Theora/Vorbis) is intentionally excised, not disabled. (risk: Re-adding it silently restores software video fallback and defeats the policy. The file header GORILLA OVERRIDE comment forbids this.)
+- **`PDMFactory.cpp — removed MOZ_WIDGET_ANDROID FFVPXRuntimeLinker branches (Init and Startup)`** — Android decode paths are irrelevant to the Linux target and were removed with the rework. (risk: Low on this target; would matter only for an Android build, which this is not.)
+- **`RemoteVideoDecoder.cpp — removed shmem BuildSurfaceDescriptorBuffer fallback block`** — Zero-copy is mandatory when a compositor bridge exists; the CPU-copy path is deleted. (risk: If a valid compositor path ever legitimately fails, frames are dropped rather than recovered. Acceptable trade for guaranteed no-CPU-copy.)
+
+## Performance
+
+- **CPU:** Not measured in this pass. Mechanism: removing software video decode keeps VP9/AV1 off the CPU; the DSP adds a fixed per-sample cost on the RT audio thread (a few multiplies plus a Padé FastTanh, mono/stereo only). 48000 Hz pinning removes a resample stage.
+- **MEMORY:** Frame pool pinned to exactly 16 at all four VideoFramePool<LIBAV_VER> construction sites (FFmpegVideoDecoder.cpp:2046, 2144, 2277, 2408), replacing 10 / initial_pool_size / initial_pool_size / 20. Bounds decoded-frame memory on the 16 GiB UMA machine. Absolute MB not measured.
+- **IO:** Zero-copy path avoids a per-frame CPU read-back to shmem; invalid frames are dropped instead of copied. No disk I/O added.
+- **NOTES:** -march=native (moz.build) tunes dom/media codegen to the build host ISA (Ivy Bridge). Binary-size and speed deltas not measured.
+
+## Security
+
+- **Remote execution:** No new remote-execution surface added. The change narrows reachable video-decoder code for playback to H.264 only, which reduces (does not eliminate) the parser/decoder attack surface a hostile page can reach.
+- **Data handling:** No data is collected, stored, or transmitted. All processing is in-memory on already-received media. No telemetry added.
+- **Attack surface:** MIME/codec strings and compressed frames from any page. Codec strings are matched case-insensitively and rejected for non-H.264 video; VA-API decode is isolated in RDD; GPU process is off on Wayland.
+- **Notes:** The RemoteVideoDecoder change reads frame color metadata via AsPlanarYCbCrImage()/GetData() behind null checks; the removed shmem path also removes its allocation/dealloc error handling, which is acceptable because that path no longer executes.
+
+## Error Conditions
+
+| Error | Cause | Remedy |
+|-------|-------|--------|
+| `NS_ERROR_DOM_MEDIA_FATAL_ERR — 'Software-only video codec blocked by Gorilla hardware-only policy.'` | A non-H.264 video codec reached PDMFactory::CreateDecoder. | Expected under policy. Serve H.264, or disable the pref for that use case. |
+| `NS_ERROR_DOM_MEDIA_FATAL_ERR — 'Gorilla policy: H.264 hardware decode required but unavailable.'` | H.264 reached FFmpegVideoDecoder but VA-API hardware accel is not available (commonly wrong driver, e.g. iHD selected on Ivy Bridge). | Pin LIBVA_DRIVER_NAME=i965 in the launch environment; verify with vainfo (VAProfileH264* : VAEntrypointVLD). |
+| `NS_WARNING — 'Strict HW decode mode: GPU descriptor invalid. Dropping frame.'` | mKnowsCompositor is set but the SurfaceDescriptor is invalid; the shmem CPU-copy fallback was removed. | Expected under strict zero-copy. Frame is dropped, not copied; check DMABUF/compositor health if frequent. |
+
+## Tasks
+
+### Confirm the policy is compiled in and active
+
+Before trusting a build, verify the pref exists and the enforcement points are present in the tree.
+
+**Prerequisites:**
+- The patched tree at $FF_SRC (default /home/gorilla/firefox-main)
+
+**Step 1:** grep -n 'media.gorilla.hardware_only_mode' $FF_SRC/modules/libpref/init/StaticPrefList.yaml
+  - Expected: Hit at line 12746.
+**Step 2:** grep -n 'IsBlockedSoftwareOnlyVideoCodec\|Gorilla hardware-only policy' $FF_SRC/dom/media/platforms/PDMFactory.cpp
+  - Expected: Predicate at line 79, reject site around 475-479.
+**Step 3:** grep -n 'UserForceEnable("Forced by Gorilla' $FF_SRC/gfx/thebes/gfxPlatformGtk.cpp
+  - Expected: Hit at line 283 (UserForceEnable, not UserEnable).
+**Step 4:** grep -n 'VideoFramePool<LIBAV_VER>>(16)' $FF_SRC/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp
+  - Expected: Four hits: 2046, 2144, 2277, 2408.
+
+**After this task:** All four checks pass, confirming the patch set is applied in the live tree.
+
+### Runtime-verify hardware H.264 decode
+
+Confirm video decodes on the ASIC, not the CPU.
+
+**Prerequisites:**
+- A running build
+- intel_gpu_top installed
+- LIBVA_DRIVER_NAME=i965
+
+**Step 1:** Run vainfo and confirm VAProfileH264* : VAEntrypointVLD on the i965 driver.
+  - Expected: H.264 VLD entrypoints present.
+**Step 2:** Play a 1080p H.264 video and watch intel_gpu_top.
+  - Expected: Video engine active; CPU cores not pinned decoding.
+**Step 3:** Load a VP9-only source.
+  - Expected: Playback error (NS_ERROR_DOM_MEDIA_FATAL_ERR), no software fallback.
+
+**After this task:** H.264 uses the ASIC; non-H.264 fails loud.
+
+## Troubleshooting
+
+**Symptom:** All video fatal-errors including MP4/H.264.
+**Cause:** VA-API H.264 hardware decode unavailable; likely iHD driver auto-selected on Ivy Bridge.
+**Remedy:** Set LIBVA_DRIVER_NAME=i965 in the launch environment; verify with vainfo.
+**Verify:** vainfo lists VAProfileH264ConstrainedBaseline/Main/High : VAEntrypointVLD.
+
+**Symptom:** Black window on Wayland.
+**Cause:** GPU process not disabled on Wayland; wl_egl_window cannot be shared to it.
+**Remedy:** Keep Feature::GPU_PROCESS ForceDisabled on Wayland (this build does).
+**Verify:** about:support > GPU Process shows disabled/blocked on Wayland; window renders.
+
+**Symptom:** Audio distorts or is louder than expected.
+**Cause:** Always-on DSP (bass 1.8x, treble 1.4x, make-up 1.1x) plus downstream media.volume_scale.
+**Remedy:** Owner-ear-validated values; adjust system volume, or disable the pref. Do not silently revert the DSP constants.
+**Verify:** Toggle media.gorilla.hardware_only_mode and compare; DSP is always-on so audible boost persists for AudioStream even with pref off — a full change requires rebuild.
+
+## Technical Debt
+
+🟡 **LOW** — TODO(bug 2047321) in AudioContext.cpp Resume(): audio-focus-interruption gating of page resume() is deferred. (This is the precheck P2-001 marker.) → Track bug 2047321 externally; the current resume()-takes-over-interruption behavior is the intentional interim design, not a defect.
+🟡 **LOW** — AudioStream::SetVolume dropped the cubeb_stream_set_volume != CUBEB_OK error check. → If cubeb set-volume can fail meaningfully on target, restore a log; low impact because HW volume is intentionally pinned to 1.0.
+🟠 **MEDIUM** — Several enforcement points (PDMFactory CreateDecoder, FFmpegVideoDecoder H.264-required, frame-pool-16, AgnosticDecoderModule excision, DSP) are not behind the runtime pref. → Document clearly (done here) that flipping the pref is not a full revert; a clean off-switch would require gating these on the pref or rebuilding.
+🟠 **MEDIUM** — -march=native binds the binary to the build host ISA. → Intentional for the single-target build; for any wider distribution, pin an explicit -march (e.g. ivybridge) instead of native.
+
+## Impact If Removed
+
+Reverting this topic restores upstream behavior: software VP9/AV1/VP8 decode returns (CPU-cooking on the target), the audio reverts to unprocessed cubeb output at the system default rate, the frame pool returns to codec defaults (10/initial/20), the zero-copy path stops being force-enabled (subject to the gfxInfo blocklist), and IsVP9Forced can again route to software VP9. Video that only exists as VP9/AV1 would start playing again (in software); the target machine's thermals and battery under such video would regress. The GPU-process force-disable on Wayland is a separate correctness fix — removing it reintroduces the black-window failure.
+
+## Claim Sources
+
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Pref media.gorilla.hardware_only_mode at StaticPrefList.yaml:12746 | 📄 stated in input | StaticPrefs::media_gorilla_hardware_only_mode() |
+| DecoderTraits blocks av01/vp09/vp8/vp9/hev1/hvc1 + WebM/Ogg | 📄 stated in input | FindInReadable("hev1"_ns, aType.OriginalString() |
+| Second gate also blocks Matroska | 📄 stated in input | MatroskaDecoder::IsSupportedType(mimeType, nullptr) |
+| PDMFactory predicate IsBlockedSoftwareOnlyVideoCodec = !IsH264 | 📄 stated in input | return !MP4Decoder::IsH264(aMimeType); |
+| CreateDecoder rejects non-H264 video fatally | 📄 stated in input | Software-only video codec blocked by Gorilla hardware-only policy. |
+| AgnosticDecoderModule excised at all StartupPDM sites | 📄 stated in input | Software decoder fallback removed - hardware-only enforcement |
+| FFmpegVideoDecoder rejects H264 when HW unavailable | 📄 stated in input | Gorilla policy: H.264 hardware decode required but unavailable. |
+| Frame pool pinned to 16 at four sites (2046/2144/2277/2408) | 📄 stated in input | MakeUnique<VideoFramePool<LIBAV_VER>>(16) |
+| RemoteVideoDecoder drops invalid frame instead of shmem copy | 📄 stated in input | Strict HW decode mode: GPU descriptor invalid. Dropping frame. |
+| RemoteVideoDecoder reads real frame color metadata | 📄 stated in input | YUVColorSpace = data->mYUVColorSpace; |
+| MediaCapabilities returns Unsupported for non-H264 video (decode+encode) | 📄 stated in input | if (!MP4Decoder::IsH264(mime)) { return CodecSupport::Unsupported; } |
+| WebCodecsUtils H264-only | 📄 stated in input | return IsH264CodecString(aCodec); |
+| VideoDecoder/VideoEncoder early Validate reject | 📄 stated in input | Unsupported codec under hardware-only mode |
+| DefaultCodecPreferences drops VP8/VP9/AV1 from SDP | 📄 stated in input | VP8, VP9, and AV1 removed intentionally |
+| VideoConduit HasAv1 returns !pref | 📄 stated in input | return !StaticPrefs::media_gorilla_hardware_only_mode(); |
+| WebrtcVideoCodecFactory blocks VP8/VP9/AV1 decode+encode creation | 📄 stated in input | if (StaticPrefs::media_gorilla_hardware_only_mode()) { return nullptr; } |
+| MediaSource IsVP9Forced returns false under pref | 📄 stated in input | Under the hardware-only H.264 policy we must NEVER force-enable VP9/WebM |
+| CubebUtils pins 48000 Hz | 📄 stated in input | we pin output to 48000 Hz |
+| AudioContext forces 48000 Hz and 10 ms latency under pref | 📄 stated in input | latency_s = StaticPrefs::media_gorilla_hardware_only_mode() ? 0.010 : 0.025; |
+| AudioContext resume() takes over interruption suspend | 📄 stated in input | page resume() takes over an interruption suspend |
+| TODO bug 2047321 present (precheck P2-001) | 📄 stated in input | TODO(bug 2047321): while the tab is under an audio-focus interruption |
+| AudioDestinationNode adds FastTanh soft-limit under pref | 📄 stated in input | GORILLA TWEAK: Apply soft-limiting to prevent digital hard clipping |
+| DynamicsCompressorNode bypass under pref | 📄 stated in input | Bypass compressor when hardware-only mode is active |
+| DSP constants: bass 1.8x, treble 1.4x, xLOUD 0.4, makeup 1.1x, limiter 0.9 | 📄 stated in input | +5.1 dB bass (1.8x), +2.9 dB treble (1.4x) |
+| cubeb HW volume pinned to 1.0, software volume used | 📄 stated in input | Force cubeb HW volume to 1.0 and always use software scaling. |
+| gfxPlatformGtk UserForceEnable zero-copy (not UserEnable) | 📄 stated in input | UserForceEnable (not UserEnable) is required so that mUser=ForceEnabled is checked before mEnvironment |
+| GPU_PROCESS force-disabled on Wayland; VA-API in RDD | 📄 stated in input | VA-API decode still works via the RDD process (media.rdd-ffmpeg.enabled). |
+| i965 driver required (iHD unsupported on IVB) | 📄 stated in input | The newer iHD driver is also installed and does NOT support Ivy Bridge |
+| moz.build adds -march=native for clang/gcc | 📄 stated in input | CXXFLAGS += ["-march=native"] |
+| media.volume_scale runtime value (2.0) is set in 05.PREFS, not in this topic | 🤖 model inference | *(none — model judgment)* |
+| CPU/RAM/watt/size figures not measured this pass | 🤖 model inference | *(none — model judgment)* |
+
+
+---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
+
+*Auto-generated DITA-structured developer documentation.*
+
+# ═══ MERGED DOCUMENT: 01-media_audit.md (verbatim · sha256:28b0f5786f502e3f · merged 2026-08-04) ═══
+
+# IBM-Style Audit Report: 01.MEDIA
+
+## SECTION A: DOCUMENT CONTROL
+
+| Attribute | Value |
+|---|---|
+| **Target** | 01.MEDIA |
+| **Files scanned** | see payload |
+| **Date / time** | 2026-08-04 07:09:59 |
+| **Audit status** | PASS |
+
+## SECTION B: EXECUTIVE SUMMARY (Plain Language)
+
+This set of changes makes an old 2012 laptop play video the efficient way and shape its speaker sound. It does one job with discipline: only let the graphics chip decode video (the format called H.264), and never let the tired main processor do it in slow software. It also boosts and smooths the laptop's weak speakers. The changes are consistent, each is labelled with a plain comment saying what and why, and nothing is sent off your machine. The honest cost, stated openly, is that some videos that only come in newer formats will refuse to play rather than play slowly, and the sound is deliberately louder and fuller than plain. On the hardware it targets, it is safe to ship. One small note-to-self was left in the code (a 'finish later' marker) that does not affect how it runs.
+
+## SECTION C: TECHNICAL SUMMARY (Developer)
+
+The topic enforces an H.264-only hardware decode policy across every page-reachable entry point (DecoderTraits container gate, PDMFactory module dispatch with AgnosticDecoderModule excised, FFmpegVideoDecoder HW-required reject, MediaCapabilities, WebCodecs, WebRTC, MSE) behind a single StaticPref (media.gorilla.hardware_only_mode, StaticPrefList.yaml:12746), and installs a fixed always-on audio DSP (AudioStream psychoacoustic enhancer, CubebUtils/AudioContext 48000 Hz pin, DynamicsCompressorNode bypass, AudioDestinationNode FastTanh limiter). All enforcement points and the key display-path facts were re-verified in the live patched tree: the zero-copy force uses UserForceEnable (gfxPlatformGtk.cpp:283, not UserEnable) so it outranks the gfxInfo blocklist; the GPU process is force-disabled on Wayland (line 333) with VA-API isolated in RDD; the VA-API frame pool is pinned to exactly 16 at all four construction sites (2046/2144/2277/2408). The design's 'fail loud' choice (NS_ERROR_DOM_MEDIA_FATAL_ERR rather than silent software fallback) is deliberate and safe on the target given verified i965 VA-API H.264 VLD support. The rule precheck reports 0 P0 / 0 P1 / 1 P2 (a deferred TODO) / 0 P3. The audio DSP constants are owner-ear-validated and must not be reverted on DSP theory. This is ready for the single-target build; it must not be shipped to other hardware.
+
+## SECTION D: DETECTED DEFECTS
+
+1 found by rules, 4 by review. Rule findings are deterministic; review findings are judgement.
+
+### 🟡 P2-001 — P2 *(found by rule)*
+
+- **Plain English:** A sticky note saying 'finish this later' was left inside the machine. It still works, but somebody meant to come back to it.
+- **Technical:** dom_media_webaudio_AudioContext.cpp.patch: 1 TODO/FIXME/XXX/HACK marker(s) in added lines.
+- **Fix:** Resolve it, or convert it into a tracked item so it is visible outside the source.
+
+### 🟢 P3-101 — P3 *(found by review)*
+
+- **Plain English:** The master switch does not fully undo everything. Flipping the setting off leaves some changes still baked in (the speaker processing, the removed software decoder, the 16-frame limit). It is like a light switch that turns off most of a remodel, but a few fixtures were bolted in permanently.
+- **Technical:** PDMFactory::CreateDecoder video reject, FFmpegVideoDecoder H.264-required reject, VideoFramePool(16), AgnosticDecoderModule excision, and AudioStream DSP are compiled-in and not gated on media.gorilla.hardware_only_mode. Only a subset of the topic reverts by toggling the pref.
+- **Fix:** Document the true off-path (done in the DEVELOPER track), or gate the compiled-in points on the pref if a clean runtime revert is required. A full revert otherwise needs a rebuild.
+- **Effort:** 2-4h if gating; 0 if documentation is accepted (already written).
+
+### 🟢 P3-102 — P3 *(found by review)*
+
+- **Plain English:** One error message was quietly dropped from the volume code. If setting the speaker volume ever fails, nothing is logged. In practice the volume is intentionally locked to full here, so the message had little left to say.
+- **Technical:** AudioStream::SetVolume replaced the 'if (InvokeCubeb(...) != CUBEB_OK) LOGE(...)' check with an unchecked InvokeCubeb(cubeb_stream_set_volume, 1.0f).
+- **Fix:** Optionally restore a debug log around the cubeb set-volume call for diagnosability. Low priority because HW volume is pinned to 1.0 by design.
+- **Effort:** 15min
+
+### 🟢 P3-103 — P3 *(found by review)*
+
+- **Plain English:** The build is tuned so tightly to this one laptop's chip that the compiled program is not safe to run on a different processor. That is on purpose for one machine, but it is a real limit if the binary ever travels.
+- **Technical:** moz.build adds -march=native to dom/media CXXFLAGS, binding codegen to the build host ISA (Ivy Bridge). A binary built this way may use instructions absent on other CPUs.
+- **Fix:** For any distribution beyond the build host, pin an explicit -march (e.g. ivybridge) rather than native. Intentional for the single-target build.
+- **Effort:** 15min
+
+### 🟢 P3-104 — P3 *(found by review)*
+
+- **Plain English:** To guarantee video never takes the slow copy path, a frame that cannot go the fast way is thrown away instead of rescued. If the fast path ever fails for a legitimate reason, you would see a dropped frame rather than a recovered one.
+- **Technical:** RemoteVideoDecoder.cpp removed the shmem BuildSurfaceDescriptorBuffer fallback; when mKnowsCompositor && !IsSurfaceDescriptorValid(sd) the frame is skipped (continue) with an NS_WARNING.
+- **Fix:** Accept as designed (zero-copy guarantee). If frequent drops appear in the field, investigate DMABUF/compositor health rather than restoring the CPU-copy path.
+- **Effort:** N/A — by design; monitor only.
+
+## SECTION E: PRODUCTION READINESS
+
+**Overall readiness: 🟡 88%**
+
+**Done:**
+- [x] H.264 hardware-only policy enforced at all page-reachable layers (DecoderTraits, PDMFactory, FFmpegVideoDecoder, MediaCapabilities, WebCodecs decode+encode, WebRTC SDP+factory+conduit, MSE).
+- [x] Software video decode path (AgnosticDecoderModule) fully excised in PDMFactory; verified predicate at PDMFactory.cpp:79 and reject at 475-479.
+- [x] Zero-copy display path force-enabled with UserForceEnable (gfxPlatformGtk.cpp:283), correctly outranking the gfxInfo blocklist; GPU process force-disabled on Wayland (line 333) with VA-API in RDD.
+- [x] VA-API frame pool pinned to 16 at all four sites (FFmpegVideoDecoder.cpp:2046/2144/2277/2408); scope-guard leak fix present.
+- [x] Audio DSP installed and always-on (AudioStream), rate pinned to 48000 Hz (CubebUtils:48000, AudioContext), compressor bypass, destination-node limiter; owner-ear-validated constants intact.
+- [x] Master pref defined (StaticPrefList.yaml:12746) and referenced consistently.
+- [x] Every change carries a GORILLA provenance comment; no telemetry or network surface added.
+
+**To do:**
+- [ ] Resolve or externally track the P2-001 TODO(bug 2047321) in AudioContext.cpp (audio-focus-interruption gating of page resume()).
+- [ ] Decide whether the compiled-in (non-pref-gated) enforcement points should be gated for a clean runtime off-switch (P3-101).
+- [ ] For any distribution beyond the build host, replace -march=native with an explicit -march (P3-103).
+
+**Not verified:**
+- No compile/build was run in this documentation pass; 'applied in tree' is confirmed by grep of $FF_SRC, not by a fresh build. The master log records a prior successful build, not re-verified here.
+- CPU %, GPU %, watt, memory MB, and binary-size figures are not measured in this pass; the historical intel_gpu_top numbers in the master log were not re-measured and are not asserted here.
+- The media.volume_scale runtime value (owner reports 2.0) is not present in the 01.MEDIA files; it is configured in the 05.PREFS topic and was not verified within this topic's scope.
+- Runtime behavior (actual playback of H.264 vs rejection of VP9/AV1, audible DSP result) was not exercised in this pass; verification commands are provided but were not executed here.
+- vainfo output on the reference machine (VAProfileH264* : VAEntrypointVLD) is asserted from the in-code comment, not re-run in this pass.
+
+## SECTION F: PHASED PLAN
+
+### Phase 1 — `AudioContext.cpp Resume() / bug 2047321`
+- **Change:** Convert the in-source TODO into a tracked external item and, when upstream lands the interrupted-state gating, reconcile.
+- **Expected impact:** Removes the sole precheck P2; clarifies interruption/resume semantics.
+
+### Phase 2 — `PDMFactory / FFmpegVideoDecoder / AudioStream pref gating`
+- **Change:** Optionally gate the compiled-in enforcement points on media.gorilla.hardware_only_mode for a true runtime revert.
+- **Expected impact:** Makes the pref a complete off-switch; improves testability without rebuilds.
+
+### Phase 2 — `moz.build`
+- **Change:** Parameterize -march for distribution (ivybridge) vs build-host (native).
+- **Expected impact:** Safe binary distribution to the intended device class.
+
+### Phase 1 — `Measurement`
+- **Change:** Capture CPU/GPU/power under 1080p H.264 with intel_gpu_top and record numbers into the master log.
+- **Expected impact:** Replaces 'not measured' with evidence; strengthens the readiness claim.
+
+## POSITIVE OBSERVATIONS
+
+- Defense-in-depth is genuinely complete: every page-reachable codec entry point is gated, not just the main playback path.
+- The excerpt trap is avoided in the live tree: gfxPlatformGtk.cpp uses UserForceEnable (not UserEnable), with a code comment explaining the FeatureState precedence that makes it correct.
+- Frame pool is consistently 16 at all four construction sites — no missed site that would silently use a different pool size.
+- The 'fail loud' policy (fatal error instead of silent software fallback) makes misconfiguration diagnosable rather than a silent thermal regression.
+- Every edit carries a GORILLA provenance comment stating what changed and why, satisfying the project's transparency requirement.
+- No telemetry, network, or data-collection surface is introduced anywhere in the 20 files.
+
+## VERIFICATION COMMANDS
+
+Run these to check the claims above rather than trusting them.
+
+```bash
+grep -n 'media.gorilla.hardware_only_mode' $FF_SRC/modules/libpref/init/StaticPrefList.yaml
+grep -n 'IsBlockedSoftwareOnlyVideoCodec\|Gorilla hardware-only policy' $FF_SRC/dom/media/platforms/PDMFactory.cpp
+grep -n 'UserForceEnable("Forced by Gorilla' $FF_SRC/gfx/thebes/gfxPlatformGtk.cpp
+grep -n 'InitPlatformGPUProcessPrefs\|Feature::GPU_PROCESS' $FF_SRC/gfx/thebes/gfxPlatformGtk.cpp
+grep -c 'VideoFramePool<LIBAV_VER>>(16)' $FF_SRC/dom/media/platforms/ffmpeg/FFmpegVideoDecoder.cpp
+grep -n 'Hardware-only hard-lock\|hev1' $FF_SRC/dom/media/DecoderTraits.cpp
+vainfo | grep VAProfileH264   # expect VAEntrypointVLD on i965
+```
+
+## Claim Sources
+
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Precheck result 0 P0 / 0 P1 / 1 P2 / 0 P3 | 📄 stated in input | P0: 0 · P1: 0 · P2: 1 · P3: 0 |
+| P2 is a TODO(bug 2047321) in AudioContext.cpp | 📄 stated in input | 1 TODO/FIXME/XXX/HACK marker(s) in added lines |
+| Pref defined at StaticPrefList.yaml:12746 | 🤖 model inference | *(none — model judgment)* |
+| PDMFactory predicate at line 79, reject at 475-479 | 🤖 model inference | *(none — model judgment)* |
+| UserForceEnable at gfxPlatformGtk.cpp:283 | 🤖 model inference | *(none — model judgment)* |
+| GPU_PROCESS force-disabled on Wayland at line 333 | 🤖 model inference | *(none — model judgment)* |
+| Frame pool 16 at lines 2046/2144/2277/2408 | 🤖 model inference | *(none — model judgment)* |
+| AgnosticDecoderModule excised, software fallback banned | 📄 stated in input | Software decoder fallback removed - hardware-only enforcement |
+| Fatal-error-on-non-H264 policy | 📄 stated in input | Software-only video codec blocked by Gorilla hardware-only policy. |
+| SetVolume dropped the CUBEB_OK error check | 📄 stated in input | InvokeCubeb(cubeb_stream_set_volume, 1.0f); |
+| moz.build -march=native | 📄 stated in input | CXXFLAGS += ["-march=native"] |
+| RemoteVideoDecoder drops invalid frame (no shmem copy) | 📄 stated in input | Strict HW decode mode: GPU descriptor invalid. Dropping frame. |
+| i965 required; iHD unsupported on IVB | 📄 stated in input | The newer iHD driver is also installed and does NOT support Ivy Bridge |
+| No build run this pass; perf figures not measured | 🤖 model inference | *(none — model judgment)* |
+| media.volume_scale value set in 05.PREFS, not this topic | 🤖 model inference | *(none — model judgment)* |
+
+
+---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
+
+# ═══ END REGENERATED DUAL-TRACK + IBM AUDIT (2026-08-04) ═══
+
+
+---
+
+## 2026-08-10 — Envelope loudness compressor + bypass removal (VERIFIED)
+
+**AudioStream.cpp** — new Stage 5b in AudioPsychoacousticEnhancer: envelope
+loudness compressor with the SC4 parameters mic-verified system-side the same
+day (threshold -20 dBFS, ratio 4:1, attack 3 ms, release 150 ms, makeup +12 dB;
+per-channel envelope, denormal flush). Gain rides the envelope, never the
+waveform (FF153 waveshaper lesson enforced by construction).
+**DynamicsCompressorNode.cpp** — hardware-only bypass REMOVED (rationale was
+architecturally false: WebAudio and AudioStream paths are parallel, never
+chained; the bypass silenced sites relying on this node's auto make-up gain).
+StaticPrefs include removed with it.
+
+Verification (build 20260810-20:05, dual-band mic method, streams routed
+around the system compressor): -30 dBFS tone out at -12.0 dBFS (+10 dB vs old
+chain, design predicted -11.9); -12 dBFS tone out at -5.5 dBFS (+0.5 dB —
+compression holds). Two-point transfer matches design within 0.5 dB.
+Patch masters regenerated from SafetyVault pristine diffs; previous masters
+kept as *.pre-20260810. Full story: patches/new.patches/15.AUDIO/.

@@ -8,11 +8,13 @@
  
  #include <algorithm>
  #include <cmath>
-@@ -2142,7 +2143,9 @@
+@@ -2142,7 +2143,11 @@
    return gfx::gfxVars::IsInitialized() && gfx::gfxVars::HasWebrtcH264Hw();
  }
  
 -bool WebrtcVideoConduit::HasAv1() { return true; }
++// GORILLA OVERRIDE: AV1 answered as unsupported in hardware-only mode — H.264-only
++// policy, no AV1 ASIC on Intel HD 4000 (MEDIA_CODEC_LESSONS 6-layer gate).
 +bool WebrtcVideoConduit::HasAv1() {
 +  return !StaticPrefs::media_gorilla_hardware_only_mode();
 +}

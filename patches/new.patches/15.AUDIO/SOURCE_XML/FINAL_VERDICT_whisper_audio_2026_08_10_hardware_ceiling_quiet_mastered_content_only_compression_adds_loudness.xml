@@ -1,0 +1,14 @@
+<concept>
+    <title>FINAL VERDICT whisper audio 2026-08-10: hardware ceiling + quiet-mastered content; only compression adds loudness</title>
+    <category>audio</category>
+    <human_rationale>After all layers were measured healthy, the last measurement settled it: with every slider at 100 percent or more, the music plays about 13 dB below what the machine emits for a full-scale test tone, and the digital signal already touches its ceiling on peaks. Nothing is broken. The VAIO speakers max out at a modest loudness, and most YouTube music is mastered around 20 dB below full scale, while YouTube normalization only ever turns tracks down. No volume slider can fix this because the peaks are already maxed; only compression (squash peaks, raise average) can recover the headroom.
+
+PROBLEM: Chronic just-audible playback at max sliders on SVE14A3AJ; years of slider-pushing including per-stream 117 percent could not work because digital peaks were already at ceiling.</human_rationale>
+    <execution_logic>SOLUTION: Use compression not gain: media.volume_scale 4.0-6.0 live in the fork as interim; install PipeWire filter-chain loudness sink as the durable system-wide fix. Keep sink in top third regardless (cubic curve: 31 percent equals -30 dB).
+
+Live measurement with music playing at sink 100 percent, stream 117 percent, YT slider 100 percent, content -20.2 LUFS (tgt -14.0): mic RMS -19.2 dB with mic clipping on peaks, versus -5.7 dB RMS for a 0 dBFS sine at the same sink volume. Digital peaks already at full scale so linear gain anywhere in the chain only adds clipping. Remedies: (1) INSTANT: media.volume_scale in about:config is live (PrefChanged observer, read every DataCallback in the Gorilla Unleashed fork); raising it from 2.0 to 4.0-6.0 drives the AudioStream DSP FastTanh soft limiter (knee 0.9) = compression + makeup, mid-song effect; revert toward 2.0 for headphones. (2) PROPER: PipeWire filter-chain loudness sink (compressor + limiter + makeup ~+10 dB) as default sink, all apps, CPU-light. The mic dual-band pilot method (see CORRECTION lesson) is the only trustworthy meter on this machine; pw-record stream taps lie under load.
+
+KEYWORDS: hardware ceiling, LUFS, loudness normalization, volume_scale live, filter-chain, compressor makeup gain, SVE14A3AJ speakers, whisper audio final</execution_logic>
+    <keywords>hardware ceiling, LUFS, loudness normalization, volume_scale live, filter-chain, compressor makeup gain, SVE14A3AJ speakers, whisper audio final</keywords>
+    <recorded>2026-08-10T17:33:52Z</recorded>
+</concept>

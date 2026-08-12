@@ -1,0 +1,28 @@
+# pipewire_s24le_format_rejection
+
+**Source:** pipewire_s24le_format_rejection.xml
+
+## Rationale
+
+<concept>
+  <name>ALSA PipeWire Format Rejection (S24LE vs S32LE)</name>
+  <description>Diagnosis and fix for PipeWire failing to create ALSA nodes due to driver format rejection (S24LE vs S32LE) on ALC269 hardware.</description>
+  <category>Audio DSP</category>
+  <tags>
+    &lt;tag&gt;PipeWire&lt;/tag&gt;
+    &lt;tag&gt;WirePlumber&lt;/tag&gt;
+    &lt;tag&gt;ALSA&lt;/tag&gt;
+    &lt;tag&gt;S24LE&lt;/tag&gt;
+    &lt;tag&gt;S32LE&lt;/tag&gt;
+    &lt;tag&gt;Audio&lt;/tag&gt;
+  </tags>
+  &lt;lessons_learned&gt;
+    &lt;lesson&gt;When forcing audio bit depth in WirePlumber (e.g., audio.format = S24LE), if the ALSA kernel driver does not expose that exact format to userspace, WirePlumber will abort activation and destroy the PipeWire proxy, resulting in no audio sinks.&lt;/lesson&gt;
+    &lt;lesson&gt;The ALC269 snd_hda_intel driver on this hardware only exposed S16_LE and S32_LE formats. Changing the WirePlumber config to audio.format = S32LE instantly resolved the issue and allowed the nodes to spawn.&lt;/lesson&gt;
+    &lt;lesson&gt;Always check `journalctl --user -u pipewire` for "spa.alsa: no format found" errors when audio sinks mysteriously disappear after configuration changes.&lt;/lesson&gt;
+  &lt;/lessons_learned&gt;
+</concept>
+
+## Execution Logic
+
+(empty)

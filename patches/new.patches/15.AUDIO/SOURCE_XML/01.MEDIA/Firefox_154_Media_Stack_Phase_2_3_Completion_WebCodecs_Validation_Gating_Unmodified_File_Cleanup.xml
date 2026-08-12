@@ -1,0 +1,25 @@
+<concept>
+    <title>Firefox 154 Media Stack Phase 2-3 Completion: WebCodecs Validation Gating &amp; Unmodified File Cleanup</title>
+    <category>IT / Software Architecture</category>
+    <human_rationale>We completed Phase 2 and Phase 3 of the media stack audit by patching 6 files that control how websites request video decoding and encoding through browser APIs. The key insight: when a website tries to use VP8, VP9, or AV1 video formats through the WebCodecs API or WebRTC video calls, our patches now block those requests immediately at the validation stage, forcing the site to fall back to H.264 which our graphics chip handles efficiently. We also cleaned up 8 files that were copied for inspection but didn't need any changes, keeping the patch folder lean.
+
+PROBLEM: After completing Phase 0 (core media pipeline gating) and Phase 1 (preference tuning), the browser still had unguarded entry points where websites could attempt to instantiate software video decoders and encoders through the WebCodecs JavaScript API, WebRTC peer connections, and the Media Capabilities API. These would bypass the core H.264 hardware-only policy and load VP8/VP9/AV1 software codecs onto the CPU, causing thermal throttling on the Ivy Bridge i7-3632QM.</human_rationale>
+    <execution_logic>SOLUTION: Phase 2: Patched WebrtcVideoCodecFactory.cpp to gate software VP8/VP9/AV1 decoder/encoder creation behind media.gorilla.hardware_only_mode preference. Patched VideoConduit.cpp to disable AV1 capability reporting. Phase 3: Patched WebCodecsUtils.cpp to restrict IsSupportedVideoCodec to H.264 only. Patched MediaCapabilities.cpp to report VP8/VP9/AV1 as unsupported in CheckCodecSupport. Patched VideoDecoder.cpp and VideoEncoder.cpp Validate() methods to reject non-H.264 codec configurations early. Updated deploy.sh with 6 new file mappings. Cleaned up 8 unmodified audit-only baseline files (AudioConduit.cpp, CodecInfo.cpp, PeerConnectionImpl.cpp, DecoderTemplate.cpp, MediaCapabilitiesValidation.cpp, TextureClient.cpp, ImageContainer.cpp, DMABufSurface.cpp) per the Cleanup of Unmodified Files directive.
+
+Phase 2 WebRTC Gating: WebrtcVideoCodecFactory.cpp - added StaticPrefs::media_gorilla_hardware_only_mode() checks to SupportsDecoder, SupportsEncoder, CreateDecoder, CreateEncoder for VP8/VP9/AV1 case branches. VideoConduit.cpp - overrode HasAv1() to return false when hardware-only mode is active. Phase 3 WebCodecs Gating: WebCodecsUtils.cpp - inserted early return in IsSupportedVideoCodec() to accept only H.264 codec strings. MediaCapabilities.cpp - added pre-check in both decode and encode CheckCodecSupport() overloads to return CodecSupport::Unsupported for non-H.264 video MIME types. VideoDecoder.cpp - added #include mozilla/StaticPrefs_media.h and GORILLA PATCH block in VideoDecoderTraits::Validate() after codec string parsing to reject VP8/VP9/AV1 via IsSupportedVideoCodec(). VideoEncoder.cpp - identical pattern in VideoEncoderTraits::Validate(). deploy.sh updated with 6 new deploy_file entries mapping Phase 2 and Phase 3 .cpp files to their target paths under firefox-main/dom/media/.
+
+CODE:
+// VideoDecoder.cpp - Validate() early rejection
+if (StaticPrefs::media_gorilla_hardware_only_mode()) {
+  if (!IsSupportedVideoCodec(aConfig.mCodec)) {
+    aErrorMessage.AssignLiteral("Unsupported codec under hardware-only mode");
+    return false;
+  }
+}
+
+PATHS: /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoDecoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoEncoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/WebrtcVideoCodecFactory.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoConduit.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/WebCodecsUtils.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/MediaCapabilities.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/deploy.sh
+
+KEYWORDS: firefox-154, media-patch, webcodecs, webrtc, media-capabilities, hardware-only, h264, phase-2, phase-3, validation-gating, deploy-script, unmodified-cleanup, ivy-bridge, vaapi</execution_logic>
+    <keywords>firefox-154, media-patch, webcodecs, webrtc, media-capabilities, hardware-only, h264, phase-2, phase-3, validation-gating, deploy-script, unmodified-cleanup, ivy-bridge, vaapi</keywords>
+    <recorded>2026-07-07T21:24:08Z</recorded>
+</concept>

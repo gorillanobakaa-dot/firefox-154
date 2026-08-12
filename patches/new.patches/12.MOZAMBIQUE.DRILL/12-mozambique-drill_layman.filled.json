@@ -1,0 +1,86 @@
+{
+  "title": "Putting Firefox's remote-experiment radios to sleep for 60 years",
+  "concept": {
+    "big_picture": "Firefox ships with two systems, Normandy and Nimbus, that let Mozilla reach into your browser from a distance. They can quietly turn features on or off, run A/B experiments on you, and measure what you do. You never asked for this and it is on by default.\n\nEach system has a background timer. Every so often it wakes up, phones a Mozilla server, and asks: any new instructions for me? Stock Firefox sets that timer to fire every 6 hours. This patch topic changes the built-in default for that timer to fire once every 60 years instead. The radios are still bolted to the wall and still powered on, but they will not make their next call until the year 2085.\n\nWhy leave them bolted to the wall at all? Because pulling them out breaks the browser. When this project tried to delete the systems outright, roughly 145 other parts of Firefox that expect them to exist crashed on startup. So the fix keeps the machinery physically present and structurally intact, and simply makes sure it never actually does anything. Structurally perfect, biologically dead."
+    ,
+    "key_concepts": [
+      {"name": "Normandy", "plain_english": "Firefox's older remote-control and experiment system. It fetches 'recipes' (small bundles of instructions) from a Mozilla server and runs them in your browser.", "analogy": "A supervisor with a two-way radio, listening for orders from head office."},
+      {"name": "Nimbus", "plain_english": "Normandy's newer replacement. Same job, delivered through Firefox's Remote Settings service.", "analogy": "The same supervisor with a shinier radio."},
+      {"name": "RecipeRunner", "plain_english": "The Normandy part that runs on a timer and calls out to check for new recipes.", "analogy": "The scheduled 'anything for me?' phone call."},
+      {"name": "RemoteSettingsExperimentLoader", "plain_english": "The Nimbus equivalent. It runs on a timer and pulls new experiment definitions from Remote Settings.", "analogy": "The Nimbus version of the same phone call."},
+      {"name": "The 60-year timer (1893456000 seconds)", "plain_english": "The new built-in default gap between calls. 1,893,456,000 seconds is exactly 60 years.", "analogy": "Setting an alarm clock so far in the future that it will never ring in the life of the machine."}
+    ],
+    "data_and_privacy": "These two patches send nothing and store nothing. They change one number in each of two code files. The direct effect is the opposite of a privacy risk: they stop a background job that used to reach out to Mozilla's servers on a schedule. No personal data is read, written, or transmitted by the change itself.",
+    "worst_case": "The realistic worst case for the change itself is close to nothing. A timer set 60 years out simply never fires, so the code that would contact Mozilla never runs. It cannot crash the browser and it cannot leak data, because it does less than before, not more. The only thing you lose is participation in Mozilla's remote experiments, which is the whole point."
+  },
+  "how_it_works": [
+    {"step": 1, "title": "Find the two alarm clocks", "explanation": "Two files each hold a background timer. Normandy's timer lives in RecipeRunner.sys.mjs. Nimbus's timer lives in RemoteSettingsExperimentLoader.sys.mjs. Both read the same setting, called app.normandy.run_interval_seconds, to decide how long to wait between calls."},
+    {"step": 2, "title": "Read the fallback number", "explanation": "Each timer asks Firefox for that setting, and passes along a fallback number to use if the setting is somehow missing. In stock Firefox that fallback is 21600, which is 6 hours in seconds. This is the number both patches change."},
+    {"step": 3, "title": "Swap 6 hours for 60 years", "explanation": "Each patch replaces 21600 with 1893456000, and labels it in the code with the comment '60y (Mozambique Drill)'. 1,893,456,000 seconds is exactly 60 years (60 x 365.25 x 24 x 3600). So if either timer ever falls back to its built-in default, that default now means 'wait 60 years', not 'wait 6 hours'."},
+    {"step": 4, "title": "The timer still registers, it just never rings", "explanation": "The timer object is still created and handed to Firefox's scheduler, exactly as before. Nothing is deleted. The scheduler simply will not fire it for 60 years. The roughly 145 other parts of Firefox that expect these objects to exist still find them, so the browser starts normally."},
+    {"step": 5, "title": "Belt and braces from the pref layer", "explanation": "In practice the fallback is a second line of defence. A separate topic (05.PREFS) already sets app.normandy.run_interval_seconds to the same 60-year value and locks it, and a distribution policies.json file locks it again at runtime. So the value in these two files is the safety net for the case where the setting is ever stripped or reset. Even then, the built-in default is still 60 years."}
+  ],
+  "quirky_things": [
+    {"title": "The systems are not deleted, and that is deliberate", "explanation": "It would feel cleaner to just remove Normandy and Nimbus. That was tried and it failed: about 145 other components crash on startup without them. So the machinery is kept intact and made inert instead. If you go looking, you will still find all the code present."},
+    {"title": "The 60-year comment is correct, not a joke", "explanation": "The inline note '// 60y (Mozambique Drill)' is factually accurate. 1893456000 really is 60 years in seconds. It is not a placeholder or a bug to be cleaned up."},
+    {"title": "60 years was chosen to still fit in a 32-bit integer", "explanation": "A signed 32-bit number tops out around 68 years in seconds. 60 years fits comfortably under that ceiling, so no computer or runtime rejects the value. Picking, say, 500 years could overflow and behave unpredictably."},
+    {"title": "This is a pattern, not a one-off", "explanation": "The same 'keep the corpse standing so nothing crashes, but make sure it never acts' approach is used for other systems the project cannot safely delete. It is a repeatable technique for tangled code."}
+  ],
+  "real_world_impact": {
+    "battery_cpu_ram": "Not measured. In principle one recurring background job that used to run roughly every 6 hours no longer runs, which removes a small, repeated wake-up. The timer objects still exist in memory, so the memory saving is negligible. No before/after numbers were captured.",
+    "speed": "Not measured. Any change is expected to be small: one fewer scheduled background task waking up and reaching the network. No startup or steady-state timing was recorded.",
+    "your_privacy": "This closes the 'targeting' channel: the route by which Mozilla could reach into your specific browser to switch features or run experiments on you. It pairs with the telemetry work (topic 13), which closes the 'reporting' channel that sends data out.",
+    "your_internet": "One fewer repeating background connection to Mozilla infrastructure. Stock Firefox would poll roughly every 6 hours; with the change it does not poll on any human timescale."
+  },
+  "kill_switch_explained": {
+    "what_it_is": "The off switch is the timer interval itself. In RecipeRunner.sys.mjs (line 289) and RemoteSettingsExperimentLoader.sys.mjs (line 256), the built-in default wait is set to 1893456000 seconds. That number is the switch: it decides how long the system sleeps before its next network call.",
+    "without_it": "Without it, each timer falls back to 6 hours (21600 seconds), so Firefox would call out to Mozilla's experiment servers roughly four times a day to fetch and run whatever recipes or experiments are waiting.",
+    "real_life_analogy": "It is like resetting the delay on an automatic sprinkler from 'every 6 hours' to 'once every 60 years'. The sprinkler is still installed and still plumbed in, it simply never turns on again in any timeframe that matters."
+  },
+  "open_source_angle": "You do not have to take any of this on faith. Every claim here is one line you can grep for: the number 1893456000 in two named files, the locked preference in topic 05, and the locked entry in policies.json. In a closed-source browser, 'we turned off remote experiments' would be a marketing promise you could not check. Here it is arithmetic in a handful of files you can open yourself. If you could not read it, you would be trusting the vendor's word that the radios are off, with no way to confirm they are not still calling home.",
+  "verification_task": {
+    "task_title": "Check that the 60-year sleep is really in place",
+    "context": "Before you trust that these systems are neutralised, confirm the number in the code with your own eyes. You do not need to understand the code, only to find the value.",
+    "steps": [
+      {"step": 1, "action": "Open a terminal in the Firefox source tree and run: grep -n 1893456000 toolkit/components/normandy/lib/RecipeRunner.sys.mjs toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs", "what_to_look_for": "You should see one match in each file, each ending with the comment 60y (Mozambique Drill). Two matches total means both timers are dilated."},
+      {"step": 2, "action": "In the running browser, open about:studies from the address bar.", "what_to_look_for": "The list of active studies should be empty. An empty list means no experiments are running on your browser."},
+      {"step": 3, "action": "Open about:config, search for app.normandy.run_interval_seconds, and try to change it.", "what_to_look_for": "The value should read 1893456000 and the edit should be refused, because a policy locks it. A refused edit confirms the lock is active."}
+    ]
+  },
+  "usage_task": {
+    "task_title": "Use this build with remote experiments already asleep",
+    "prerequisites": ["A Firefox 154 build made from this patched source tree", "No action on your part: the change is baked into the build"],
+    "steps": [
+      {"step": 1, "action": "Install and launch the build as normal.", "expected_result": "Firefox starts normally. The roughly 145 dependent components find the Normandy and Nimbus objects they expect, so nothing crashes."},
+      {"step": 2, "action": "Use the browser as you would any other day.", "expected_result": "You will not see studies appear and you will not receive pushed experiments, because the timers that fetch them are set 60 years out."}
+    ]
+  },
+  "troubleshooting": [
+    {"symptom": "You expected these systems to be gone, but you can still find Normandy and Nimbus code in the tree.", "plain_cause": "They are intentionally kept in place. Deleting them crashes about 145 dependent components on startup. The fix disables their behaviour, it does not remove their code.", "remedy": "This is expected. Confirm the neutralisation by checking the timer value (1893456000) rather than by looking for missing files."},
+    {"symptom": "about:studies briefly shows something, or you worry the timer could still fire.", "plain_cause": "The master switch (app.normandy.enabled=false) and the empty endpoint from topic 05 already stop the pipeline; the 60-year timer is the backstop.", "remedy": "Confirm app.normandy.enabled is false and app.normandy.api_url is empty in about:config. With those set, no fetch happens regardless of the timer."}
+  ],
+  "should_you_run_this": "Run it, if your goal is a Firefox that does not participate in Mozilla's remote experiment and remote-config systems. The change only makes the browser do less, and it keeps the dependent machinery intact so nothing breaks. If you actively want to receive Mozilla studies, this is not the build for you.",
+  "why_it_matters": "A developer chose to dilate a timer rather than delete the code because deletion was tried and caused a cascade of startup crashes across roughly 145 dependent components. Changing one number in each of two files is a small, reversible, auditable edit that reaches the same practical outcome: the remote-control channel never opens.",
+  "glossary": [
+    {"term": "Normandy", "definition": "Firefox's older system for fetching and running remote 'recipes' from a Mozilla server."},
+    {"term": "Nimbus", "definition": "Normandy's newer replacement, which delivers experiments through Firefox's Remote Settings service."},
+    {"term": "Recipe", "definition": "A small bundle of instructions Mozilla can send for your browser to run."},
+    {"term": "Timer interval", "definition": "How long a background job waits between runs. Here it is stretched from 6 hours to 60 years."},
+    {"term": "1893456000", "definition": "Sixty years measured in seconds, the new wait between timer firings."},
+    {"term": "policies.json", "definition": "A Firefox enterprise file that locks preferences so they cannot be changed at runtime, even from about:config."}
+  ],
+  "claim_sources": [
+    {"claim": "Both timers' fallback default changed from 21600 to 1893456000", "basis": "stated_in_input", "evidence": "-      21600, +      1893456000, // 60y (Mozambique Drill)"},
+    {"claim": "The change is labelled '60y (Mozambique Drill)' in the code", "basis": "stated_in_input", "evidence": "1893456000, // 60y (Mozambique Drill)"},
+    {"claim": "Both files read the same pref app.normandy.run_interval_seconds", "basis": "stated_in_input", "evidence": "getIntPref(RUN_INTERVAL_PREF, 1893456000)"},
+    {"claim": "Stock default is 6 hours", "basis": "stated_in_input", "evidence": "getIntPref(RUN_INTERVAL_PREF, 21600); // 6h"},
+    {"claim": "RecipeRunner change lives at line 289 of the live tree", "basis": "model_inference", "evidence": "firefox-main RecipeRunner.sys.mjs:289 grep-confirmed 1893456000"},
+    {"claim": "RSEL change lives at line 256 of the live tree", "basis": "model_inference", "evidence": "firefox-main RemoteSettingsExperimentLoader.sys.mjs:256 grep-confirmed 1893456000"},
+    {"claim": "1893456000 seconds equals 60 years (60*365.25*24*3600)", "basis": "model_inference", "evidence": "arithmetic: 365.25*24*3600=31557600; *60=1893456000"},
+    {"claim": "Topic 05 sets and locks the same pref plus enabled=false and empty api_url", "basis": "model_inference", "evidence": "firefox.js:2921/2923/2926 pref(...,locked) Chest Shot 1/2/Headshot"},
+    {"claim": "A distribution policies.json locks the three prefs at runtime", "basis": "model_inference", "evidence": "NEW_FILES/distribution/policies.json app.normandy.* Status locked"},
+    {"claim": "Deleting the systems crashed ~145 dependent components", "basis": "model_inference", "evidence": "README.md: 'These systems have 145+ dependencies'; not independently reproduced here"},
+    {"claim": "The systems are kept in place, not removed", "basis": "model_inference", "evidence": "ExperimentAPI.sys.mjs present in tree with no override marker; timer objects still registered"},
+    {"claim": "No performance numbers were captured", "basis": "model_inference", "evidence": "no benchmark artifact supplied with the topic"}
+  ]
+}

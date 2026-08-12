@@ -1,0 +1,18 @@
+<concept name="Phase3_Media">
+  <human_rationale>
+    Technical script or configuration code from 0.noise.Phase3_Media.md.
+  </human_rationale>
+  <execution_logic>
+# Phase 3: Media &amp; Audio Overhauls
+
+- Date: 2026-06-10
+- Execution:
+  - Discovered `.cpp` files in `patches/01_Media_Audio_Video` were wiped by Vault-First.
+  - Reconstructed patches using 0-noise rulebook data and recent mathematical specification:
+  - `dom/media/AudioStream.cpp`: Implemented 2.0x volume expansion. Applied a synomial/polynomial soft-knee compression curve using `tanh` mapping (`y = T + (1-T) * tanh((x-T)/(1-T))`) at a 0.85f threshold to protect against clipping within `DataCallback`.
+  - `dom/media/CubebUtils.cpp`: Unconditionally hard-locked `sPreferredSampleRate` to `48000` in `InitPreferredSampleRate()`.
+  - `dom/media/platforms/PDMFactory.cpp`: Fixed `SupportsMimeType` check to only enforce `!MP4Decoder::IsH264(aMimeType)` rejection when `StringBeginsWith(aMimeType, "video/"_ns)`, preventing accidental audio blockades.
+- Validation: `./mach build` initiated.
+
+  </execution_logic>
+</concept>

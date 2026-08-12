@@ -1,0 +1,29 @@
+GORILLA UNLEASHED — PATCH SET BASELINE
+======================================
+
+Milestone      : 154.0a1  (Firefox Nightly)
+Snapshot date  : 2026-07-10  (vault vanilla mtime; the tree these patches were cut against)
+Built artifact : BuildID 20260804004431  (gorilla-unleashed_154.0a1-1_amd64.deb)
+Exact changeset: NOT RECORDED  ← known limitation, see below
+
+VERIFIED
+  All 307 patches apply cleanly (`patch -p1`) onto the vault vanilla snapshot
+  (`Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main`), checked 2026-08-04
+  via `apply.sh --check`. Applying them reproduces the source behind the shipped .deb.
+
+THE LIMITATION (stated honestly)
+  Our vanilla baseline is an EXPORTED SNAPSHOT, not a version-control checkout — it carries
+  no mozilla-central changeset hash. 154.0a1 is a NIGHTLY, so there is also no stable release
+  tag to check out. Consequence: we cannot tell a remote user "clone exactly THIS revision".
+  A fresh mozilla-central near 2026-07-10 will be *close* but not identical; locale/theme
+  files drift most.
+
+WHAT WE DO ABOUT IT
+  - `recreate_success.sh` applies patches with fuzz tolerance (`patch --fuzz=3 --forward`) so
+    small upstream drift is absorbed rather than fatal; it reports any hunk that still fails.
+  - Anyone reproducing bit-for-bit should use OUR vault vanilla snapshot as the baseline.
+
+STANDING FIX (best-practice gap to close going forward)
+  Record the mozilla-central changeset hash at snapshot time (e.g. `git -C <src> rev-parse HEAD`
+  saved next to the snapshot) so future patch sets pin an exact, cloneable revision. This gap
+  is a single-maintainer reproducibility risk worth closing before the next baseline is cut.

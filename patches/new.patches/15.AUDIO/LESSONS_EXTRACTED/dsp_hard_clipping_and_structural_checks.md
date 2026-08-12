@@ -1,0 +1,17 @@
+# dsp_hard_clipping_and_structural_checks
+
+**Source:** dsp_hard_clipping_and_structural_checks.xml
+
+## Rationale
+
+When applying audio DSP limiters (like ceilings on float outputs), never use a hard clamp (e.g., `if (out > kCeiling) out = kCeiling;`) on a digital signal.
+    Digital audio has a maximum dynamic range (usually 1.0f). Capping the ceiling below 1.0f (like 0.25f) and brutally hard-clipping audio that exceeds it transforms sine waves into square waves.
+    This creates intense high-frequency distortion harmonics, which sound like harsh speaker vibrations on laptop chassis.
+    Always use soft-knee compression or dynamic range companders to smoothly reduce gain instead of hard mathematical clamping.
+    
+    Additionally, we instituted a new pre-flight check requirement for all C++ integrations (like `AudioStream.cpp`). Before building, models must run the structural brace checker to ensure parity (e.g., matching `{` and `}`). A missed brace causes fatal "function definition is not allowed here" compiler crashes.
+
+## Execution Logic
+
+1. For DSP: Instead of `if (out > 0.25f) out = 0.25f;`, implement a soft-clip algorithm or a dynamic compander that tracks the envelope and smoothly lowers the `kGain` before clipping occurs.
+    2. For Pre-flight: Always run `python3 /home/gorilla/.agents/skills/patch-auditor/scripts/cpp_preflight_protocol.py check <target_file>` before calling `./mach build`. If braces are uneven, abort the build and fix the syntax.

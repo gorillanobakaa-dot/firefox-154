@@ -1,0 +1,32 @@
+<concept>
+    <title>Root Files: Human.Documentation.FIrefox.153</title>
+    <category>Source Code Structure</category>
+    <description>Flat files at the root of /home/gorilla/Documents/Human.Documentation.FIrefox.153</description>
+    <details>
+0.noise.AI_Skillset_Index.md
+ad-forest-recovery-seizing-operations-master-role.md
+allocating-the-bus-master-adapter-object.md
+detecting-the-schema-master.md
+enabling-schema-changes-at-the-schema-master.md
+gmailpostmastertools.v1.json
+gmailpostmastertools.v1beta1.json
+gmailpostmastertools.v2.json
+master_packager.xml
+Remediation_Plan.xml
+knowledge_vs_lessons_comparison.md
+lessons.learned.parallel.image.script.txt
+lessons.learned.parallel.image.script_vault.txt
+master_sweep.py
+readme.human
+srb-close-master-clock.md
+srb-indicate-master-clock.md
+srb-open-master-clock.md
+sslgeneratemasterkey.md
+sslimportmasterkey.md
+testing-BTP-hw-human-device-adapter.md
+using-common-buffer-bus-master-dma.md
+using-packet-based-bus-master-dma.md
+uwf-master-servicing-script.md
+webmasters.v3.json
+    </details>
+</concept>

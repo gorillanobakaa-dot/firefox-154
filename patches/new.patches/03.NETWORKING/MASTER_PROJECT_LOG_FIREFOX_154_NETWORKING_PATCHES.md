@@ -256,417 +256,623 @@ All outbound connections remain locked down, and the browser cannot connect to u
 
 ---
 
-# ═══ MERGED DOCUMENT: 03-networking.AUDIT.md (verbatim · sha256:3922a6154305b866 · merged 2026-08-02) ═══
+# ═══ REGENERATION 2026-08-04 — dual-track docs + audit regenerated from the live tree; supersedes the 2026-08-02 merge below-the-fold, which carried the since-reverted Necko telemetry-fencing claims ═══
 
-# IBM-Style Audit Report: 03-networking
+> The three merged documents that follow were regenerated on 2026-08-04 by the doc-audit toolkit
+> (`dual-track code prep`/`render`, quality gate PASS: audit 98, developer 90, layman 91) against the
+> patched live tree at `/home/gorilla/firefox-main`, and re-verified byte-for-byte. They REPLACE the
+> 2026-08-02 verbatim merges of the same three files. The correction is substantive: the prior merges
+> asserted Necko-layer Glean/telemetry fencing (`GLEAN_DISABLED` / `MOZ_TELEMETRY_REPORTING 0`) in
+> HttpChannelParent / nsHttpConnectionMgr / Http3Session / nsUDPSocket. That fencing was REVERTED in the
+> 2026-08-01/02 reconciliation (those four files are byte-identical to vanilla; their .patch files were
+> deleted; `grep GLEAN_DISABLED` returns nothing, re-confirmed 2026-08-04). This room is four
+> kernel-matched tuning patches only; telemetry containment lives in the locked prefs (05.PREFS) and
+> topic 13.TELEMETRY.KILL. Two further stale claims from the old merges were also corrected: the HTTP/3
+> receive buffer is HARD-CODED to 64 MB (`SetRecvBufferSize(67108864)`), not read from
+> `network_http_http3_recvBufferSize`; and the buffer path GRACEFULLY DEGRADES (log + continue) rather
+> than “failing visibly” — vanilla's abort (Close + return) was removed. The append-only forensic trail
+> (VERIFICATION / RESOLUTION 2026-08-02, AUDIT CORRECTION 2026-08-03) is preserved unchanged below.
+
+---
+
+# ═══ MERGED DOCUMENT: 03-networking.AUDIT.md (verbatim · sha256:117317526161ad34 · regenerated 2026-08-04) ═══
+
+# IBM-Style Audit Report: 03.NETWORKING
 
 ## SECTION A: DOCUMENT CONTROL
 
 | Attribute | Value |
 |---|---|
-| **Target Category** | 03-networking |
-| **Files Scanned** | see payload |
-| **Baseline** | Firefox 154 (mozilla-central) |
-| **Date / Time** | 2026-07-16 22:24:56 |
-| **Audit Status** | PASS |
+| **Target** | 03.NETWORKING |
+| **Files scanned** | see payload |
+| **Date / time** | 2026-08-04 07:12:32 |
+| **Audit status** | PASS |
 
-## SECTION B: EXECUTIVE SUMMARY (Track A — Layman)
+## SECTION B: EXECUTIVE SUMMARY (Plain Language)
 
-This patch group is the reason web pages feel fast on a slow network and video calls do not stutter over a shared uplink. It re-tunes Firefox's network stack so it co-operates with the custom Linux kernel's BBR + FQ-CoDel algorithms (which do the hard work of pacing traffic through a narrow or congested pipe), doubles the number of DNS workers so pages that touch many domains stop queueing behind each other, keeps connections alive across cheap NAT gear that would otherwise silently drop them, and cuts the failed-DNS-retry wait from a full minute to 3 seconds. It also removes every background telemetry connection buried in the networking code — every one of those was a byte the user paid for. Same audience story as the other topics: this build is for people on old machines and slow connections; every knob is tuned for them.
+This room re-tunes four spots in Firefox's networking code so the browser cooperates with the computer's custom Linux kernel instead of fighting it. It sets bigger data buffers for video and uploads, keeps connections from silently dying on cheap routers, lets Firefox look up many web addresses at once, and retries failed lookups in 3 seconds instead of 60. Think of it as a car service that matches the engine to the road it actually drives on. None of it touches your private data. All three problems flagged in the older audit are fixed in the current code, and the code is written to keep working even on a machine whose kernel was never tuned. It is safe to ship, with one thing to keep an eye on: on a very low-memory machine, many big transfers at once use more RAM. One correction from the last review: earlier notes said this room blocks tracking — it does not, and that false claim has been removed.
 
-## SECTION C: TECHNICAL SUMMARY (Track B — Developer)
+## SECTION C: TECHNICAL SUMMARY (Developer)
 
-Necko tuning + Glean excision for BBR/FQ-CoDel kernel. DNS thread pool 8→16 (idle 12), NEGATIVE_RECORD_LIFETIME 60→3 s; TCP keepalive hardcoded 15/5/3; HTTP/3 UDP recv sized to pref (up to 64 MB) with matching sysctl `net.core.rmem_max=67108864`, UDP send explicitly sized (closes prior HIGH-001); upload pacing via kGorillaUploadChunkSize=256 KB gated on `mRequestSize > 10 MB` in nsHttpTransaction::ReadSegments (closes prior MED-001); Necko-layer Glean metrics fenced with `MOZ_TELEMETRY_REPORTING 0` + `GLEAN_DISABLED 1` in HttpChannelParent/nsHttpConnectionMgr/Http3Session/nsUDPSocket. Operational contract: `/etc/sysctl.d/99-gorilla-network.conf` must be present with matching rmem_max/wmem_max and BBR/fq_codel enabled — without it, Firefox's buffer requests silently clamp to kernel defaults. All three defects from the 2026-07-10 audit (HIGH-001/MED-001/LOW-001) are closed; NEGATIVE_RECORD_LIFETIME went further than the log's recommendation (3 s vs recommended 15 s). Cross-topic invariant: this topic's telemetry excision is coherent with topic 13.TELEMETRY.KILL's methodology (compile-time gate + DCE).
+Four numeric/behavioural Necko patches, all verified byte-consistent with the live tree on 2026-08-04 and previously via POR_2026-08-03. HTTP/3 UDP recv hardcoded to 64 MB (67108864) and send to 4 MB (4194304) with graceful degradation (log + continue) replacing vanilla's abort-on-failure; the recv size no longer reads network_http_http3_recvBufferSize. TCP keepalive forced 15/5/3 unconditionally per socket. DNS pool hardcoded 16 threads / 12 idle (was MaxResolverThreads()/8); NEGATIVE_RECORD_LIFETIME 60 -> 3 s. Upload pacing via kGorillaUploadChunkSize (256 KB) gated on mRequestSize > 10 MB in ReadSegments — the constant is live, closing the old MED-001 'unused constant' finding. All three 2026-07-10 defects (HIGH-001 send buffer, MED-001 pacing, LOW-001 negative cache) are closed in code. The 64 MB recv figure traces to the kernel BDP derivation (06-MATHEMATICAL-DERIVATIONS.md 6.2); the 4 MB send figure to master-log Part 4; keepalive/DNS/chunk values are operationally justified in-comment but have no located formal derivation. Telemetry fencing that prior docs claimed for HttpChannelParent/nsHttpConnectionMgr/Http3Session/nsUDPSocket was reverted (files vanilla, patches deleted, grep clean) — containment lives in locked prefs + topic 13, not here.
 
 ## SECTION D: DETECTED DEFECTS
 
-*No defects detected by rules or model.*
+0 found by rules, 3 by review. Rule findings are deterministic; review findings are judgement.
 
-## SECTION E: PRODUCTION READINESS ASSESSMENT
+### 🟡 P2-301 — P2 *(found by review)*
 
-- **Overall readiness:** 🟢 92%
-- **Done:**
-  - [x] DNS thread pool at 16 workers, 12 idle-warm (was 8 upstream)
-  - [x] NEGATIVE_RECORD_LIFETIME reduced from 60 s to 3 s (audit LOW-001 closed and exceeded — log recommended 15 s)
-  - [x] TCP keepalive hardcoded 15 s idle / 5 s probe / 3 count in nsSocketTransport2.cpp
-  - [x] HTTP/3 UDP receive buffer sized from StaticPrefs (up to 64 MB) with matching sysctl contract
-  - [x] UDP send buffer explicitly set — closes audit HIGH-001
-  - [x] Upload pacing wired: kGorillaUploadChunkSize (256 KB) active for requests > 10 MB — closes audit MED-001
-  - [x] Necko-layer Glean metrics excised via compile-time preprocessor gates in 4 files
-  - [x] MOZ_TELEMETRY_REPORTING 0 asserted at translation-unit top for each affected file
-  - [x] Coherent with topic 13.TELEMETRY.KILL methodology (compile-time DCE)
-- **To Do:**
-  - [ ] P2: toolchain-preflight.sh should assert `sysctl net.core.rmem_max` returns 67108864 — silent-failure risk if sysctl file is missing on fresh install
-  - [ ] P2: consolidate `GLEAN_DISABLED 1` + `MOZ_TELEMETRY_REPORTING 0` into a shared `NeckoTelemetryDisable.h` — 4 duplicate definitions are drift-vulnerable on rebase
-  - [ ] P3: extract the 10 MB upload-pacing threshold to a named constexpr next to `kGorillaUploadChunkSize`
-  - [ ] P3: add a comment above SetSendBufferSize referencing the log's BDP analysis + the 4 MB / 16-concurrent / 64 MB-total-ceiling rationale
+- **Plain English:** The browser asks the operating system for large buffers, but nothing checks that the operating system was set up to grant them. On a fresh machine where the companion kernel file was never installed, the request is quietly trimmed and the user just gets less speed with no warning.
+- **Technical:** No build/preflight assertion that /etc/sysctl.d/99-gorilla-network.conf is active. HttpConnectionUDP.cpp:301/311 requests 64 MB/4 MB; if net.core.rmem_max/wmem_max are low, the request clamps silently (only a MOZ_LOG line records it).
+- **Fix:** Add a preflight check that /proc/sys/net/core/rmem_max >= 67108864 and warns loudly otherwise.
+- **Effort:** 1h
 
-## SECTION F: PHASED EXPANSION PLAN
+### 🟢 P3-302 — P3 *(found by review)*
 
-### Phase 1 — `netwerk/dns/nsHostResolver.cpp — HTTP/3 QUIC-aware DNS prefetch`
-- **Tweak:** For URLs about to be fetched via HTTP/3, dispatch DNS lookup in parallel with the QUIC handshake instead of serialising. Small change with measurable page-load improvement on modern hosting.
-- **Expected impact:** Reduces first-byte latency on HTTP/3 pages by up to one RTT.
+- **Plain English:** The project's own kernel-contract note lists a setting (fq_codel) as shipped in the config file, but that line is not actually in the file — the setting comes from the kernel build instead. Harmless, but a reader verifying the contract would look for a line that is not there.
+- **Technical:** Master log 'Kernel Configuration Contract' lists net.core.default_qdisc = fq_codel as present in /etc/sysctl.d/99-gorilla-network.conf; the on-disk .conf has no default_qdisc line (verified 2026-08-04). fq_codel is the custom kernel's compiled-in default.
+- **Fix:** Correct the master-log contract block to attribute fq_codel to the kernel build, not the sysctl file.
+- **Effort:** 15min
 
-### Phase 2 — `netwerk/protocol/http/nsHttpTransaction.cpp — adaptive pacing threshold`
-- **Tweak:** Replace the hardcoded 10 MB pacing threshold with a runtime calc based on the connection's measured BBR bandwidth × observed RTT. Would remove the magic number and adapt to the actual link.
-- **Expected impact:** Better BBR interaction on very slow or very fast links (the 10 MB one-size-fits-all is a compromise).
+### 🟢 P3-303 — P3 *(found by review)*
 
-### Phase 1 — `netwerk/base/nsSocketTransport2.cpp — TFO (TCP Fast Open) enable`
-- **Tweak:** Enable TFO on TCP connections to hosts that have advertised the cookie, saving a round-trip on reconnects. Requires kernel-side `sysctl net.ipv4.tcp_fastopen=3`.
+- **Plain English:** The size that decides when to pace a big upload (10 MB) is typed straight into the code as a bare number, with no label. It works, but it is easy to miss when reading.
+- **Technical:** nsHttpTransaction.cpp:847 uses the literal 10 * 1024 * 1024 inline; unlike kGorillaUploadChunkSize it is not a named constant.
+- **Fix:** Extract to a named constexpr next to kGorillaUploadChunkSize with a rationale comment.
+- **Effort:** 15min
+
+## SECTION E: PRODUCTION READINESS
+
+**Overall readiness: 🟢 90%**
+
+**Done:**
+- [x] All 4 patches verified byte-consistent with the live tree (2026-08-04) and byte-exact vanilla+patch==live (POR 2026-08-03).
+- [x] HIGH-001 closed: explicit 4 MB UDP send buffer at HttpConnectionUDP.cpp:311.
+- [x] MED-001 closed: kGorillaUploadChunkSize is defined (:79) AND used (:847-851) — no longer dead.
+- [x] LOW-001 closed and exceeded: NEGATIVE_RECORD_LIFETIME 60 -> 3 s (:69), past the audit's recommended 15 s.
+- [x] TCP keepalive 15/5/3 forced unconditionally (nsSocketTransport2.cpp:1527-1541).
+- [x] DNS pool 16/12 (nsHostResolver.cpp:190-191).
+- [x] Graceful-degradation rewrite verified: recv/send failures log and continue instead of aborting (:306/:316) — correct for untuned distribution kernels.
+- [x] Telemetry-fencing revert confirmed still in effect: zero GLEAN_DISABLED matches in the four ex-telemetry files (2026-08-04).
+- [x] 64 MB recv figure cross-referenced to the kernel BDP derivation (06-MATHEMATICAL-DERIVATIONS.md 6.2); 4 MB send to master-log Part 4.
+- [x] Kernel-contract .conf present on the reference machine with rmem_max/wmem_max=64 MB and bbr.
+
+**To do:**
+- [ ] P2-301: preflight assertion for the sysctl contract (silent-clamp risk on fresh installs).
+- [ ] P3-302: fix the master-log contract block's fq_codel attribution.
+- [ ] P3-303: name the 10 MB pacing threshold as a constexpr.
+- [ ] Optional: extract DNS/negative-TTL/keepalive literals behind a network.gorilla.* pref if runtime A/B is ever wanted.
+
+**Not verified:**
+- Runtime sysctl values could not be re-measured this pass — `sysctl` is not on PATH in the doc-agent shell. The on-disk .conf is verified; the POR's live-kernel figures (128 MB, bbr, fq_codel) are carried from POR 2026-08-03, not re-measured today.
+- No performance was measured for this topic: no throughput, CPU %, RAM, or page-load before/after numbers exist. All 'faster/less stutter' statements are design intent, not measurement.
+- Only the 64 MB receive buffer and 4 MB send buffer have located derivations (kernel report 6.2 and master-log Part 4). Keepalive 15/5/3, DNS 16/12, NEGATIVE_RECORD_LIFETIME=3 and the 256 KB chunk have NO located formal kernel-side derivation — their rationale is the in-source comments only.
+- Exact vanilla effective TCP keepalive idle value not traced (in-source comment cites 300 s; Linux kernel default is 7200 s; upstream Firefox keepalive is per-socket opt-in). Verified fact is only the new value 15/5/3.
+- Upstream default of MaxResolverThreads() stated as '8' by prior docs but not re-derived here; it is pref-driven (network.dns.max_any_priority_threads + max_high_priority_threads).
+- happy_eyeballs_resolution_delay=50 (RFC 8305 aligned, cited in the room guardrails) is NOT one of these four C++ patches — it is a pref, out of scope for this room; not audited here.
+
+## SECTION F: PHASED PLAN
+
+### Phase 0 — `build/preflight — sysctl contract`
+- **Change:** Assert /proc/sys/net/core/rmem_max >= 67108864 (and wmem_max), warn loudly on mismatch.
+- **Expected impact:** Removes the silent-clamp failure mode on fresh/untuned installs.
+
+### Phase 1 — `netwerk/protocol/http/nsHttpTransaction.cpp — pacing threshold`
+- **Change:** Replace the inline 10 MB literal with a named constexpr; optionally make it adaptive to measured BBR bandwidth x RTT.
+- **Expected impact:** Removes the magic number; adaptive form improves BBR interaction across very slow and very fast links.
+
+### Phase 1 — `netwerk/base/nsSocketTransport2.cpp — TCP Fast Open`
+- **Change:** Enable TFO to hosts that advertised a cookie (kernel net.ipv4.tcp_fastopen=3 already shipped in the .conf).
 - **Expected impact:** One-RTT saving on TCP reconnects — noticeable on slow links.
 
-### Phase 2 — `cross-topic — StaticPrefList.yaml`
-- **Tweak:** Add a `network.gorilla.tuning_enabled` master pref that gates all Necko custom behaviour (mirroring topic 01.MEDIA's `media.gorilla.hardware_only_mode`). Would give the whole networking topic a runtime kill-switch for A/B comparison against upstream.
-- **Expected impact:** Cross-topic coherence + testability.
+### Phase 2 — `cross-topic — network.gorilla.* prefs`
+- **Change:** Gate the Necko literals (DNS pool, negative TTL, buffer sizes) behind a master pref, mirroring 01.MEDIA's hardware_only_mode.
+- **Expected impact:** Runtime A/B against upstream; testability.
 
 ## POSITIVE OBSERVATIONS
 
-- ✅ All three defects flagged in the 2026-07-10 audit are now closed in code — HIGH-001 (UDP send buffer), MED-001 (unused pacing constant), LOW-001 (DNS negative cache). This is not a common outcome; most audit findings age in a backlog.
-- ✅ NEGATIVE_RECORD_LIFETIME went from 60 s → 3 s — MORE aggressive than the log's own 15 s recommendation. The developer moved past the audit's suggested compromise to the value that actually serves the target audience (dynamic mobile networks).
-- ✅ The 10 MB upload-pacing threshold is a smart nuance: small uploads are not paced (avoiding overhead they would not benefit from); only large uploads are paced (where BBR's RTT-estimation benefits most). Very few Necko implementations think this carefully.
-- ✅ The preprocessor-gated telemetry excision (`GLEAN_DISABLED 1` + `MOZ_TELEMETRY_REPORTING 0`) is architecturally coherent with topic 13.TELEMETRY.KILL's methodology. Both rely on compile-time DCE, guaranteeing zero runtime cost — no residual metric-recording overhead.
-- ✅ The log is unusually candid about trade-offs — the 32 MB × 16 concurrent = 512 MB memory-commit analysis, the 4 MB BDP calculation with cited assumptions (1 Gbps × 32 ms), the 'web-consumer bias' framing. This is the kind of documentation the audit template's IBM-quality-checklist rewards.
-- ✅ The kernel-side sysctl contract is documented explicitly rather than assumed. Every buffer size in Necko is tied to a matching kernel ceiling — the sizes fail visibly if the sysctl is missing, rather than silently degrading.
+- All three prior-audit defects (HIGH-001/MED-001/LOW-001) are closed in code — a rare outcome; most audit findings age in a backlog.
+- The graceful-degradation rewrite (log + continue vs vanilla's Close + return rv) is the correct call for a heterogeneous distribution fleet: the reference machine gets the full buffer, an untuned ~4 GB target degrades instead of failing.
+- The 10 MB upload-pacing gate is a genuine nuance — small uploads skip the pacing overhead, only large uploads (where BBR's RTT estimation benefits) are chunked.
+- The room-clearing correctly caught and neutralised the false-VERIFIED telemetry claims; the current docs no longer overstate what the code does.
+- Buffer sizes are tied to explicit derivations rather than guessed — the 64 MB figure to a written kernel BDP calc, the 4 MB figure to a written project calc.
 
 ## VERIFICATION COMMANDS
 
+Run these to check the claims above rather than trusting them.
+
 ```bash
-sysctl net.core.rmem_max net.core.wmem_max net.ipv4.tcp_congestion_control net.core.default_qdisc   # expect 67108864 / 67108864 / bbr / fq_codel
-grep -n 'SetThreadLimit\|SetIdleThreadLimit\|NEGATIVE_RECORD_LIFETIME' netwerk/dns/nsHostResolver.cpp   # expect 16 / 12 / 3
-grep -n 'TCP_KEEPIDLE\|TCP_KEEPINTVL\|TCP_KEEPCNT' netwerk/base/nsSocketTransport2.cpp   # expect 15 / 5 / 3
-grep -c 'SetSendBufferSize\|SetRecvBufferSize' netwerk/protocol/http/HttpConnectionUDP.cpp   # expect ≥ 2 (send + recv)
-grep -n 'kGorillaUploadChunkSize' netwerk/protocol/http/nsHttpTransaction.cpp   # expect defn + gated use inside ReadSegments
-grep -l 'GLEAN_DISABLED\|MOZ_TELEMETRY_REPORTING' netwerk/protocol/http/*.cpp netwerk/base/*.cpp   # expect HttpChannelParent, nsHttpConnectionMgr, Http3Session, nsUDPSocket
-ss -ie   # while a video plays: QUIC socket wscale/rcv_space should be large
-ss -o | grep keepalive   # active TCP sockets show 15/5/3 keepalive timing
-strings $(pgrep -f firefox | head -1 | xargs -I{} readlink /proc/{}/exe | xargs dirname)/libxul.so | grep -c back_pressure_suspension   # expect 0 — Glean metric strings should be DCE'd out
+grep -n 'NEGATIVE_RECORD_LIFETIME\|SetThreadLimit\|SetIdleThreadLimit' $FF_SRC/netwerk/dns/nsHostResolver.cpp   # expect 3 / 16 / 12
+grep -n 'keepIdle\|keepIntvl\|keepCnt' $FF_SRC/netwerk/base/nsSocketTransport2.cpp   # expect 15 / 5 / 3
+grep -n 'SetRecvBufferSize\|SetSendBufferSize\|graceful' $FF_SRC/netwerk/protocol/http/HttpConnectionUDP.cpp   # expect 67108864 / 4194304 / two graceful-degradation comments
+grep -n 'kGorillaUploadChunkSize\|mRequestSize > 10' $FF_SRC/netwerk/protocol/http/nsHttpTransaction.cpp   # expect defn :79 + gate :847
+grep -rln 'GLEAN_DISABLED\|MOZ_TELEMETRY_REPORTING 0' $FF_SRC/netwerk/protocol/http/HttpChannelParent.cpp $FF_SRC/netwerk/protocol/http/nsHttpConnectionMgr.cpp $FF_SRC/netwerk/protocol/http/Http3Session.cpp $FF_SRC/netwerk/base/nsUDPSocket.cpp   # expect NO output (revert intact)
+ls $FF_SRC/../*/03.NETWORKING/*.patch 2>/dev/null; grep -E 'rmem_max|wmem_max|congestion_control' /etc/sysctl.d/99-gorilla-network.conf   # expect 4 patches; 67108864 / 67108864 / bbr
+cat /proc/sys/net/core/rmem_max /proc/sys/net/ipv4/tcp_congestion_control /proc/sys/net/core/default_qdisc   # expect >=67108864 / bbr / fq_codel (qdisc from kernel build, not the .conf)
 ```
 
+## Claim Sources
+
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Recv 64 MB hardcoded, no longer from pref | 📄 stated in input | rv = mSocket->SetRecvBufferSize(67108864);  // 64MB |
+| Send 4 MB added; graceful degradation | 📄 stated in input | rv = mSocket->SetSendBufferSize(4194304); ... // Do not abort — graceful degradation. |
+| Vanilla aborted on recv failure | 📄 stated in input | -    mSocket->Close(); -    mSocket = nullptr; -    return rv; |
+| Keepalive 15/5/3 | 📄 stated in input | keepIdle = 15; keepIntvl = 5; keepCnt = 3; |
+| DNS 16/12 | 📄 stated in input | SetThreadLimit(16)) ... SetIdleThreadLimit(12)) |
+| NEGATIVE_RECORD_LIFETIME 3 | 📄 stated in input | static const unsigned int NEGATIVE_RECORD_LIFETIME = 3; |
+| kGorillaUploadChunkSize used, gated at 10 MB | 📄 stated in input | if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize) |
+| Telemetry fencing reverted (files vanilla, patches deleted) | 📄 stated in input | all four files are byte-identical to the vanilla vault; their four .patch files were deleted (POR_2026-08-03_room_clearing.md) |
+| 64 MB traces to kernel BDP 6.2 | 📄 stated in input | BDP = 125 MB/s * 0.150 s = 18.75 MB ... 64 MiB (06-MATHEMATICAL-DERIVATIONS.md 6.2) |
+| .conf has bbr + 64 MB but no default_qdisc line | 📄 stated in input | net.core.rmem_max = 67108864 ... net.ipv4.tcp_congestion_control = bbr (no default_qdisc line) |
+| sysctl not re-measurable this pass; live figures carried from POR | 🤖 model inference | *(none — model judgment)* |
+| No performance measured for this topic | 🤖 model inference | *(none — model judgment)* |
+| happy_eyeballs_resolution_delay=50 is a pref, not in these 4 patches | 🤖 model inference | *(none — model judgment)* |
+
+
+---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
 
 
 ---
 
-# ═══ MERGED DOCUMENT: 03-networking.DEVELOPER.md (verbatim · sha256:405105080760628d · merged 2026-08-02) ═══
+# ═══ MERGED DOCUMENT: 03-networking.DEVELOPER.md (verbatim · sha256:0006f9cd2528590c · regenerated 2026-08-04) ═══
 
-# Necko Tuning + Telemetry Excision — BBR/FQ-CoDel Alignment for the Custom Kernel — Developer Track
+# Necko Socket / DNS / Buffer Tuning for the Custom 7.1.2 BBR + FQ-CoDel Kernel
 
-> **Topic:** `03-networking` · **Files:** `netwerk/base/nsSocketTransport2.cpp`, `netwerk/base/nsUDPSocket.cpp`, `netwerk/dns/nsHostResolver.cpp`, `netwerk/protocol/http/Http3Session.cpp`, `netwerk/protocol/http/HttpChannelParent.cpp`, `netwerk/protocol/http/HttpConnectionUDP.cpp`, `netwerk/protocol/http/nsHttpConnectionMgr.cpp`, `netwerk/protocol/http/nsHttpTransaction.cpp`
-> **Generated:** 2026-07-16
+> Generated 2026-08-04 | Source: `03.NETWORKING`
 
 ---
 
-## Module Summary
+## Purpose
 
-Necko-layer re-tuning for coherence with the custom Linux `7.x-unleashed.gorilla` kernel's BBR congestion control and FQ-CoDel queue discipline, plus compile-time excision of Necko-internal Glean/telemetry metrics. DNS worker pool doubled (8→16, idle-warm 12); TCP keepalive hardcoded aggressive (15 s idle / 5 s probe / 3 count); HTTP/3 UDP receive buffer sized to `StaticPrefs::network_http_http3_recvBufferSize()` (up to 64 MB); UDP send buffer explicitly set (closes prior HIGH-001); upload pacing via `kGorillaUploadChunkSize` (256 KB) active only for `mRequestSize > 10 MB` in `nsHttpTransaction::ReadSegments` (closes prior MED-001); DNS negative-cache TTL cut 60→3 s (closes and exceeds LOW-001, which recommended 15 s). Every buffer size assumes matching kernel ceilings from `/etc/sysctl.d/99-gorilla-network.conf` (`net.core.rmem_max=67108864`, `net.core.wmem_max=67108864`, `tcp_congestion_control=bbr`, `default_qdisc=fq_codel`) — the Firefox side fails visibly (buffer allocation clamps) if the sysctl is missing rather than silently degrading.
+Four Necko-layer patches that re-tune existing kernel-facing knobs so Firefox 154 cooperates with the target machine's custom Linux 7.1.2 kernel (BBR congestion control, FQ-CoDel queue discipline, raised socket-buffer ceilings). No new mechanism is introduced; each patch changes numeric values or adds one setsockopt path. Trust level is unchanged from upstream: the code runs in the parent/socket process it already ran in, and every buffer request is still bounded by the kernel's net.core.*_max ceilings. This topic contains no telemetry, tracking, or experimentation code — a prior claim to the contrary was reverted and is documented as corrected below.
+
+## Design Rationale
+
+The values are co-designed with the 7.1.2 kernel and must not be read in isolation. The 64 MB HTTP/3 receive buffer is the browser-side half of the kernel's bandwidth-delay-product analysis (Debian.Kernel.Work/Reports/06-MATHEMATICAL-DERIVATIONS.md 6.2: transoceanic 1 Gbps x 150 ms = 18.75 MB in flight, socket buffer ceiling set to 64 MiB). The 4 MB send buffer is derived in this project's master log Part 4 (1 Gbps x 32 ms = 4 MB BDP; 16 concurrent QUIC streams x 4 MB = 64 MB bounded commit). The keepalive triple, the 16/12 DNS pool, the 3 s negative-cache TTL, and the 256 KB upload chunk are operational choices justified in the in-source comments (NAT dead-peer detection, multi-domain concurrency, dynamic-host DNS recovery, BBR pacing-clock drain) but have no located formal derivation in the kernel reports. A deliberate departure from upstream: HttpConnectionUDP now degrades gracefully (log + continue) where vanilla aborted (Close + return rv) on a buffer-size failure — correct for the distribution fleet whose ~4 GB machines may run an untuned kernel.
 
 ## Architecture
 
-- **Pattern:** Two layered strategies: (1) numeric re-tuning of existing knobs to co-operate with kernel-side BBR/FQ-CoDel — no new mechanism, just correct values; (2) compile-time preprocessor excision of Necko-internal Glean metrics via `MOZ_TELEMETRY_REPORTING 0` + `GLEAN_DISABLED 1`, coherent with topic 13.TELEMETRY.KILL's methodology.
-- **Trust Boundary:** Necko sits between the render/content processes and the kernel socket layer. All buffer-size requests go through the kernel's `net.core.*_max` ceilings — Firefox cannot exceed what the kernel permits, but must ask for the right value or it clamps to defaults. The `/etc/sysctl.d/99-gorilla-network.conf` file is the contract between the two layers.
-- **Attack Surface:** Larger receive buffers slightly widen the surface for buffer-based DoS (an attacker could try to send many large UDP packets to consume RAM), but only up to the kernel's `net.core.rmem_max` ceiling — same as any other high-throughput application on the system. Telemetry excision reduces the outbound-data attack surface (no metric channel to exfiltrate through).
-- **Dependencies:** `Linux kernel with BBR + FQ-CoDel compiled in (custom `7.x-unleashed.gorilla` kernel provides these)`, ``/etc/sysctl.d/99-gorilla-network.conf` with matching rmem_max/wmem_max/BBR/fq_codel settings`, `StaticPrefs consumers must actually read `network_http_http3_recvBufferSize` — verified in current build`
+- **Pattern:** Numeric re-tuning of existing knobs plus one added setsockopt path (TCP keepalive). No new abstraction, no runtime feature flag. Cross-layer contract with the kernel via /etc/sysctl.d/99-gorilla-network.conf.
+- **Trust boundary:** Necko sits between content/render processes and the kernel socket layer. Firefox cannot exceed the kernel's net.core.*_max ceilings; it can only request a size, which the kernel grants or clamps. The sysctl file is the trust artifact shared between Firefox and the kernel. Content-process code is not more trusted than before — these patches only change sizes and timers on connections the browser already opens.
+- **Attack surface:** Unchanged entry points. A remote peer can influence how much of a requested receive buffer is filled, so the 64 MB receive request marginally widens a memory-consumption angle, but the kernel's net.core.rmem_max bounds it — same ceiling as any other high-throughput app on the host. No new parser, no new deserialization, no new network-reachable code path is added.
+- **Dependencies:** `Custom Linux 7.1.2 kernel with BBR compiled in and FQ-CoDel as default qdisc (per POR_2026-08-03_room_clearing.md and the kernel reports; not re-measured in this pass)`, `/etc/sysctl.d/99-gorilla-network.conf raising net.core.rmem_max/wmem_max to 67108864 (verified present on the reference machine)`, `NSPR PR_GetIdentitiesLayer / PR_FileDesc2NativeHandle to reach the native TCP socket fd (nsSocketTransport2.cpp)`, `Linux TCP socket options TCP_KEEPIDLE / TCP_KEEPINTVL / TCP_KEEPCNT (guarded by #if defined)`, `nsIThreadPool (SetThreadLimit / SetIdleThreadLimit) in nsHostResolver.cpp`, `nsISocketTransport SetRecvBufferSize / SetSendBufferSize in HttpConnectionUDP.cpp`
+
+## Flags & Configuration
+
+| Name | Type | Default | Effect | Notes |
+|------|------|---------|--------|-------|
+| `NEGATIVE_RECORD_LIFETIME` | `int (compile-time const, seconds)` | `3 (upstream 60)` | Lifetime of a cached failed DNS lookup before retry is permitted. | netwerk/dns/nsHostResolver.cpp:69, consumed at :1306 rec->SetExpiration(..., NEGATIVE_RECORD_LIFETIME, 0). More aggressive than the 2026-07-10 audit's recommended 15 s. |
+| `DNS thread limit` | `int` | `16 (upstream MaxResolverThreads(), pref-driven, defaults to 8)` | Maximum concurrent DNS resolver threads. | nsHostResolver.cpp:190 SetThreadLimit(16) replaces SetThreadLimit(MaxResolverThreads()); MaxResolverThreads() = network.dns.max_any_priority_threads + network.dns.max_high_priority_threads (nsHostResolver.h:47). Hardcoding removes the pref path. |
+| `DNS idle thread limit` | `int` | `12 (upstream 8)` | Warm resolver threads kept alive between bursts. | nsHostResolver.cpp:191 SetIdleThreadLimit(12). |
+| `TCP keepalive idle/intvl/cnt` | `int (seconds/seconds/count)` | `15 / 5 / 3, forced unconditionally` | Dead-peer detection ~30 s (15 + 5x3) on every TCP socket. | nsSocketTransport2.cpp:1527-1529 + setsockopt at :1531/:1536/:1541. Replaces Firefox's per-socket opt-in keepalive with an unconditional path. Exact prior effective idle value not traced this pass (in-source comment cites 300 s; Linux default is 7200 s). |
+| `HTTP/3 UDP receive buffer` | `int (bytes)` | `67108864 (64 MB), hardcoded` | SO_RCVBUF request on each QUIC socket. | HttpConnectionUDP.cpp:301. Replaces vanilla SetRecvBufferSize(StaticPrefs::network_http_http3_recvBufferSize()) — the pref is no longer consulted. |
+| `HTTP/3 UDP send buffer` | `int (bytes)` | `4194304 (4 MB), hardcoded` | SO_SNDBUF request on each QUIC socket (new; upstream set none). | HttpConnectionUDP.cpp:311. |
+| `kGorillaUploadChunkSize` | `uint32_t (bytes)` | `262144 (256 KB)` | Caps ReadSegments read count per iteration for uploads over 10 MB. | nsHttpTransaction.cpp:79, gated at :847-848 (mRequestSize > 10*1024*1024). |
+
+## API Surface
+
+| Symbol | Description | Side Effects |
+|--------|-------------|--------------|
+| `nsHttpTransaction::ReadSegments()` | Reads request-body segments to send; now clamps readCount to 256 KB for >10 MB uploads before delegating to mRequestStream->ReadSegments. | Emits data to the send path in smaller chunks for large uploads; no behavioural change below 10 MB. |
+| `HttpConnectionUDP::InitCommon()` | Sizes SO_RCVBUF (64 MB) and SO_SNDBUF (4 MB), continuing on failure. | Requests large kernel socket buffers; logs and proceeds if the kernel clamps or refuses. |
+| `nsHostResolver::Init()` | Sets DNS thread pool to 16 workers, 12 idle. | Higher concurrent DNS fan-out; more warm threads resident. |
+| `nsSocketTransport2 socket-attach path` | Applies TCP keepalive triple to every TCP socket via setsockopt. | One keepalive probe per ~15 s of idle per TCP socket. |
 
 ## Kill Switches
 
-### `netwerk/dns/nsHostResolver.cpp — DNS thread pool sizing` — HARD ⚠️
+### `netwerk/dns/nsHostResolver.cpp:190-191 (SetThreadLimit/SetIdleThreadLimit)`
+- **Condition:** Always, at resolver init.
+- **Effect:** DNS worker pool sized 16/12 instead of MaxResolverThreads()/8. Reverting means editing the literals back.
+- reversible
+- No runtime pref gates this; it is a hardcoded value. Idle 12 keeps threads warm without unbounded growth.
 
-- **Condition:** Always at Necko init.
-- **Effect:** `MOZ_ALWAYS_SUCCEEDS(threadPool->SetThreadLimit(16))` + `SetIdleThreadLimit(12)`. Doubles concurrent DNS lookup capacity vs upstream default of 8. Modern web pages routinely touch 30+ hostnames; at 8 workers, DNS becomes a serialisation point.
-- **Reversibility:** reversible
-- **Notes:** Idle limit of 12 keeps threads warm (avoids thread-creation cost on burst) without unbounded resource growth.
+### `netwerk/dns/nsHostResolver.cpp:69 (NEGATIVE_RECORD_LIFETIME)`
+- **Condition:** Compile-time constant; effective on every negative-cache expiry.
+- **Effect:** Failed lookups retried after 3 s instead of 60 s.
+- reversible
+- Kernel-independent; safe to revert to 60 without touching sysctl.
 
-### `netwerk/dns/nsHostResolver.cpp — NEGATIVE_RECORD_LIFETIME` — HARD ⚠️
+### `netwerk/base/nsSocketTransport2.cpp:1527-1541 (keepalive block)`
+- **Condition:** Every TCP socket creation where the native fd is obtainable.
+- **Effect:** Forces TCP_KEEPIDLE=15 / TCP_KEEPINTVL=5 / TCP_KEEPCNT=3 unconditionally.
+- reversible
+- Delete the block to restore per-socket opt-in keepalive. setsockopt failures are logged via SOCKET_LOG and ignored (non-fatal).
 
-- **Condition:** Always (compile-time #define).
-- **Effect:** `#define NEGATIVE_RECORD_LIFETIME 3` (was 60). Failed DNS lookups are re-attempted after 3 seconds instead of 60. Critical for dynamic mobile networks and WebRTC signaling hosts whose IPs shift on short timescales.
-- **Reversibility:** reversible
-- **Notes:** This is MORE aggressive than the 2026-07-10 audit's recommended 15 s. The tighter value reflects the target audience: users on mobile networks where address churn is measured in seconds, not minutes.
+### `netwerk/protocol/http/HttpConnectionUDP.cpp:301,311 (buffer sizing)`
+- **Condition:** At InitCommon for each QUIC socket.
+- **Effect:** Requests 64 MB recv + 4 MB send; on NS_FAILED, logs and continues (graceful degradation).
+- reversible
+- Remove SetSendBufferSize line and/or restore the pref-driven recv size and the abort branch to return to upstream behaviour. The graceful-degradation branch is the operative safety net for untuned kernels.
 
-### `netwerk/base/nsSocketTransport2.cpp — TCP keepalive` — HARD ⚠️
+### `netwerk/protocol/http/nsHttpTransaction.cpp:847-851 (upload pacing gate)`
+- **Condition:** mRequestSize > 10 MB and readCount > 256 KB.
+- **Effect:** Clamps per-iteration ReadSegments read count to 256 KB.
+- reversible
+- Below 10 MB the original count is used unchanged; deleting the gate restores unpaced reads.
 
-- **Condition:** Every TCP socket creation.
-- **Effect:** TCP_KEEPIDLE=15, TCP_KEEPINTVL=5, TCP_KEEPCNT=3 hardcoded unconditionally via `setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, ...)`. Total time-to-detect-dead-connection: ~30 s (15 + 5×3), vs the kernel default of ~2 hours.
-- **Reversibility:** reversible
-- **Notes:** Aggressive keepalive is what keeps sessions alive across NAT-heavy consumer/mobile networks that silently drop idle connections in 1–2 minutes. Cost: one small probe packet per socket per 15 s of idle — negligible.
+## Dead Code
 
-### `netwerk/protocol/http/HttpConnectionUDP.cpp — UDP buffer sizing` — RUNTIME_GUARD ⚠️
+- **`None in the four patches.`** — kGorillaUploadChunkSize is defined at nsHttpTransaction.cpp:79 and used at :847-848 — it is live, not the unused constant the 2026-07-10 audit flagged as MED-001. (risk: N/A — removing it would break the pacing gate that references it.)
 
-- **Condition:** At socket InitCommon.
-- **Effect:** `mSocket->SetRecvBufferSize(StaticPrefs::network_http_http3_recvBufferSize())` — up to 64 MB from pref. `mSocket->SetSendBufferSize(...)` — closes HIGH-001 defect; the send buffer size is deliberately smaller than 32 MB to avoid a hundreds-of-megabytes-of-buffers scenario (see log's BDP analysis: 16 concurrent QUIC streams × safety-sized buffer → bounded total commit).
-- **Reversibility:** reversible
-- **Notes:** Log recommends 4 MB based on 1 Gbps × 32 ms BDP; verify actual value in current build against that rationale.
+## Performance
 
-### `netwerk/protocol/http/nsHttpTransaction.cpp — upload pacing` — RUNTIME_GUARD ⚠️
+- **CPU:** Not measured for this topic. Qualitatively: negligible added CPU (one keepalive probe per idle socket per ~15 s; a bounded compare in ReadSegments). No before/after CPU number is claimed.
+- **MEMORY:** Up to 64 MB SO_RCVBUF + 4 MB SO_SNDBUF requested per QUIC socket, bounded by kernel ceilings. Master log Part 4 caps the design at ~16 concurrent QUIC streams (4 MB send x 16 = 64 MB send commit); receive worst case is larger and is the primary watch item on ~4 GB distribution targets. Comfortable on the 16 GiB (UMA-shared) reference machine. Not empirically measured.
+- **IO:** Larger receive buffers absorb burst arrivals without loss; explicit send buffer removes upload head-of-line blocking; 16-way DNS parallelism removes lookup serialization on multi-domain pages; 256 KB upload chunking keeps BBR's RTT estimate clean on large uploads.
+- **NOTES:** Every buffer figure is contingent on the kernel granting it; graceful degradation means the Firefox side never fails when the kernel is untuned, it only under-performs.
 
-- **Condition:** `mRequestSize > 10 * 1024 * 1024` (10 MB threshold).
-- **Effect:** `if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize) { readCount = kGorillaUploadChunkSize; }` inside ReadSegments. `kGorillaUploadChunkSize = 256 * 1024`. Caps read size per iteration to 256 KB for large uploads, so BBR's RTT-based pacing sees a smooth stream of segments instead of giant bursts.
-- **Reversibility:** reversible
-- **Notes:** Small uploads (< 10 MB) bypass the pacing — the overhead of gating would exceed the benefit at that size. Closes MED-001. `kGorillaUploadChunkSize` is a pre-existing identifier per the no-brand-spam rule.
+## Security
 
-### `HttpChannelParent.cpp + nsHttpConnectionMgr.cpp + Http3Session.cpp + nsUDPSocket.cpp — Glean excision` — HARD ⚠️
+- **Remote execution:** None introduced. No new parser, deserializer, or executable path.
+- **Data handling:** No user data is read, stored, or transmitted by any line in this topic. This is pure socket/DNS/buffer configuration.
+- **Attack surface:** Marginally wider memory-consumption angle from the 64 MB receive request, bounded by net.core.rmem_max — no unbounded growth. No change to authentication, TLS, or origin handling.
+- **Notes:** Prior documentation claimed Necko-layer Glean/telemetry excision (GLEAN_DISABLED / MOZ_TELEMETRY_REPORTING) in HttpChannelParent/nsHttpConnectionMgr/Http3Session/nsUDPSocket. That is FALSE for the current tree: those four files are byte-identical to vanilla and their patches were removed in the 2026-08-01/02 reconciliation; grep for GLEAN_DISABLED across the netwerk files returns zero matches (verified 2026-08-04). Telemetry containment for the build lives in locked prefs (datareporting.glean.uploadEnabled=false, toolkit.telemetry.enabled=false — 05.PREFS) and topic 13.TELEMETRY.KILL, not here.
 
-- **Condition:** Compile-time preprocessor.
-- **Effect:** Each translation unit top has `#undef MOZ_TELEMETRY_REPORTING` + `#define MOZ_TELEMETRY_REPORTING 0` + `#define GLEAN_DISABLED 1`. All Glean metric expansions in the file become no-ops that DCE cleanly. Necko-internal metrics (`back_pressure_suspension_*`, `http3_session_version`, etc.) are eliminated.
-- **Reversibility:** reversible
-- **Notes:** Preprocessor rather than runtime guard so LTO can eliminate the metric-string constants entirely from libxul (verify with `strings libxul.so | grep back_pressure_suspension` — expect 0 matches). Coherent with topic 13.TELEMETRY.KILL methodology.
+## Error Conditions
 
-## Performance Profile
+| Error | Cause | Remedy |
+|-------|-------|--------|
+| `HttpConnectionUDP::InitCommon SetRecvBufferSize failed ... Continuing with default kernel receive buffers.` | Kernel net.core.rmem_max lower than 64 MB (untuned kernel). | Non-fatal by design; throughput on very high-BDP links is reduced. Install /etc/sysctl.d/99-gorilla-network.conf and reload sysctl to grant the full size. |
+| `HttpConnectionUDP::InitCommon SetSendBufferSize failed ... Continuing with default kernel send buffers.` | Kernel net.core.wmem_max lower than 4 MB. | Non-fatal; upload pacing falls back to kernel default send buffer. Same remedy as above. |
+| `nsSocketTransport: TCP_KEEPIDLE/INTVL/CNT failed` | setsockopt rejected on the platform (e.g. option unsupported). | Logged via SOCKET_LOG and ignored; connection proceeds with platform-default keepalive. No action required. |
 
-| Component | Before | After | Mechanism |
-|---|---|---|---|
-| DNS resolution capacity | 8 worker threads (upstream default) | 16 workers + 12 idle-warm | SetThreadLimit(16) + SetIdleThreadLimit(12) in nsHostResolver.cpp |
-| TCP dead-connection detection | ~2 hours (kernel default) | ~30 s (15+5×3) | TCP_KEEPIDLE=15 / TCP_KEEPINTVL=5 / TCP_KEEPCNT=3 hardcoded |
-| HTTP/3 UDP receive buffer | kernel default (typically 208 KB) | up to 64 MB (from StaticPrefs) | SetRecvBufferSize wired to pref |
-| HTTP/3 UDP send buffer | kernel default (~128–256 KB — HIGH-001) | explicit size (log recommends 4 MB per BDP calc) | SetSendBufferSize added — closes HIGH-001 |
-| Upload pacing (> 10 MB) | giant bursts (confused BBR — MED-001) | 256 KB chunks per read cycle | kGorillaUploadChunkSize gate in ReadSegments |
-| DNS negative-cache retry | 60 s | 3 s | #define NEGATIVE_RECORD_LIFETIME 3 |
-| Necko-internal Glean metrics | recorded + eligible for upload | compile-time excised (DCE'd) | GLEAN_DISABLED 1 + MOZ_TELEMETRY_REPORTING 0 preprocessor in 4 files |
+## Tasks
 
-- **CPU:** Fewer background metric-recording calls (Necko-internal Glean gone) reduces per-connection CPU overhead. Not measured as a topic-specific number for Necko; the whole-project telemetry win (12.8% parent CPU) captured in topic 13.TELEMETRY.KILL includes this contribution.
-- **Memory:** UDP receive buffer up to 64 MB per QUIC socket; send buffer deliberately smaller (log's 4 MB recommendation). Assuming 16 concurrent QUIC streams: worst case ~1 GB receive + ~64 MB send. This is a memory-vs-throughput trade — the log's analysis walks through the kernel-level `net.core.rmem_max` ceiling as the hard cap.
-- **I/O:** Larger receive buffers absorb burst arrivals without packet loss; matching send buffer prevents upload-side head-of-line blocking. DNS parallelism (16 threads) removes lookup serialisation as a page-load bottleneck.
-- **Timer Interval:** TCP keepalive: 15 s idle + 5 s × 3 probes = ~30 s to detect dead connection (vs kernel default ~2 hours). DNS negative cache: 3 s (vs upstream 60 s).
+### Verify the four patches match the live tree
 
-## Security Analysis
+Confirm the documented values are the values in netwerk before trusting this doc.
 
-### User Profiling
+**Prerequisites:**
+- FF_SRC points at the patched tree (/home/gorilla/firefox-main)
 
-Necko-internal Glean metrics that reported connection-open/close events, backpressure statistics, and HTTP/3 version negotiation are all excised at compile time. No telemetry channel remains open in the networking layer to profile the user via.
+**Step 1:** grep -n 'NEGATIVE_RECORD_LIFETIME\|SetThreadLimit\|SetIdleThreadLimit' $FF_SRC/netwerk/dns/nsHostResolver.cpp
+  - Expected: NEGATIVE_RECORD_LIFETIME = 3 (:69), SetThreadLimit(16) (:190), SetIdleThreadLimit(12) (:191).
+**Step 2:** grep -n 'keepIdle\|keepIntvl\|keepCnt\|TCP_KEEPIDLE' $FF_SRC/netwerk/base/nsSocketTransport2.cpp
+  - Expected: keepIdle=15 (:1527), keepIntvl=5 (:1528), keepCnt=3 (:1529), setsockopt at :1531/:1536/:1541.
+**Step 3:** grep -n 'SetRecvBufferSize\|SetSendBufferSize\|graceful' $FF_SRC/netwerk/protocol/http/HttpConnectionUDP.cpp
+  - Expected: SetRecvBufferSize(67108864) (:301), SetSendBufferSize(4194304) (:311), two 'graceful degradation' comments (:306/:316).
+**Step 4:** grep -n 'kGorillaUploadChunkSize\|mRequestSize > 10' $FF_SRC/netwerk/protocol/http/nsHttpTransaction.cpp
+  - Expected: constant at :79 (256*1024), gate at :847, applied at :851.
 
-### Targeting
+**After this task:** All four values reproduce the patch files byte-for-byte (already confirmed by POR_2026-08-03 and re-checked 2026-08-04).
 
-N/A — no experimentation channel in this topic.
+### Confirm the telemetry-fencing revert is still in effect
 
-### Trust Chain
+Guard against a stale re-application of the reverted Glean fencing.
 
-Kernel socket layer + libc are unchanged; trust boundary is where it always was. The sysctl file is the only new trust artifact — it should be shipped and verified during install.
+**Prerequisites:**
+- FF_SRC set
 
-### Abuse Potential
+**Step 1:** grep -rln 'GLEAN_DISABLED\|MOZ_TELEMETRY_REPORTING 0' $FF_SRC/netwerk/protocol/http/HttpChannelParent.cpp $FF_SRC/netwerk/protocol/http/nsHttpConnectionMgr.cpp $FF_SRC/netwerk/protocol/http/Http3Session.cpp $FF_SRC/netwerk/base/nsUDPSocket.cpp
+  - Expected: No output. Any match means the reverted fencing was re-introduced and must be removed again (do NOT re-apply it).
 
-Larger receive buffers marginally widen a memory-consumption DoS surface, but the kernel's `net.core.rmem_max` ceiling bounds it; no unbounded growth is possible.
+**After this task:** Zero matches; the four files remain vanilla.
 
-## Implementation Flow
+### Confirm the kernel-side contract
 
-1. **`nsHostResolver::Init`** — Sets thread pool limit to 16 and idle limit to 12. Declares `#define NEGATIVE_RECORD_LIFETIME 3`.
-   *Side effects:* DNS lookups can proceed in parallel to a much higher fan-out. Failed lookups retried much sooner.
-2. **`nsSocketTransport2::InitiateSocket / OnSocketConnected`** — For every TCP socket, immediately setsockopt keepalive triple.
-   *Side effects:* TCP connections stay measurable-alive across NAT gear; dead sockets detected in ~30 s.
-3. **`HttpConnectionUDP::InitCommon`** — SetRecvBufferSize + SetSendBufferSize for each QUIC socket. Sizes drawn from prefs; kernel ceilings from sysctl.
-   *Side effects:* HTTP/3 streams can absorb bursts and pace uploads symmetrically.
-4. **`nsHttpTransaction::ReadSegments`** — When mRequestSize > 10 MB, clamps read size to kGorillaUploadChunkSize (256 KB) per iteration.
-   *Side effects:* Large uploads stream in paced 256 KB segments; BBR's RTT estimation stays clean.
-5. **`HttpChannelParent / nsHttpConnectionMgr / Http3Session / nsUDPSocket TU init`** — Preprocessor asserts GLEAN_DISABLED 1 + MOZ_TELEMETRY_REPORTING 0. All Glean expansions in the TU become no-ops, DCE'd out.
-   *Side effects:* Zero Necko-internal metric recording; zero corresponding string constants in the final binary.
+The buffer sizes are meaningless unless the kernel grants them.
+
+**Prerequisites:**
+- Root or read access to /etc/sysctl.d and /proc/sys
+
+**Step 1:** grep -E 'rmem_max|wmem_max|congestion_control' /etc/sysctl.d/99-gorilla-network.conf
+  - Expected: net.core.rmem_max = 67108864, net.core.wmem_max = 67108864, net.ipv4.tcp_congestion_control = bbr.
+**Step 2:** cat /proc/sys/net/core/rmem_max /proc/sys/net/ipv4/tcp_congestion_control /proc/sys/net/core/default_qdisc
+  - Expected: rmem_max at least 67108864; tcp_congestion_control 'bbr'; default_qdisc 'fq_codel'. NOTE: fq_codel is the custom kernel's compiled-in default — the .conf file ships bbr but does NOT contain a default_qdisc line.
+
+**After this task:** Kernel grants at least the requested buffer sizes and runs bbr + fq_codel.
+
+## Troubleshooting
+
+**Symptom:** High-BDP transfers do not reach expected throughput.
+**Cause:** Kernel net.core.rmem_max below 64 MB, so the receive-buffer request was clamped.
+**Remedy:** Install and reload /etc/sysctl.d/99-gorilla-network.conf.
+**Verify:** cat /proc/sys/net/core/rmem_max returns at least 67108864.
+
+**Symptom:** Large uploads still burst instead of pacing.
+**Cause:** Upload below the 10 MB gate, or the gate was reverted.
+**Remedy:** Confirm the payload exceeds 10 MB; re-check the gate at nsHttpTransaction.cpp:847.
+**Verify:** grep -n 'mRequestSize > 10' nsHttpTransaction.cpp returns the gate.
+
+**Symptom:** Idle TCP connections still die on cheap NAT gear.
+**Cause:** setsockopt keepalive was rejected on the platform (logged, ignored).
+**Remedy:** Check SOCKET_LOG output for 'TCP_KEEPIDLE failed'; confirm the platform supports the options.
+**Verify:** MOZ_LOG=nsSocketTransport:5 shows the keepalive path executing without the failure log.
+
+**Symptom:** A doc or patch references HttpChannelParent/Http3Session/nsUDPSocket telemetry fencing.
+**Cause:** Stale material from before the 2026-08-03 revert.
+**Remedy:** Ignore/remove it; do not re-apply. Telemetry is handled by locked prefs and topic 13.
+**Verify:** grep for GLEAN_DISABLED in those files returns nothing.
 
 ## Technical Debt
 
-🟠 **MEDIUM** — The `GLEAN_DISABLED 1` + `MOZ_TELEMETRY_REPORTING 0` preprocessor pair is duplicated at the top of 4 files — drift-vulnerable on rebase
-  - *Recommendation:* Extract to a shared `NeckoTelemetryDisable.h` included from each affected file.
+🟡 **LOW** — DNS thread limit and NEGATIVE_RECORD_LIFETIME are hardcoded literals, bypassing the pref path (MaxResolverThreads() and the negative-TTL constant). → Acceptable for a fixed-hardware build; if a runtime A/B is ever wanted, route through a network.gorilla.* pref instead of literals.
+🟡 **LOW** — The 10 MB upload-pacing threshold is a magic number inline in the gate. → Extract to a named constexpr adjacent to kGorillaUploadChunkSize with a comment on why pacing overhead is not worth it below that size.
+🟠 **MEDIUM** — No preflight assertion that /etc/sysctl.d/99-gorilla-network.conf is installed and active; buffer requests silently clamp on a fresh/untuned install. → Add a build/preflight check that /proc/sys/net/core/rmem_max >= 67108864 and warns loudly otherwise.
+🟡 **LOW** — Master log's 'Kernel Configuration Contract' lists net.core.default_qdisc = fq_codel as shipped in the .conf, but the on-disk .conf contains no default_qdisc line (fq_codel is the kernel's compiled-in default). → Correct the master log's contract block to reflect that fq_codel comes from the kernel build, not this sysctl file, to avoid a false verification expectation.
 
-🟡 **LOW** — The 10 MB upload-pacing threshold is a magic number
-  - *Recommendation:* Extract to a named constexpr adjacent to kGorillaUploadChunkSize with a comment explaining the rationale (below this size, pacing overhead exceeds BBR benefit).
+## Impact If Removed
 
-🟠 **MEDIUM** — No toolchain-preflight assertion that `/etc/sysctl.d/99-gorilla-network.conf` is installed and active
-  - *Recommendation:* Add a preflight check: `sysctl net.core.rmem_max` must return 67108864, else print a loud warning — otherwise the Firefox-side buffer requests silently clamp to defaults.
+Reverting the four patches restores upstream Necko behaviour: (1) DNS becomes a serialization point on multi-domain pages (lower concurrency, warmer-thread churn); (2) failed DNS lookups block retry for 60 s instead of 3 s, hurting dynamic-host and mobile UX; (3) TCP connections revert to per-socket opt-in keepalive and silently die on NAT-heavy links, causing reload hangs; (4) HTTP/3 receive buffer reverts to the pref value AND the abort-on-failure branch returns, so a buffer-size failure again tears down the QUIC socket rather than degrading; (5) the explicit 4 MB send buffer disappears and uploads bottleneck at the kernel default; (6) large uploads stream unpaced, distorting BBR's RTT estimation. No security posture is lost by removal — this topic adds none.
 
-🟡 **LOW** — No topic-level master pref (unlike topic 01.MEDIA's `media.gorilla.hardware_only_mode`)
-  - *Recommendation:* Consider `network.gorilla.tuning_enabled` gating the Necko custom behaviour — enables runtime A/B testing against upstream.
+## Claim Sources
 
-## Impact If Removed / Disabled
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Receive buffer hardcoded 67108864, not from StaticPrefs | 📄 stated in input | rv = mSocket->SetRecvBufferSize(67108864);  // 64MB |
+| Vanilla used the pref and aborted on failure | 📄 stated in input | -  rv = mSocket->SetRecvBufferSize(
+-      StaticPrefs::network_http_http3_recvBufferSize()); ... -    mSocket->Close(); |
+| Send buffer 4194304 added, graceful degradation | 📄 stated in input | rv = mSocket->SetSendBufferSize(4194304); ... // Do not abort — graceful degradation. |
+| Keepalive 15/5/3 unconditional | 📄 stated in input | int32_t keepIdle = 15; int32_t keepIntvl = 5; int32_t keepCnt = 3; |
+| DNS 16 threads / 12 idle, replacing MaxResolverThreads()/8 | 📄 stated in input | -  MOZ_ALWAYS_SUCCEEDS(threadPool->SetThreadLimit(MaxResolverThreads())); ... +  SetThreadLimit(16)) ... +  SetIdleThreadLimit(12)) |
+| MaxResolverThreads() = any + high priority pref sums | 📄 stated in input | return MaxResolverThreadsAnyPriority() + MaxResolverThreadsHighPriority(); (nsHostResolver.h:47) |
+| NEGATIVE_RECORD_LIFETIME 60 -> 3 | 📄 stated in input | static const unsigned int NEGATIVE_RECORD_LIFETIME = 3; |
+| Upload chunk 256 KB gated at 10 MB, and is used (not dead) | 📄 stated in input | if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize) { readCount = kGorillaUploadChunkSize; } |
+| 64 MB recv buffer traces to kernel BDP derivation 6.2 | 📄 stated in input | BDP = 125 MB/s * 0.150 s = 18.75 MB ... configured at 64 MiB (Reports/06-MATHEMATICAL-DERIVATIONS.md 6.2) |
+| 4 MB send buffer traces to master-log Part 4 BDP | 📄 stated in input | 1000 Mbps * 0.032 s = 4 MB (master log Part 4) |
+| Telemetry fencing reverted; files vanilla; patches deleted | 📄 stated in input | all four files are byte-identical to the vanilla vault; their four .patch files were deleted (POR_2026-08-03_room_clearing.md) |
+| GLEAN_DISABLED grep returns zero in the four files | 🤖 model inference | *(none — model judgment)* |
+| .conf ships bbr + 64 MB but no default_qdisc line | 📄 stated in input | net.core.rmem_max = 67108864 ... net.ipv4.tcp_congestion_control = bbr (no fq_codel/default_qdisc line in /etc/sysctl.d/99-gorilla-network.conf) |
+| keepalive/DNS/chunk lack formal kernel derivation | 🤖 model inference | *(none — model judgment)* |
+| No CPU/memory/throughput measured for this topic | 🤖 model inference | *(none — model judgment)* |
+| Exact prior keepalive idle value not traced | 🤖 model inference | *(none — model judgment)* |
 
-Reverting: (1) DNS becomes a serialisation point on multi-domain pages (perceived slowness); (2) TCP connections silently die at NAT-heavy consumer/mobile networks and Firefox hangs on reload; (3) HTTP/3 video stutters on burst arrivals (receive buffer too small); (4) HTTP/3 uploads bottleneck (send buffer at kernel default); (5) large uploads wreck BBR's RTT estimation; (6) failed DNS lookups wait 60 s before retry, killing mobile-network UX; (7) Necko-internal Glean metrics resume phoning home on every connection open/close.
-
-## Testing Notes
-
-Verify state matches spec: `grep -n 'SetThreadLimit\|NEGATIVE_RECORD_LIFETIME' netwerk/dns/nsHostResolver.cpp` returns 16 / 12 / 3; `grep -n 'TCP_KEEPIDLE' netwerk/base/nsSocketTransport2.cpp` returns 15; `grep -c 'SetSendBufferSize' netwerk/protocol/http/HttpConnectionUDP.cpp` returns ≥ 1. During browser use: `ss -o` on active TCP sockets shows 15/5/3 keepalive; `ss -ie` on QUIC sockets shows large rcv/snd wscale. `strings libxul.so | grep back_pressure_suspension` returns 0 (metric strings DCE'd). Kernel side: `sysctl net.core.rmem_max` returns 67108864, `sysctl net.ipv4.tcp_congestion_control` returns `bbr`, `sysctl net.core.default_qdisc` returns `fq_codel` — mismatches here cause Firefox-side sizes to silently clamp.
-
-## Changelog Notes
-
-History from `MASTER_PROJECT_LOG_FIREFOX_154_NETWORKING_PATCHES.md`: initial FF153 work (2026-06-08/09), FF154 rebase (2026-07-05), Glean scouring phase in HttpChannelParent (2026-07-08), audit performed (2026-07-10) which flagged HIGH-001/MED-001/LOW-001 — all three now closed in the current patch set. NEGATIVE_RECORD_LIFETIME exceeded the audit's recommended fix (3 s vs recommended 15 s). Naming discipline note: `kGorillaUploadChunkSize` is a pre-existing identifier and remains as-is (see project no-brand-spam rule).
-
----
-*Developer Track. Human Track twin: `03-networking.LAYMAN.md`.*
-
-
----
-
-# ═══ MERGED DOCUMENT: 03-networking.LAYMAN.md (verbatim · sha256:a64ebb229188bbb7 · merged 2026-08-02) ═══
-
-# 🧍 The Networking Overhaul — Matching Firefox to a Custom Kernel and a Slow Internet Line — Plain English Guide
-
-> *Topic `03-networking` of the Gorilla Unleashed Firefox 154 build · Written for everyone · 2026-07-16*
 
 ---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
 
-## 🌍 The Big Picture
-
-Every web page you load is a conversation between your browser and a server on the other side of the world. That conversation happens in tiny packets that travel across dozens of routers, each one deciding when to pass your packet on and when to make it wait in a queue. The rules that govern this — how big the queues are, how long to wait before giving up, how many things to ask about at once — are set in a hundred different places, from your kernel to your browser to the router in your bedroom. When those settings match, the internet feels fast. When they fight each other, the same connection feels sluggish and unreliable.
-
-This patch group re-tunes Firefox's network stack (the part of the browser called *Necko*) so it stops fighting our custom Linux kernel and starts collaborating with it. The kernel was built for two modern algorithms — **BBR** and **FQ-CoDel** — that squeeze the best possible speed out of any given connection, especially a slow or unreliable one. Firefox's stock settings assume a fast broadband line at the client end, so a lot of its behaviour is subtly wrong for the machine and the network it is running on. This is the corrective.
-
-At the same time, every place where Firefox was quietly opening a background connection to phone home telemetry — even in the *networking* layer, the last place you'd expect it — was found and severed. Those connections cost you: bandwidth you paid for, battery to run the radio, and (on metered mobile data in the developing world) actual money per megabyte.
-
-### 🌍 Who this is really for
-
-Same audience as the other topics: **the person on old hardware, and now especially on a slow or expensive internet connection.** In a rural village on a 3G tower, or on a wired connection where the whole neighbourhood shares one flaky uplink, the difference between a browser that respects BBR's pacing and one that dumps traffic in giant bursts is the difference between a webpage that loads and one that gives up. The default 60-second DNS negative cache — where a single failed lookup makes Firefox refuse to try again for a full minute — is a first-world assumption; on a mobile network where addresses shift every few seconds, it is a wall between the user and the internet. This patch group knocks that wall down.
-
-And every telemetry connection removed is one less byte off the user's monthly data cap. **Mozilla's diagnostics were not free.** They were paid for, out of pocket, by whoever was on the other end of an expensive megabyte.
-
-## 🎭 The Main Characters
-
-| Name | What It Is | Real-World Comparison |
-|---|---|---|
-| **Necko** | Firefox's networking stack — the code that speaks TCP, UDP, HTTP, DNS, everything net-facing | The mail room of a giant office building — every letter in or out passes through it |
-| **BBR** | A modern congestion-control algorithm (developed at Google) that senses the actual bottleneck bandwidth and paces packets to it, instead of just crashing traffic into the queue until it drops packets | A driver who watches the road ahead and adjusts speed smoothly, versus one who floors the accelerator until they rear-end the car in front |
-| **FQ-CoDel** | A queueing algorithm that stops any single connection from hogging the shared internet pipe — even when the pipe is small and shared | A supermarket that opens a new express lane whenever one shopper's giant cart starts blocking everyone else |
-| **TCP Keepalive** | A tiny 'you still there?' packet the browser sends every so often to keep a connection from being killed by an idle timer on a router | The 'are we still on the line?' you say into the phone when the other person has been quiet for too long |
-| **DNS** | The phonebook of the internet — turns names like 'youtube.com' into numeric addresses. Slow DNS = slow-feeling browser, even when everything else is fast. | The receptionist who looks up the extension for the person you're trying to call — if she's slow, the whole call feels slow |
-| **UDP / QUIC / HTTP/3** | The newer, faster way to load web pages — used by YouTube, Cloudflare, and increasingly everyone. Runs over UDP instead of TCP, which needs its own tuning | Sending letters as individually-addressed postcards (UDP) instead of waiting for a fully-sealed envelope to arrive intact (TCP) — faster if handled right, chaotic if not |
-| **Buffer Bloat** | The disease where routers hold onto packets for too long, thinking they're being helpful. Feels like lag and stutter to the user. | A restaurant that seats you but then holds all the orders in the kitchen 'to batch them up efficiently' — you wait forever for a burger |
-
-## 🔢 How It Works — Step by Step
-
-### Step 1: Bigger receive buffers for video (64 MB)
-
-When you watch a high-definition video, the server sends packets faster than Firefox can process them into pixels. If Firefox's incoming buffer is too small, packets get dropped and the video stutters. The receive buffer is now sized up to 64 megabytes — enough to swallow a big burst of video without dropping a frame. The kernel's own limit (`net.core.rmem_max`) has to be raised to match, which is done in `/etc/sysctl.d/99-gorilla-network.conf`. Firefox and the kernel now agree on how big the incoming pipe can be.
-
-### Step 2: A matching UDP send buffer for uploads (with a safety cap)
-
-For a long time, the download side was widened while the upload side was left at the kernel's tiny default. That created an asymmetric highway: 8 lanes in, 1 lane out. Video calls and file uploads would bottleneck on the exit ramp. The fix is now in: an explicit UDP send buffer is set, sized deliberately for safety. The audit log spelled out the trade-off: a giant 32 MB per socket × 16 concurrent QUIC streams = 512 MB of memory locked up before you even watch anything. So the size chosen is much more modest — enough to saturate a 1 Gbps uplink at typical internet latency, without hogging RAM.
-
-### Step 3: Aggressive TCP keepalives (15 s / 5 s / 3 probes)
-
-Cheap internet gear — home routers, phone-carrier NAT boxes, ISP middleware — often silently drops any TCP connection that has been idle for a minute or two, without telling either end. Firefox then discovers this by hanging when you go to reload the page. The fix is to send a keepalive probe every 15 seconds of idle, and a follow-up every 5 seconds after that, up to 3 probes. Cheap gear now can't silently drop the connection — Firefox notices it's dead and reconnects.
-
-### Step 4: More DNS workers (16 threads, 12 idle-hot)
-
-The default of 8 DNS workers is fine when every page is one domain. Modern pages fetch resources from 50 different domains (ads, CDNs, analytics, fonts, images from 12 different hosts). With only 8 workers, DNS lookups queue up and pages 'feel slow' even when the network is fast. Sixteen workers, twelve of them staying warm, is roughly double the throughput at essentially zero memory cost.
-
-### Step 5: DNS negative cache: 60 → 3 seconds
-
-Historically, if a DNS lookup failed, Firefox remembered that failure for a full minute — refusing to try again in the meantime. On a stable network that's harmless. On a mobile network where cell towers shift addresses, or on a signaling server that just rebooted, that 60-second wall means the user gives up before the network heals. The lifetime is now 3 seconds. A dead lookup is retried almost immediately.
-
-### Step 6: Upload pacing for big files (BBR-aware, ≥ 10 MB)
-
-Uploading a big file? Firefox used to just fire off huge chunks and let the operating system deal with the mess. That confused BBR's pacing logic — it measures the network by watching how packets get through, and giant bursts distort that measurement. Now, for uploads over 10 MB (which is where BBR's pacing actually matters — smaller uploads finish before BBR notices), Firefox reads the outgoing data in 256 KB paced chunks. Small uploads are still fast; big ones no longer wreck BBR's measurement of the connection.
-
-### Step 7: Telemetry connections severed inside the network layer itself
-
-The place you would least expect background telemetry is inside the *networking* code — but there it was. `HttpChannelParent.cpp`, `nsHttpConnectionMgr.cpp`, `Http3Session.cpp`, `nsUDPSocket.cpp` all had Glean metrics buried in them, silently phoning home when connections opened or closed. Every one of those metric hooks is now wrapped in `#ifndef GLEAN_DISABLED` and disabled at compile time. Zero background connections. Zero bytes sent home.
-
-## 🤔 Quirky Things Worth Knowing
-
-### ⚠️ Firefox's default assumptions are shaped by rich internet
-
-The stock Firefox network settings assume you have a fast, unmetered, reliable broadband line. Big buffers everywhere, long timeouts, generous negative caches. On a good line, that's fine. On a slow, laggy, or metered line — the reality for a huge chunk of the world — those defaults amplify every problem: bloated queues, stale caches, unnecessary background traffic. This patch group is that world's rebuttal.
-
-### ⚠️ The kernel had to be re-tuned to match, and vice-versa
-
-The 64 MB receive buffer on the Firefox side is useless if the kernel refuses to grant it. So a companion file `/etc/sysctl.d/99-gorilla-network.conf` sets `net.core.rmem_max`, `net.core.wmem_max`, and enables BBR and FQ-CoDel at the kernel level. Neither piece works without the other — the machine has to think as one thing, not seven arguing pieces.
-
-### ⚠️ The 'web-consumer bias' baked into every browser
-
-As the audit log put it in the developer track: browsers historically assume clients only download. Everything is tuned for download: buffers, congestion, cache. Uploads are treated as bursty afterthoughts, so their pacing is bad. This is exactly the wrong assumption for someone using video calls to see family abroad, or uploading school assignments over a rural connection. The upload path is treated as a first-class citizen here.
-
-### ⚠️ Every knob was measured, not guessed
-
-The 4 MB UDP send buffer size is not arbitrary — it comes from a calculation: 1 Gbps upload × 32 ms latency ≈ 4 MB (this is called the *bandwidth-delay product*). It's the smallest buffer that keeps the pipe full without wasting memory. Sixteen DNS threads is roughly the concurrency needed by a modern web page. The 10 MB pacing threshold is where BBR's benefit exceeds its overhead. This is not vibes — it's arithmetic, and the arithmetic is in the log.
-
-## 💻 What Does This Mean For YOU?
-
-### 🔋 Battery, Speed & Memory
-
-Fewer background connections (telemetry gone) means less radio use, which means less battery drain — especially on laptops on Wi-Fi and phones on cellular. RAM usage is deliberately capped: the upload buffer size was picked to prevent a hundreds-of-megabytes-of-buffers scenario on a heavy browsing session.
-
-### ⚡ Speed
-
-Pages that touch many domains (which is most modern pages) feel faster because DNS lookups no longer queue behind each other. Video that used to stutter no longer stutters, because the buffer can absorb a burst. Uploads that used to bottleneck no longer bottleneck. TCP connections that used to silently die at NAT boxes now stay alive.
-
-### 🕵️ Your Privacy
-
-Every background metric that used to be sent to Mozilla from the networking layer is severed. No opening a connection to log that a connection was opened. This is the *networking-layer* telemetry excision; the broader telemetry kill lives in Topic 13.
-
-### 🌐 Your Internet
-
-This is the topic where the internet actually gets faster and cheaper — cheaper because of the bandwidth NOT spent on background telemetry. On a metered mobile plan where every megabyte costs real money, that is not a footnote.
-
-## 🔴 The Kill Switch — Explained
-
-**What it is:** There isn't one master toggle for this topic — the changes are structural (buffer sizes, thread counts, timeouts) rather than an on/off feature. But every change is a specific numeric tuning that can be reverted independently: change 16 back to 8 for DNS threads, remove the SetSendBufferSize call, delete the `GLEAN_DISABLED` defines. Nothing here is welded shut.
-
-**Without it:** Without the tuning: video stutters on high-bitrate content, uploads bottleneck, TCP connections silently die at NAT boxes, DNS lookups queue up, telemetry connections open in the background on every page load, and BBR (in the custom kernel) is confused by giant uncontrolled bursts. In short, the modern web feels like the machine is old — even though the network stack is what's actually the bottleneck.
-
-**Think of it like:** Not one switch but a whole car service: bigger fuel line (buffers), synchronised transmission (BBR pacing), faster restart on stall (keepalives), more mechanics on shift (DNS threads), and the tracking device removed from under the chassis (telemetry excision). Each piece independently valuable; the whole is a car that actually goes.
-
-## 🌐 Open Source & Why It Matters To You
-
-The audit log for this topic — publicly readable, in the same folder as the patches — lists three defects the previous version had, and describes each one in both plain-English and technical form. All three have since been fixed in the code. **A closed browser would have shipped those defects silently and no one outside its company would ever know they existed.** The value of open source here is not abstract: it is a table of past mistakes, published, with fixes tied back to them by line number. If you want to know what changed and why, you can read it. If you disagree with a knob, you can flip it and rebuild. If you find a new bottleneck, you can add it to the list.
-
-## 📖 Glossary (Plain English Dictionary)
-
-**Necko** — Firefox's networking stack. Handles TCP, UDP, HTTP/1/2/3, DNS, sockets — everything net-facing. Name is Mozilla-internal, short for 'network cocoa'.
-
-**TCP** — The most common way computers talk on the internet — a reliable, in-order stream. Every HTTP/1 and HTTP/2 connection uses it.
-
-**UDP / QUIC / HTTP/3** — The newer way — packet-based rather than stream-based, faster to establish and more resilient to lost packets. YouTube, Cloudflare, and Google all use it heavily.
-
-**BBR** — A congestion-control algorithm from Google. Measures the actual bandwidth of the connection and paces packets to match, instead of the older approach of dumping packets until some get dropped and then backing off.
-
-**FQ-CoDel** — A queueing algorithm (Fair Queueing with Controlled Delay). Prevents any single big flow from hogging the whole pipe, and keeps queue lengths short even when the pipe is full.
-
-**Buffer bloat** — The disease of routers holding onto packets for too long, thinking they're being efficient. Manifests as unpredictable lag and stutter.
-
-**Congestion control** — The rules a sender follows to avoid overwhelming the network. Old-school algorithms (Cubic, Reno) drop packets to detect trouble; BBR watches actual throughput instead.
-
-**DNS** — Domain Name System — turns names like `youtube.com` into IP addresses. Every web page load involves several DNS lookups.
-
-**Bandwidth-Delay Product** — How much data can be 'in flight' on a connection at any one time — bandwidth × round-trip delay. A 1 Gbps link with 32 ms latency has a BDP of 4 MB. That's the smallest buffer that can keep the link full.
-
-**TCP Keepalive** — A tiny periodic 'still there?' packet sent on an idle TCP connection to prevent middle-boxes (routers, NATs, firewalls) from silently killing it.
-
-**Negative DNS cache** — When a DNS lookup fails, browsers remember the failure for a while so they don't retry immediately. This build shortens that memory from 60 seconds to 3 seconds — right for dynamic mobile networks, right for signaling servers, right for anyone whose IP changes fast.
-
-**Sysctl** — The Linux command that reads and writes kernel tuning knobs. `sysctl -w net.core.rmem_max=67108864` says 'kernel, please accept sockets requesting up to 64 MB of receive buffer.' This build ships a matching `/etc/sysctl.d/99-gorilla-network.conf` file so the kernel is in the loop.
-
-**Web-consumer bias** — The assumption baked into most browsers that the user is downloading a lot and uploading a little. Convenient for browser-vendors; wrong for anyone doing video calls or uploading assignments over a slow link.
-
----
-*Human Track. Its Developer Track twin (`03-networking.DEVELOPER.md`) covers the same changes in technical detail. Neither is a simplified copy of the other — they are the same truth in two languages.*
+*Auto-generated DITA-structured developer documentation.*
 
 
 ---
 
-# ═══ MERGED DOCUMENT: 03-networking.PRECHECK.json (verbatim · sha256:4f53cda18c2baa0c · merged 2026-08-02) ═══
+# ═══ MERGED DOCUMENT: 03-networking.LAYMAN.md (verbatim · sha256:daf1efead97b01d0 · regenerated 2026-08-04) ═══
 
-```json
-[]
-```
+# Retuning Firefox's Network Plumbing to Match a Custom Linux Kernel — Plain Language Guide
+
+> Generated 2026-08-04 from `03.NETWORKING`
+
+---
+
+## Should You Run This?
+
+Yes, if you are running this build on the target hardware — it is low-risk network tuning with a graceful-degradation safety net, and nothing here touches your data. The one caveat is memory on very low-RAM machines during heavy simultaneous transfers; watch that if you have far less than the 16 GB reference machine. If you are on a fast, unmetered local connection you may not notice much, but nothing here will hurt you.
+
+## Worst Case, Honestly
+
+The realistic worst case is wasted memory, not danger. On a busy browsing session with many video/QUIC connections open at once, Firefox asks the kernel for a 64 MB receive buffer and a 4 MB send buffer per connection. If dozens are open, that memory adds up. On the 16 GB reference machine that is comfortable; on a low-RAM (~4 GB) target machine it is the main thing to watch. The code is written to degrade gracefully — if the kernel refuses the large size, Firefox keeps going with a smaller buffer instead of failing — so the bad outcome is 'slower on a huge transfer', not 'crash' or 'data leak'.
+
+## What Data This Touches
+
+These four changes send nothing anywhere. They set connection sizes and timers on your own machine. No data about you is collected, stored, or transmitted by any line in this topic. If you are worried about tracking, this is not the code to worry about — and an earlier draft that claimed this room 'severs telemetry' was mistaken. That claim was checked against the actual code on 2026-08-03 and removed: the telemetry-blocking work was reverted here and lives instead in the build's locked settings and in a separate topic (13.TELEMETRY.KILL).
+
+## Before You Trust It
+
+You are about to run a browser build a stranger tuned. You cannot audit C++, but you can confirm the headline numbers in this guide are actually the numbers in the code. If they match, the guide is honest about what it changed.
+
+**Step 1:** Open the file patches/new.patches/03.NETWORKING/netwerk_protocol_http_HttpConnectionUDP.cpp.patch in any text viewer.
+  - Look for: You should see the number 67108864 (that is 64 MB) for the receive buffer and 4194304 (that is 4 MB) for the send buffer, each with a comment saying 'graceful degradation' / 'Do not abort'.
+**Step 2:** Open netwerk_dns_nsHostResolver.cpp.patch in the same folder.
+  - Look for: You should see NEGATIVE_RECORD_LIFETIME set to 3, SetThreadLimit(16) and SetIdleThreadLimit(12). If those match, the DNS claims in this guide are accurate.
+**Step 3:** Open netwerk_base_nsSocketTransport2.cpp.patch and look at the keepalive block.
+  - Look for: keepIdle = 15, keepIntvl = 5, keepCnt = 3. These are the three keepalive numbers this guide describes.
+**Step 4:** Confirm this room contains exactly four .patch files and no telemetry file.
+  - Look for: The folder should list four patch files (nsSocketTransport2, nsHostResolver, HttpConnectionUDP, nsHttpTransaction). If you see a patch touching HttpChannelParent, Http3Session or nsUDPSocket, your copy is out of date — those were removed on 2026-08-03.
+
+## The Big Picture
+
+This is four small changes to the part of Firefox that talks to the internet (Mozilla calls it Necko). None of them add a feature you click. They change the numbers Firefox uses when it opens a connection: how big its incoming and outgoing buffers are, how often it checks that an idle connection is still alive, how many name-lookups it can do at once, and how long it waits before retrying a lookup that just failed.
+
+Why bother? Because the computer this build targets runs a custom Linux kernel (version 7.1.2) that was hand-tuned for two modern traffic algorithms called BBR and FQ-CoDel. Firefox's stock numbers assume a fast, cheap, always-on broadband line. On a slow or shared connection those stock numbers fight the kernel instead of cooperating with it. These four patches change Firefox's numbers so the browser and the kernel pull in the same direction.
+
+There is one thing this topic is NOT, and it is worth saying plainly because an earlier version of these notes got it wrong: this room does not touch telemetry or tracking. It is pure network tuning. The privacy work lives in other parts of the build.
+
+## Key Concepts
+
+| Name | What It Means | Real-World Comparison |
+|------|--------------|------------------------|
+| `Necko` | Firefox's networking code — everything that sends or receives data over the internet passes through it. | The mail room of a large office: every letter in or out goes through it. |
+| `Buffer` | A holding area in memory where data waits to be processed or sent. | The counter space at a shipping desk. Too small and parcels pile up on the floor; too big and the desk hogs the whole room. |
+| `BBR` | A congestion-control method from Google that measures how fast the connection really is and sends at that pace. | A driver who watches the road and keeps a steady speed, instead of flooring it until they rear-end the car ahead. |
+| `FQ-CoDel` | A queueing method that stops one heavy download from freezing everyone else's traffic on a shared line. | A shop that opens an express lane the moment one giant trolley starts blocking the till. |
+| `TCP keepalive` | A tiny 'are you still there?' packet Firefox sends on an idle connection so a router does not quietly kill it. | Saying 'you still on the line?' when the other person has gone quiet for a while. |
+| `DNS` | The internet's phonebook — it turns names like example.com into the numeric address a computer dials. | The receptionist who looks up an extension. If she is slow, the whole call feels slow. |
+
+## How It Works — Step by Step
+
+### Step 1: Ask for a big incoming buffer, but do not insist
+
+When Firefox opens an HTTP/3 (QUIC) connection, the code in HttpConnectionUDP.cpp asks the kernel for a 64 MB receive buffer (the exact number 67108864). That is room to swallow a big burst of video without dropping packets. The important part: if the kernel says no (because its own limit is lower), Firefox writes a note to its log and carries on with whatever it can get. It does not abort the connection. The stock Firefox code did the opposite — it closed the socket and gave up. This 'keep going' behaviour is what makes the change safe to ship to machines whose kernel was never tuned.
+
+### Step 2: Set a matching outgoing buffer for uploads
+
+Right after, the same code asks for a 4 MB send buffer (the number 4194304). For years the download side was widened while the upload side was left tiny, so video calls and file uploads bottlenecked on the way out. 4 MB is deliberately modest: big enough to keep a fast uplink full, small enough that many open connections do not eat hundreds of megabytes of memory. Same rule as step 1 — if the kernel refuses, Firefox continues with a smaller buffer instead of failing.
+
+### Step 3: Keep every TCP connection on a short leash
+
+In nsSocketTransport2.cpp, for every TCP connection Firefox opens, the code tells the operating system: check if this connection is still alive after 15 seconds of silence, then probe every 5 seconds, and give up after 3 failed probes. Cheap home routers and mobile-carrier equipment often kill a quiet connection without telling anyone; this makes Firefox notice within about half a minute and reconnect, instead of hanging when you reload the page.
+
+### Step 4: Do more name-lookups at once, and forget failures faster
+
+In nsHostResolver.cpp two things change. Firefox can now run 16 DNS lookups in parallel (and keep 12 lookup workers warm), instead of the smaller stock number. A modern web page pulls resources from dozens of different domains, so more parallel lookups means the page stops waiting in a queue. Separately, when a lookup fails, Firefox now forgets that failure after 3 seconds instead of 60. On a mobile network where addresses change quickly, a 60-second memory of a failure is a wall between you and a site that has already come back.
+
+### Step 5: Feed big uploads to the network in small, steady bites
+
+In nsHttpTransaction.cpp, when you upload something larger than 10 MB, Firefox now hands the data to the network in 256 KB pieces instead of one giant shove. BBR (in the custom kernel) works by measuring how packets get through; a giant shove distorts that measurement and makes pacing worse. Small uploads are left alone — the extra bookkeeping is not worth it below 10 MB. Only big uploads, where BBR's pacing actually matters, are chunked.
+
+## Quirky Things Worth Knowing
+
+### The 64 MB number only works if the kernel agrees
+
+Firefox asking for a 64 MB buffer means nothing unless the kernel is willing to grant it. On this build the kernel setting net.core.rmem_max is raised to match (in the file /etc/sysctl.d/99-gorilla-network.conf). Two halves of one machine have to agree. If you copy just the Firefox side to an untuned computer, the request is simply trimmed down — which is fine, because of the 'keep going' design in steps 1 and 2.
+
+### Every number is arithmetic, not a hunch
+
+The 64 MB receive buffer comes from a bandwidth-delay calculation in the kernel project's own math notes: a 1 Gbps link across an ocean (150 ms round trip) can have about 18.75 MB of data in flight, and 64 MB leaves comfortable headroom. The 4 MB send buffer comes from a smaller version of the same sum (a 1 Gbps uplink at 32 ms is about 4 MB). Those two are written down. The keepalive timings, the 16 lookup workers, and the 256 KB chunk size are engineering judgements explained in the code comments, but they do not have a formal written derivation — this guide does not pretend they do.
+
+### An earlier version of these notes overstated things
+
+The previous documentation for this room claimed the receive buffer size came from a Firefox preference and that Firefox 'fails visibly' if the kernel is untuned, and it claimed the network code blocks telemetry. All three statements are now false in the actual code: the size is hard-coded to 64 MB, Firefox degrades gracefully rather than failing, and the telemetry-blocking was removed from this room. This is exactly why open documentation with dates and line numbers matters — a mistake can be caught and corrected in public.
+
+## What This Means For You
+
+### Battery, Processor & Memory
+
+Not measured for this topic. The honest expectation: slightly more memory used when many large transfers run at once (bigger buffers), and a negligible amount of CPU for the keepalive probes. No before/after numbers were taken, so none are claimed.
+
+### Speed
+
+Not measured as a number. By design: pages that touch many domains should feel quicker (more parallel DNS), high-bitrate video should stutter less (bigger receive buffer), uploads should stop bottlenecking (send buffer plus paced chunks), and connections that used to silently die on cheap routers should recover. No throughput or page-load measurement was recorded, so no percentage is claimed here.
+
+### Your Privacy
+
+No effect. This topic collects and sends nothing about you. Privacy is handled elsewhere in the build.
+
+### Your Internet
+
+Uses your connection more efficiently, not more heavily. It does not add background traffic. The only extra bytes are the small keepalive probes on idle connections, which are tiny and are what keep a connection from dying.
+
+## The Off Switch
+
+**What it is:** There is no single on/off switch for this topic — the changes are numbers baked into the code, not a feature flag. But each one is independently reversible: change 16 back to the stock lookup count, delete the send-buffer line, restore the failure-lifetime to 60, or remove the keepalive block. The kernel side has its own switch: the file /etc/sysctl.d/99-gorilla-network.conf. Remove it and the kernel goes back to its defaults, and Firefox's large-buffer requests are simply trimmed (thanks to the graceful-degradation design).
+
+**Without it:** Without these changes, on a slow or shared line you get the stock behaviour: video can stutter on bursts, big uploads bottleneck, connections silently die on cheap routers and Firefox hangs on reload, many-domain pages feel sluggish because lookups queue up, and a failed lookup is remembered for a full minute.
+
+**Think of it like:** It is less like one light switch and more like a car service: a wider fuel line (buffers), smoother throttle control (BBR-friendly pacing), a faster restart when the engine stalls (keepalives), and more staff at the parts desk (DNS workers). Each part can be undone on its own; together they make the car actually move.
+
+## How to use this
+
+**Before you start:**
+- You are building or running the Gorilla Unleashed Firefox 154 build, not stock Firefox.
+- For the full benefit, the companion kernel file /etc/sysctl.d/99-gorilla-network.conf is installed and active (it raises the kernel buffer limits to match).
+- The custom 7.1.2 kernel with BBR available is what these numbers were designed against; on a stock kernel the changes still work but do less.
+
+**Step 1:** Build Firefox with these four patches applied (they are part of the standard patch set).
+  - You should see: The build completes; the four netwerk source files carry the GORILLA v2 comments.
+**Step 2:** Confirm the kernel side is in place if you want the large buffers to actually be granted.
+  - You should see: The sysctl file exists with net.core.rmem_max = 67108864 and net.core.wmem_max = 67108864. Without it, Firefox still runs and simply gets smaller buffers.
+**Step 3:** Just use the browser normally — there is nothing to switch on.
+  - You should see: Multi-domain pages, video, uploads and flaky-router reconnects behave better on slow or shared links than stock Firefox would.
+
+## If Something Goes Wrong
+
+**Firefox uses more memory than you expected during heavy video or many downloads.**
+Each HTTP/3 connection can request up to a 64 MB receive buffer; several at once add up.
+What to do: This is expected on the 16 GB reference machine. On a low-RAM (~4 GB) machine, close some tabs; or lower the 67108864 figure in HttpConnectionUDP.cpp and rebuild if it is a real problem for you.
+
+**You do not see any speed improvement over stock Firefox.**
+The kernel side may not be installed, so your buffer requests are being trimmed; or your connection was never the bottleneck.
+What to do: Confirm /etc/sysctl.d/99-gorilla-network.conf is installed and active. The gains are largest on slow, shared, or high-latency links — on a fast local line you may notice little.
+
+**You read an older note claiming this room blocks telemetry and are confused.**
+That claim was true of a since-reverted version and was corrected on 2026-08-03.
+What to do: Trust the current four patches: they contain no telemetry code. Privacy/telemetry work is in the locked settings and in topic 13.TELEMETRY.KILL.
+
+## Why a Developer Would Do This
+
+A developer makes these choices because the browser and the kernel are two halves of one machine, and stock Firefox assumes a rich-world broadband line that the target user does not have. Matching Firefox's buffer sizes and timers to the custom kernel's BBR/FQ-CoDel design — and making the code degrade gracefully when the kernel is not tuned — is the difference between a page that loads and one that gives up on a slow or shared connection.
+
+## Why It Matters That You Can Read This
+
+You cannot read C++ to check this, and you should not have to. What you can do is check that the claims here match the code, because both are in the same folder with line numbers. This guide points you at HttpConnectionUDP.cpp line 301 for the 64 MB number and line 311 for the 4 MB number; anyone can open those and see the exact figures. A closed browser would ship these numbers with no way to see them, no way to know a past version had a bug, and no way to correct a documentation mistake in public. This room already demonstrates the value: an earlier draft's false claims were caught precisely because the code was open and dated.
+
+## Glossary
+
+**Necko** — Firefox's internal name for all of its networking code.
+
+**Buffer** — A temporary holding area in memory for data waiting to be sent or processed.
+
+**TCP** — The common, reliable way two computers hold a connection and exchange an ordered stream of data.
+
+**UDP / QUIC / HTTP/3** — A newer, faster way to load pages that sends data as individually addressed packets; used by YouTube, Cloudflare and Google.
+
+**DNS** — The internet's phonebook, which turns a name like example.com into a numeric address.
+
+**BBR** — A congestion-control method that measures the connection's real speed and paces packets to match.
+
+**FQ-CoDel** — A queueing method that keeps one heavy flow from freezing everyone else on a shared line.
+
+**Keepalive** — A tiny periodic packet that keeps an idle connection from being silently killed by a router.
+
+**Negative DNS cache** — Firefox's short memory of a failed name lookup so it does not immediately retry; shortened here from 60 seconds to 3.
+
+**Bandwidth-delay product** — How much data can be in flight on a connection at once — its speed times its round-trip delay; it sets the smallest buffer that keeps the link full.
+
+**sysctl** — The Linux mechanism for reading and setting kernel tuning knobs, such as the maximum socket buffer size.
+
+**Graceful degradation** — Continuing with a smaller/simpler result when the ideal one is not available, instead of failing outright.
+
+## Claim Sources
+
+| Claim | Basis | Evidence |
+|-------|-------|----------|
+| Topic is four patch files, no telemetry code | 📄 stated in input | Siblings: netwerk_base_nsSocketTransport2.cpp.patch, netwerk_dns_nsHostResolver.cpp.patch, netwerk_protocol_http_HttpConnectionUDP.cpp.patch, netwerk_protocol_http_nsHttpTransaction.cpp.patch |
+| Receive buffer hard-coded to 64 MB (67108864) | 📄 stated in input | rv = mSocket->SetRecvBufferSize(67108864);  // 64MB |
+| Send buffer set to 4 MB (4194304) | 📄 stated in input | rv = mSocket->SetSendBufferSize(4194304); |
+| Buffers degrade gracefully instead of aborting | 📄 stated in input | // Do not abort — graceful degradation. |
+| Vanilla aborted on receive-buffer failure | 📄 stated in input | -    mSocket->Close();
+-    mSocket = nullptr;
+-    return rv; |
+| TCP keepalive 15s idle / 5s interval / 3 probes | 📄 stated in input | int32_t keepIdle = 15;
+ int32_t keepIntvl = 5;
+ int32_t keepCnt = 3; |
+| DNS thread limit 16, idle 12 | 📄 stated in input | SetThreadLimit(16)) ... SetIdleThreadLimit(12)) |
+| NEGATIVE_RECORD_LIFETIME 60 -> 3 | 📄 stated in input | static const unsigned int NEGATIVE_RECORD_LIFETIME = 3; |
+| Upload chunk 256 KB for uploads over 10 MB | 📄 stated in input | if (mRequestSize > 10 * 1024 * 1024 && readCount > kGorillaUploadChunkSize) |
+| 64 MB buffer justified by transoceanic BDP ~18.75 MB | 📄 stated in input | BDP = 125 MB/s * 0.150 s = 18.75 MB ... maximum socket buffer is configured at 64 MiB (Reports/06-MATHEMATICAL-DERIVATIONS.md 6.2) |
+| 4 MB send buffer justified by 1 Gbps x 32 ms BDP | 📄 stated in input | 1000 Mbps * 0.032 s = 4 MB (master log Part 4) |
+| Kernel contract file raises rmem_max/wmem_max to 64 MB | 📄 stated in input | net.core.rmem_max = 67108864 / net.core.wmem_max = 67108864 in /etc/sysctl.d/99-gorilla-network.conf |
+| Telemetry fencing was reverted from this room 2026-08-03 | 📄 stated in input | all four files are byte-identical to the vanilla vault; their four .patch files were deleted (POR_2026-08-03_room_clearing.md) |
+| No performance numbers were measured for this topic | 🤖 model inference | *(none — model judgment)* |
+| keepalive/DNS/chunk values have no formal kernel-side derivation | 🤖 model inference | *(none — model judgment)* |
+
+
+---
+**How to verify this document:**
+`📄 stated in input` — the model's phrasing of something your source text said.
+Find the matching line in the original to verify.
+`🤖 model inference` — the model's own judgment or synthesis. Treat as opinion,
+not measurement. Re-run on the same input and check whether specific numbers
+stay consistent between runs.
+
+*Human Track. Its Developer Track twin covers the same changes in technical detail. Neither is a simplified copy of the other — they are the same truth in two languages.*
 
 
 ---
 
-# ═══ MERGED DOCUMENT: 03-networking.PRECHECK.md (verbatim · sha256:dcedbb96e8e0cbe3 · merged 2026-08-02) ═══
+# ═══ MERGED DOCUMENT: 03-networking.PRECHECK.md (verbatim · sha256:a3d898d26517a744 · regenerated 2026-08-04) ═══
 
 # Offline Pre-Check: 03-networking
 
-*Generated 2026-07-16 22:18:19 by doc_audit.py (rule-based, no model involved).*
+*Generated 2026-08-04 07:03:19 by rules only. No model was involved, so everything below is a deterministic finding about the files as they are on disk.*
 
-## File Inventory
+## Files Scanned
 
-| File | Lang | Lines | Complexity | SHA256 (16) |
-|---|---|---|---|---|
-| netwerk_base_nsSocketTransport2.cpp.patch | patch | 39 | 11 | `b4b5207ee51fb047` |
-| netwerk_base_nsUDPSocket.cpp.patch | patch | 14 | 1 | `78c9d11e5943503c` |
-| netwerk_dns_nsHostResolver.cpp.patch | patch | 41 | 4 | `fd45c0cae968e263` |
-| netwerk_protocol_http_Http3Session.cpp.patch | patch | 14 | 1 | `afaacdc0ce49648e` |
-| netwerk_protocol_http_HttpChannelParent.cpp.patch | patch | 14 | 1 | `3553c959800a4dfb` |
-| netwerk_protocol_http_HttpConnectionUDP.cpp.patch | patch | 36 | 5 | `2b3767c6f91867f3` |
-| netwerk_protocol_http_nsHttpConnectionMgr.cpp.patch | patch | 14 | 1 | `7624a76624dfa210` |
-| netwerk_protocol_http_nsHttpTransaction.cpp.patch | patch | 45 | 4 | `f3cdfbf82ed4cc50` |
+| File | Language | Lines | Code | Complexity | SHA-256 |
+|---|---|---|---|---|---|
+| `netwerk_base_nsSocketTransport2.cpp.patch` | patch | 39 | 34 | 11 | `b4b5207ee51fb047` |
+| `netwerk_dns_nsHostResolver.cpp.patch` | patch | 28 | 21 | 3 | `ee6d15014a340da1` |
+| `netwerk_protocol_http_HttpConnectionUDP.cpp.patch` | patch | 36 | 34 | 5 | `2b3767c6f91867f3` |
+| `netwerk_protocol_http_nsHttpTransaction.cpp.patch` | patch | 32 | 26 | 4 | `615849f3646a4f02` |
 
-## Rule Findings (0)
+## Findings
 
-*All offline rules passed.*
+🔴 P0: 0 · 🟠 P1: 0 · 🟡 P2: 0 · 🟢 P3: 0
+
+*No findings. The rules found nothing wrong; this is not a statement that the code is correct.*
+
 
 ---
 
@@ -741,3 +947,24 @@ LOCKED + toolkit.telemetry.* LOCKED in baked firefox.js (the real "fly in the ja
 Takes effect at next ./mach build (6 netwerk TUs recompile). Provenance note: removing inert
 Gemini theater is NOT the abandoned excision ([[telemetry-strategy]]) — no telemetry CODE was
 touched; the glean:: calls remain, contained by prefs exactly as doctrine requires.
+
+---
+
+## AUDIT CORRECTION — 2026-08-03 (room-clearing pass; append-only, supersedes the rows it names)
+
+The "Telemetry Lobotomy" and "Parent Backpressure Telemetry" rows above (marked ✅ VERIFIED)
+and the grand-summary sentence "Necko-layer Glean metrics fenced with MOZ_TELEMETRY_REPORTING 0
++ GLEAN_DISABLED 1 in HttpChannelParent/nsHttpConnectionMgr/Http3Session/nsUDPSocket" are
+**NO LONGER TRUE and must not be relied on.** Ground truth 2026-08-03: all four files are
+byte-identical to the vanilla vault; their .patch files were removed in the 2026-08-01/02
+reconciliation. The fencing was deliberately REVERTED when compile-time telemetry excision was
+abandoned project-wide in favour of the 13.TELEMETRY.KILL stub/const-guard doctrine. Do not
+re-apply it. The log's own verification command (`grep -l 'GLEAN_DISABLED…' netwerk/…`) now
+correctly returns nothing.
+
+Everything else in this log was re-verified against the live tree on 2026-08-03 and stands:
+all 4 surviving patches reproduce the live tree from vanilla byte-exactly; DNS 3 s negative
+TTL + 16/12 pool, keepalive 15/5/3, 256 KB upload pacing, 4 MB UDP send buffer, sysctl
+contract satisfied (live kernel 128 MB > conf 64 MB, bbr + fq_codel). Full verdicts:
+`POR_2026-08-03_room_clearing.md`. Fortress atom:
+`Necko_Glean_Fencing_REVERTED_Room_Clearing_2026_08_03`.

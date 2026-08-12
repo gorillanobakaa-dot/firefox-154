@@ -16,7 +16,8 @@ by the megabyte.
 
 The reference machine is a pink Sony VAIO SVE14A3AJ, bought for the author's wife,
 who never warmed to it, replaced it with a 2011 MacBook Air, and was going to throw
-it away. It was adopted instead. In 2012 it was a monster — 16 GB of RAM when small
+it away. It was adopted instead. In 2012 it was a monster ,there was no I9 at the time.
+I maxed out its RAM — 16 GB of RAM in a time when small
 companies ran servers on less, an i7 when i7 was the absolute ceiling (the tamer i7
 chosen deliberately, for heat and longevity — a future-proofing bet that paid off).
 The only upgrade in ~15 years: a Kingston DC600M *enterprise* SSD. Today it compiles
@@ -71,6 +72,32 @@ And the working tiebreaker, for every doubtful call (one modern tab already eats
 
 > **If it saves RAM, CPU cycles, or network bandwidth — apply it.
 > If it costs them — ditch it, patch it, or remove it.**
+
+### The one place the rule bends: captive-portal detection
+
+There is a deliberate exception, and it is worth stating plainly because it looks
+like a contradiction. Captive-portal detection — the small recurring check Firefox
+makes on startup and network change, to notice the login page a café or hotspot
+puts up before it lets you online — is a phone-home to a Mozilla server. By the
+letter of the doctrine it should be killed: background chatter, a call to a remote
+endpoint, exactly the family this build strips.
+
+It stays on, on purpose. The reason is the audience itself. Home broadband is
+unaffordable across much of where these machines land; the kids this build is for
+reach the internet through **cyber-cafés, public libraries, shared and free
+hotspots** — networks that almost always sit behind a captive portal. Strip the
+detector and the browser silently fails to connect on exactly the networks that
+are their only way online, with no hint why. The maintainer's own instinct was to
+excise it as a security risk; real user reports overruled that. So the doctrine
+yields to the reality: a phone-home we would otherwise remove is kept because for
+this audience it is not a convenience, it is the door to the internet.
+
+The discipline that survives the exception: it is kept **working and honest**, not
+expanded. The detection prefs are held at Mozilla's known-good values (Gemini had
+repointed them at a Google-style endpoint Firefox's own code cannot evaluate,
+quietly breaking the feature — restored 2026-08-03); nothing about the check is
+widened beyond what portal detection needs. An exception is documented, bounded,
+and load-bearing — never a crack the next service slips through.
 
 ## The silicon principle (use what is already there)
 

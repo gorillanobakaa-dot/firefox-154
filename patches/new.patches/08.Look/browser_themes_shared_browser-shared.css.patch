@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/browser/themes/shared/browser-shared.css	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/browser/themes/shared/browser-shared.css	2026-07-31 13:22:17.169608128 +0100
+--- a/browser/themes/shared/browser-shared.css
++++ b/browser/themes/shared/browser-shared.css
 @@ -11,7 +11,6 @@
  @import url("chrome://browser/skin/tabbrowser/ctrlTab.css");
  @import url("chrome://browser/skin/tabbrowser/fullscreen-and-pointerlock.css");

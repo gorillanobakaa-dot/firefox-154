@@ -1,0 +1,14 @@
+<concept>
+    <title>Source Tree: Firefox.Scripts.Backup.Docs/01_Media_Audio_Video</title>
+    <category>Source Code Structure</category>
+    <description>Directory tree (depth=4) of /home/gorilla/Documents/Firefox.Scripts.Backup.Docs/01_Media_Audio_Video</description>
+    <details>
+/home/gorilla/Documents/Firefox.Scripts.Backup.Docs/01_Media_Audio_Video
+├── Human.Readable.Audio.ASCII.pipeline.diagram.md
+├── Human.Readable.Audio.video.txt
+├── Human.Readable..Remediation.Plan.md
+├── Human.Readable.AUDIT_REPORT.txt
+└── Human.Readable.Unleashed_153_Report.docx
+
+    </details>
+</concept>

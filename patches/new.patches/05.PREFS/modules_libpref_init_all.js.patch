@@ -14,25 +14,22 @@
  // This Source Code Form is subject to the terms of the Mozilla Public
  // License, v. 2.0. If a copy of the MPL was not distributed with this
  // file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-@@ -187,7 +197,7 @@
+@@ -187,7 +197,13 @@
  pref("media.throttle-factor", 2);
  
  // Master HTML5 media volume scale.
 -pref("media.volume_scale", "1.0");
++// GORILLA OVERRIDE: media.volume_scale 2.0 is a DELIBERATE output-level choice.
++// The 2026-08-01/02 audio sessions tuned the whole chain (PipeWire + in-browser
++// DSP) WITH this doubling in place; owner ear-validated on the reference
++// speakers 2026-08-03 (running build greprefs.js:70, no profile override).
++// Entered the patch set unsigned pre-2026-07-17 — signed retroactively after
++// audit. Do NOT "restore to 1.0" without re-tuning the entire audio chain.
 +pref("media.volume_scale", "2.0");
  
  // Whether we should play videos opened in a "video document", i.e. videos
  // opened as top-level documents, as opposed to inside a media element.
-@@ -233,7 +243,7 @@
- 
- #ifdef MOZ_WEBRTC
-   pref("media.navigator.video.enabled", true);
--  pref("media.navigator.video.default_fps",30);
-+  pref("media.navigator.video.default_fps",60); // 60fps webcam via HD 4000 QuickSync HW encode
-   // Whether to expose the resizeMode constraint/setting/capability to content.
-   // Kept false while implementing the feature in bug 1286945 and dependencies,
-   // to allow for gradually gaining support and test coverage.
-@@ -531,14 +541,23 @@
+@@ -531,14 +547,23 @@
  
  // Telemetry settings.
  // Server to submit telemetry pings to.
@@ -64,7 +61,7 @@
  
  // DAP related preferences
  pref("toolkit.telemetry.dap_enabled", false);
-@@ -783,8 +802,8 @@
+@@ -783,8 +808,8 @@
  pref("dom.storage.snapshot_reusing", true);
  pref("dom.storage.client_validation", true);
  
@@ -75,7 +72,7 @@
  
  // Enable search in <select> dropdowns (more than 40 options)
  pref("dom.forms.selectSearch", false);
-@@ -860,9 +879,6 @@
+@@ -860,9 +885,6 @@
  // interaction directly).
  pref("privacy.purge_trackers.consider_entity_list", false);
  
@@ -85,7 +82,7 @@
  pref("dom.event.contextmenu.enabled",       true);
  
  pref("javascript.enabled",                  true);
-@@ -2878,7 +2894,7 @@
+@@ -2878,7 +2900,7 @@
  #if defined(ANDROID)
    // We use the bundled Charis SIL Compact as serif font for Firefox for Android
  
@@ -94,7 +91,7 @@
  
    pref("font.name-list.serif.ar", "Noto Naskh Arabic, Noto Serif, Droid Serif");
    pref("font.name-list.sans-serif.ar", "Noto Naskh Arabic, Roboto, Google Sans, Droid Sans");
-@@ -3019,6 +3035,14 @@
+@@ -3019,6 +3041,20 @@
  pref("signon.storage.rust.active", false);
  pref("signon.storage.rust.migrationAttempts", 0);
  
@@ -105,38 +102,17 @@
 +  pref("signon.rustMirror.enabled", false);
 +  pref("signon.rustMirror.collectFailedOrigins", false);
 +#endif
++// GORILLA: rustMirror is a login-failure-origin COLLECTION surface. Upstream enables it
++// on NIGHTLY_BUILD (which this build identifies as). Egress is dead here (telemetry jarred),
++// but the mission kills collection surfaces no matter the name — and this stops the login-store
++// shadow-mirror work. Unconditional last-write-wins override + locked (ifdef-append method).
++pref("signon.rustMirror.enabled", false, locked);
++pref("signon.rustMirror.collectFailedOrigins", false, locked);
 +
  // Satchel (Form Manager) prefs
  pref("browser.formfill.debug",            false);
  pref("browser.formfill.enable",           true);
-@@ -3152,9 +3176,9 @@
- #endif
- 
- // Add-on content security policies.
--pref("extensions.webextensions.base-content-security-policy", "script-src 'self' https://* http://localhost:* http://127.0.0.1:* moz-extension: blob: filesystem: 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline';");
-+pref("extensions.webextensions.base-content-security-policy", "script-src 'self' https://* http://localhost:* http://0.0.0.0:* moz-extension: blob: filesystem: 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline';");
- pref("extensions.webextensions.base-content-security-policy.v3", "script-src 'self' 'wasm-unsafe-eval';");
--pref("extensions.webextensions.base-content-security-policy.v3-with-localhost", "script-src 'self' 'wasm-unsafe-eval' http://localhost:* http://127.0.0.1:*;");
-+pref("extensions.webextensions.base-content-security-policy.v3-with-localhost", "script-src 'self' 'wasm-unsafe-eval' http://localhost:* http://0.0.0.0:*;");
- pref("extensions.webextensions.default-content-security-policy", "script-src 'self' 'wasm-unsafe-eval';");
- pref("extensions.webextensions.default-content-security-policy.v3", "script-src 'self'; upgrade-insecure-requests;");
- 
-@@ -3276,11 +3300,12 @@
- // Used for progressive rollout of LNA for ETP strict users
- pref("network.lna.etp.enabled", true);
- 
--pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/canonical.html");
--pref("captivedetect.canonicalContent", "<meta http-equiv=\"refresh\" content=\"0;url=https://support.mozilla.org/kb/captive-portal\"/>");
-+pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/generate_204");
-+pref("captivedetect.canonicalContent", "");
- pref("captivedetect.maxWaitingTime", 5000);
- pref("captivedetect.pollingTime", 3000);
- pref("captivedetect.maxRetryCount", 5);
-+pref("captivedetect.expectedStatus", 204);
- 
- // The tables used for Safebrowsing phishing and malware checks
- pref("urlclassifier.malwareTable", "goog-malware-proto,goog-unwanted-proto,moztest-harmful-simple,moztest-malware-simple,moztest-unwanted-simple");
-@@ -3980,13 +4005,6 @@
+@@ -3980,13 +4016,6 @@
  pref("dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled", false, locked);
  #endif
  
@@ -150,7 +126,7 @@
  // Preferences for the form autofill toolkit component.
  // The truthy values of "extensions.formautofill.addresses.available"
  // is "on" and "detect",
-@@ -3998,11 +4016,8 @@
+@@ -3998,11 +4027,8 @@
  
  #if !defined(ANDROID)
  pref("extensions.formautofill.addresses.supported", "on");
@@ -162,7 +138,7 @@
  #endif
  pref("extensions.formautofill.addresses.enabled", true);
  pref("extensions.formautofill.addresses.capture.enabled", true);
-@@ -4126,3 +4141,93 @@
+@@ -4126,3 +4152,96 @@
  #ifdef MOZ_ARTIFACT_BUILDS
    pref("telemetry.fog.artifact_build", true);
  #endif
@@ -179,12 +155,15 @@
 +pref("media.ffmpeg.vaapi.enabled", true);
 +pref("media.ffmpeg.vaapi.decode.force-enabled", true);
 +pref("widget.dmabuf.force-enabled", true);
-+pref("gfx.x11-egl.force-enabled", true);
++// GORILLA: corrected 2026-08-03 — golden rule 1: the GPU process stays OFF on
++// Wayland (ERROR 9 black-window class); VA-API decodes in RDD, not the GPU
++// process. These five were true here, contradicting firefox.js — now aligned.
++pref("gfx.x11-egl.force-enabled", false);
 +pref("gfx.canvas.accelerated.force-enabled", true);
-+pref("layers.gpu-process.enabled", true);
-+pref("layers.gpu-process.force-enabled", true);
-+pref("media.gpu-process-decoder", true);
-+pref("media.gpu-process-decoder.force-enabled", true);
++pref("layers.gpu-process.enabled", false);
++pref("layers.gpu-process.force-enabled", false);
++pref("media.gpu-process-decoder", false);
++pref("media.gpu-process-decoder.force-enabled", false);
 +pref("gfx.blacklist.all", 0);
 +pref("gfx.blacklist.suggested-driver-version", "0.0.0.0");
 +

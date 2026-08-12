@@ -1,0 +1,11 @@
+[Unit]
+Description=Mirror default-sink volume onto the hardware sink (post-compressor slider authority)
+After=pipewire-pulse.service
+Requires=pipewire-pulse.service
+
+[Service]
+ExecStart=/home/gorilla/.local/bin/loudness-volume-mirror
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

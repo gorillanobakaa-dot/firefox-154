@@ -1,0 +1,116 @@
+<concept name="Remediation_Plan">
+  <human_rationale>
+# Unleashed 153: MASTER MEDIA REMEDIATION &amp; COMPANDER PLAN
+
+===========================================================================
+                  PART I: THE EXECUTION STRATEGY
+===========================================================================
+This plan outlines the sequential application of the architectural 
+corrections required to stabilize the audio subsystem and seal the 
+hardware-only decoding fortress.
+
+1. **Phase 1: Audio Dynamics (The Compander)**
+   - **Target**: `CubebUtils.cpp` &amp; `AudioStream.cpp`
+   - **Action**: Implement the Nonlinear Transfer Function $G(x)$.
+     - **Expansion**: 2.0x boost for signals below $T_{low}$.
+     - **Compression**: Soft-knee curve for signals above 0.80f.
+   - **Goal**: Restore dynamic range ("Whisper-to-Scream" mapping).
+
+2. **Phase 2: Codec Gatekeeping**
+   - **Target**: `DecoderTraits.cpp`
+   - **Action**: Modify `CanHandleMediaType` to return `CANPLAY_NO` for 
+     Ogg and WebM early.
+   - **Goal**: Kill software VP8/9/AV1 at the gate.
+
+3. **Phase 3: Hardware Failure Hardening**
+   - **Target**: `PDMFactory.cpp` &amp; `FFmpegVideoDecoder.cpp`
+   - **Action**: Explicit `nullptr` / `NS_ERROR` failure states.
+   - **Goal**: Prevent SIGSEGV on driver failure.
+
+4. **Phase 4: IPC Boundary Integrity**
+   - **Target**: `RemoteVideoDecoder.cpp`
+   - **Action**: Enforce `IsSurfaceDescriptorValid` checks.
+   - **Goal**: Zero-copy enforcement.
+
+===========================================================================
+                  PART II: DUAL-TRACK ARCHITECTURAL REPORT
+===========================================================================
+
+---------------------------------------------------------------------------
+TRACK A: LAYMAN SUMMARY (The "Experience")
+---------------------------------------------------------------------------
+**The Problem**: Your browser was currently "screaming" at 400% volume 
+even when you turned it down, causing the Sony VAIO plastic to rattle and 
+making the first half of the volume bar useless. At the same time, it 
+was trying to decode modern videos using the CPU, which is like trying 
+to tow a truck with a bicycle.
+
+**The Fix (The "Volume Magnifying Glass &amp; Ear-Saver")**:
+1. **The Compander (Whisper-Booster &amp; Ear-Saver)**:
+   * **The Whisper Booster**: Quiet sounds (like whispers in movies) are boosted by 2.0x so you don't have to keep turning the volume up.
+   * **The Explosion Limiter**: Very loud sounds (above 80% volume) are caught by a soft, springy trampoline curve (a "soft knee") instead of hitting a hard concrete ceiling. This prevents speaker rattling and distorted screeching.
+   * **The Result**: You lose a tiny bit of "harsh maximum noise," but gain 50% more clarity. Whispers sound like whispers (but audible), and loud sounds have room to feel big without hurting your ears.
+
+2. **The "Hardware-Only" Lock**: We are telling the browser: "If the 
+   GPU can't handle it, don't even try." This stops the CPU from being 
+   crushed, keeping the VAIO fast and cool.
+
+---------------------------------------------------------------------------
+TRACK B: DEVELOPER SUMMARY (Technical Implementation)
+---------------------------------------------------------------------------
+**Mathematical Specifications**:
+1. **Gain Function $G(x)$ (The Compander)**: 
+   - **Low-Level Expansion ($|x| &lt; T_{low}$)**: Apply $k_{exp}$ (2.0x). 
+     This is the "Magnifying Glass."
+   - **High-Level Compression ($|x| &gt; T_{high}$)**: Apply $k_{comp}$ 
+     to the screams. This is the "Safe Ceiling."
+2. **Sigmoid Envelope $E(t)$**: We model the growth of vocal intensity 
+   using a Sigmoid-aware curve in the soft-knee to ensure volume 
+   grows smoothly ($1 / (1 + e^{-k})$).
+3. **RMS Integration**: Gains are calculated over the frame buffer 
+   to prevent per-sample "crackling" and quantization noise.
+
+**Architectural Delta**:
+- **`AudioStream.cpp`**: Implements the Polynomial Approximation of $G(x)$.
+- **`CubebUtils.cpp`**: Acts as the "Parameter Store" for $T_{low}$ and $k_{exp}$.
+- **`DecoderTraits.cpp`**: Early-return nullification for Ogg/WebM.
+- **`PDMFactory.cpp`**: Hardened support set returns.
+- **`FFmpegVideoDecoder.cpp`**: VA-API failure state remediation.
+- **`RemoteVideoDecoder.cpp`**: TextureClient bridge-awareness.
+
+===========================================================================
+                  PART III: REMEDIATION PIPELINE DIAGRAM
+===========================================================================
+
+[ HTMLMediaElement ]
+        |
+        v
++-----------------------+      [ HARD LOCK ]
+|  DecoderTraits.cpp    | ---&gt; WebM/Ogg = NO
++-----------------------+
+        |
+        v
++-----------------------+      [ HW ONLY ]
+|   PDMFactory.cpp      | ---&gt; Software Fallback = DISABLED
++-----------------------+
+        |
+        v
++-----------------------+      [ ASIC SATURATION ]
+|FFmpegVideoDecoder.cpp | &lt;--&gt; VA-API (H.264)
++-----------------------+
+        |
+        v
++-----------------------+      [ ZERO COPY ]
+|RemoteVideoDecoder.cpp | ---&gt; GPU Context Only
++-----------------------+
+
+===========================================================================
+                              STATUS: ACTIVE
+===========================================================================
+Remediation Pipeline initialized. Mathematical spec ingested.
+🦍 COMMAND CENTRE PROCEEDING WITH IMPLEMENTATION.
+
+  </human_rationale>
+  <execution_logic>
+  </execution_logic>
+</concept>

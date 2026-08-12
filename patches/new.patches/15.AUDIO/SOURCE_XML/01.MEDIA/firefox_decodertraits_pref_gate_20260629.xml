@@ -1,0 +1,41 @@
+<concept name="firefox_decodertraits_pref_gate_20260629">
+  <human_rationale>
+    Gated DecoderTraits.cpp hardware-only format/container blocks behind a custom preference: "media.gorilla.hardware_only_mode" (default: true).
+    This provides an immediate escape hatch in about:config to disable zero-CPU constraints and re-enable VP8/VP9/AV1 software decoding if a website lacks H.264 fallback, avoiding the need to recompile.
+  </human_rationale>
+  <execution_logic>
+    1. Defined the preference in StaticPrefList.yaml:
+    ```yaml
+    # Enforce hardware-only H.264 playback policy and block VP8/VP9/AV1
+    - name: media.gorilla.hardware_only_mode
+      type: RelaxedAtomicBool
+      value: true
+      mirror: always
+    ```
+    
+    2. Wrapped container and codec blocks in DecoderTraits.cpp:
+    - Included header: `#include "mozilla/StaticPrefs_media.h"`
+    - Inside CanHandleCodecsType (codec checks):
+      ```cpp
+      if (StaticPrefs::media_gorilla_hardware_only_mode() &amp;&amp;
+          (aType.OriginalString().Find("av01") != -1 ||
+           aType.OriginalString().Find("vp9") != -1 ||
+           // ... (other codecs) ...)) {
+        return CANPLAY_NO;
+      }
+      ```
+    - Inside CanHandleMediaType (container checks):
+      ```cpp
+      if (StaticPrefs::media_gorilla_hardware_only_mode() &amp;&amp;
+          (OggDecoder::IsSupportedType(mimeType) ||
+           WebMDecoder::IsSupportedType(mimeType))) {
+        return CANPLAY_NO;
+      }
+      ```
+      
+    Modified files:
+    - patches/modules/libpref/init/StaticPrefList.yaml
+    - patches/dom/media/DecoderTraits.cpp
+    - patches/01_Media_Audio_Video/DecoderTraits.cpp
+  </execution_logic>
+</concept>

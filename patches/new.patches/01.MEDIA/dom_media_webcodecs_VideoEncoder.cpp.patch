@@ -8,18 +8,15 @@
  #include "nsIGlobalObject.h"
  #include "nsPrintfCString.h"
  #include "nsRFPService.h"
-@@ -425,6 +426,15 @@
+@@ -425,6 +426,12 @@
      return false;
    }
  
-+  // GORILLA PATCH: Early validation check to block VP8/VP9/AV1 codec configurations
-+  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
-+    if (!IsSupportedVideoCodec(aConfig.mCodec)) {
-+      aErrorMessage.AssignLiteral("Unsupported codec under hardware-only mode");
-+      LOGE("{}", aErrorMessage.get());
-+      return false;
-+    }
-+  }
++  // GORILLA OVERRIDE 2026-08-11: hardware-only codec check REMOVED from Validate()
++  // for the same reason as VideoDecoder.cpp — a Validate() failure becomes
++  // TypeError("config is invalid"), but a valid-but-unsupported codec must resolve
++  // {supported:false}. IsSupportedVideoCodec() still enforces H.264-only, so the
++  // policy is unchanged; callers are simply told "no" correctly instead of throwing.
 +
    // 2.
    if (aConfig.mWidth == 0 || aConfig.mHeight == 0) {

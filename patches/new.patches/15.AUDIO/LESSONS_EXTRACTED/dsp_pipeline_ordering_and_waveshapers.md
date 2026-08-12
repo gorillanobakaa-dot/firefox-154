@@ -1,0 +1,16 @@
+# dsp_pipeline_ordering_and_waveshapers
+
+**Source:** dsp_pipeline_ordering_and_waveshapers.xml
+
+## Rationale
+
+[AUDIT VERDICT 2026-08-02 — CURRENT-TRUE] matches the shipped design (volume before DSP; envelope rule for companders). Note: the soft-clip knee is now 0.9, not 0.8.
+
+
+    1. DSP Pipeline Order of Operations: Software volume scaling MUST occur BEFORE dynamic range compression or psychoacoustic limiters. If the DSP processes the raw, un-scaled input and then the software volume multiplies the output by a tiny fraction (like 0.1 at 10% volume), the audio becomes completely silent. The compressor needs to see the final intended amplitude to know what to compress.
+    2. Instantaneous Waveshaping vs. True Compression: Never use an instantaneous, memoryless math formula (like a signomial compander) directly on an audio signal's amplitude for dynamic range compression. Modifying instantaneous amplitude based on its own value changes the physical shape of the wave (turning sines into square-like waves), causing severe harmonic distortion (tinny, vibrating chassis). True companders must track the signal's envelope over time (attack/release). For simple peak protection, use a clean soft-clipper that ONLY touches peaks near the very edge (e.g., >0.8f).
+
+## Execution Logic
+
+- Pre-flight Code Review: Ensure `mPsychoEnhancer->Process()` is executed AFTER the `volScale` loop.
+    - Code Audit: Search for math formulas acting on raw audio samples mapping `y` to `out` continuously across the whole range without an envelope tracker. Reject them. Only allow pure soft-clippers (e.g. `if (out > 0.8f) out = 0.8f + ...`) applied safely at the end of the chain.

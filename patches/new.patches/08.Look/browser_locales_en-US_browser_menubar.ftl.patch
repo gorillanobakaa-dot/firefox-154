@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/browser/locales/en-US/browser/menubar.ftl	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/browser/locales/en-US/browser/menubar.ftl	2026-07-31 17:28:18.822148092 +0100
+--- a/browser/locales/en-US/browser/menubar.ftl
++++ b/browser/locales/en-US/browser/menubar.ftl
 @@ -1,21 +1,18 @@
  # This Source Code Form is subject to the terms of the Mozilla Public
  # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -47,7 +47,7 @@
          }
  
  # This menu-quit-mac string is only used on macOS.
-@@ -47,288 +43,325 @@
+@@ -47,25 +43,27 @@
      .label = Quit { -brand-shorter-name }
  
  menu-about =
@@ -67,8 +67,8 @@
 +        .accesskey = F
  menu-file-new-tab =
 -    .label = New Tab
--    .accesskey = T
 +    .label = New Gorilla Tab
+     .accesskey = T
  menu-file-new-container-tab =
 -    .label = New Container Tab
 -    .accesskey = b
@@ -77,15 +77,15 @@
 +        .accesskey = b
  menu-file-new-window =
 -    .label = New Window
--    .accesskey = N
 +    .label = New Gorilla Window
+     .accesskey = N
  menu-file-new-private-window =
 -    .label = New Private Window
--    .accesskey = W
 +    .label = New Private Gorilla Window
+     .accesskey = W
  # "Open Location" is only displayed on macOS, and only on windows
  # that aren't main browser windows, or when there are no windows
- # but Firefox is still running.
+@@ -73,262 +71,302 @@
  menu-file-open-location =
      .label = Open Location…
  menu-file-open-file =
@@ -115,8 +115,8 @@
 +        .accesskey = d
  menu-file-save-page =
 -    .label = Save Page As…
--    .accesskey = A
 +    .label = Save Gorilla Page As…
+     .accesskey = A
  menu-file-email-link =
 -    .label = Email Link…
 -    .accesskey = E
@@ -149,8 +149,8 @@
 +        .accesskey = u
  menu-file-print =
 -    .label = Print…
--    .accesskey = P
 +    .label = Print Gorilla…
+     .accesskey = P
  menu-file-import-from-another-browser =
 -    .label = Import From Another Browser…
 -    .accesskey = I
@@ -527,7 +527,7 @@
  # NOTE: For Engineers, any additions or changes to Help menu strings should
  # also be reflected in the related strings in appmenu.ftl. Those strings, by
  # convention, will have the same ID as these, but prefixed with "app".
-@@ -336,35 +369,43 @@
+@@ -336,35 +374,43 @@
  #
  # These strings are duplicated to allow for different casing depending on
  # where the strings appear.

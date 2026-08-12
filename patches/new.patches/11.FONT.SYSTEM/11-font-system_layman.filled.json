@@ -1,0 +1,98 @@
+{
+  "title": "The Font System: Bundled Fonts Plus an Off-by-Default Switch to Skip the System Font Scan",
+  "concept": {
+    "big_picture": "This folder does two separate things, and it helps to keep them apart. The first thing is always on: the build ships eight font files inside the browser so that web pages and menus have a dependable set of letters to draw with, even on a small, cheap computer that may not have many fonts installed. The second thing is a switch that is turned OFF when you get it: an option that would let the browser skip taking a full inventory of the fonts on your operating system every time it starts.\n\nBecause that switch ships OFF, the browser you receive still scans your system fonts at startup exactly like normal Firefox. Nothing about that behaviour changes unless someone deliberately turns the switch on. The one change you always get is the eight bundled fonts riding along inside the program.\n\nThe folder also holds a helper script, get-microsoft-fonts.sh. Some of the bundled fonts (Segoe UI, Consolas, Yu Gothic) are made by Microsoft. Microsoft lets you use them for free but does not let anyone hand out copies of the files. So instead of copies, the folder gives you a small program that fetches them from Microsoft's own free download, onto your own machine.",
+    "key_concepts": [
+      {"name": "Bundled fonts", "plain_english": "Font files packed inside the browser itself, so it never has to rely on what the computer already has.", "analogy": "A traveller who packs their own toothbrush instead of hoping the hotel has one."},
+      {"name": "System font scan", "plain_english": "The startup chore where the browser lists every font installed on your operating system.", "analogy": "Walking every aisle of a library to write down every book before you open the doors."},
+      {"name": "gfx.bundled_fonts.skip_system_scan", "plain_english": "The single off-by-default switch that, if turned on, tells the browser to skip that startup chore and use only its bundled fonts.", "analogy": "A 'skip the inventory' button on the librarian's desk, taped over because it is only safe once you are sure the packed books cover everything."},
+      {"name": "fontconfig", "plain_english": "The part of Linux that keeps track of installed fonts. On this build it is the piece that actually does the scan.", "analogy": "The library's card catalogue system."},
+      {"name": "Tofu", "plain_english": "The empty boxes you see instead of letters when no font on hand can draw a character.", "analogy": "Blank price tags on shelves when the label printer ran out of a language."}
+    ],
+    "data_and_privacy": "The five code patches send nothing anywhere. They read one local on/off setting and, at most, skip a chore. Nothing about you leaves your machine. The only piece here that touches the network is the helper script get-microsoft-fonts.sh, and only if you choose to run it: it downloads a roughly 5-6 GB Windows evaluation file from Microsoft's own website. That is a normal download from Microsoft; it does not upload anything about you.",
+    "worst_case": "The realistic worst case is a text-rendering problem, not a security one, and only if someone turns the off-by-default switch on. If the switch is enabled but the eight bundled fonts do not cover the language on a page you visit (for example Bengali or Thai), that text can appear as empty boxes instead of letters. Whether the bundled set covers every script has not been tested, so this risk is real if you flip the switch without checking. As delivered, with the switch off, this cannot happen by accident. The Microsoft-font script carries a legal caveat, not a safety one: you may use the fonts, but you may not hand out copies or a browser binary with them baked in."
+  },
+  "how_it_works": [
+    {"step": 1, "title": "The browser packs eight fonts", "explanation": "A build file, browser/fonts/moz.build, lists eight font files to copy into the finished browser: four Segoe UI faces, two Yu Gothic files, Consolas, and Twemoji. On this Linux build the packing is switched on by default, so those eight fonts travel inside the program whether or not the skip switch is ever used. This is the one part that is always active."},
+    {"step": 2, "title": "The off switch sits in the code, set to false", "explanation": "Each of the font-loading files checks one setting, gfx.bundled_fonts.skip_system_scan, and every check hard-codes the answer 'false' when the setting has never been set. So out of the box the answer is always no-do-not-skip. The switch is not even registered, which means it does not appear in the about:config settings page until someone creates it by hand."},
+    {"step": 3, "title": "If the switch were on, the Linux scan is skipped", "explanation": "In the Linux font file (gfxFcPlatformFontList.cpp), turning the switch on makes the browser skip asking fontconfig for the system font list, and instead print a log line saying it skipped. It also trims the font list it shares with page-rendering helper processes down to only the bundled fonts. This is the actual mechanism, but it only runs if you enable the switch."},
+    {"step": 4, "title": "Three of the four patched files never run here", "explanation": "The same switch was added to the Windows font file (gfxDWriteFontList.cpp) and the Android font file (gfxFT2FontList.cpp), plus a shared file that only prints a log line (gfxPlatformFontList.cpp). This build is Linux and uses fontconfig, so the Windows and Android versions are spares that never execute on your machine. They are kept so the option would still exist if the project ever moved platforms."},
+    {"step": 5, "title": "The helper script fetches Microsoft's fonts, legally", "explanation": "get-microsoft-fonts.sh downloads Microsoft's free Windows 11 Enterprise evaluation disc image, opens it like a zip with 7-Zip, pulls out the specific font files, checks them, and copies them into browser/fonts. It does not install Windows and it does not commit the fonts into the shared code; you fetch them yourself, from Microsoft, onto your own machine."}
+  ],
+  "quirky_things": [
+    {"title": "The off switch is invisible until you create it", "explanation": "The setting is never registered with the browser, so it will not show up if you search for it in about:config. It only starts existing once you add it yourself. An older note in this folder that says it should already appear in about:config is wrong on that point; the safety behaviour (off by default) is still correct."},
+    {"title": "Most of these patches do nothing on your computer", "explanation": "Four files were patched, but on this Linux build only the fontconfig one can ever act, and even that one is asleep because the switch is off. As shipped, the practical effect of the whole optimisation is: none yet. The real, active change from this folder is the eight bundled fonts."},
+    {"title": "The script says eight fonts but fetches seven", "explanation": "A comment at the top of get-microsoft-fonts.sh says it takes out 'the 8 font files this browser needs,' but the list it actually downloads has seven. The eighth bundled font, Twemoji, is Mozilla's own and already ships with Firefox, so the script does not fetch it. The comment is just off by one."},
+    {"title": "The 'much faster startup' numbers are not measured", "explanation": "A README in this folder claims startup dropped from about 40 seconds to about 2-4 seconds. No benchmark backs that up; the project's own audit still lists 'measure the startup change' as an open task, and another note in the folder gives a much smaller figure. Treat the big speed numbers as an unproven claim, not a fact."},
+    {"title": "Legal to use, not to hand out", "explanation": "You may use the Microsoft fonts. You may not redistribute the font files, and a browser you compile with them baked in also counts as handing them out. If you want to share your build, either have people run the script themselves, or build with open fonts such as Noto instead."}
+  ],
+  "real_world_impact": {
+    "battery_cpu_ram": "Not measured. When the switch is off (as shipped) there is no change from normal Firefox. The eight bundled fonts add roughly 34 MB of font files to the installed browser (measured from the files on disk), most of it the two Yu Gothic collections at about 14 MB each.",
+    "speed": "Not measured. The folder's README claims a drop from about 40 seconds to about 2-4 seconds, but no benchmark supports that number and the project's own audit lists the measurement as still to do; treat it as unverified. What is certain: the skip switch ships off, so as delivered your startup font handling is unchanged.",
+    "your_privacy": "As shipped, no change. If the switch were turned on, the list of your system fonts (which can help identify your specific machine) would stop being gathered by the browser's own font code, and the font list handed to page-rendering processes would be trimmed to only the bundled fonts. That privacy benefit only exists when the switch is on, and it ships off.",
+    "your_internet": "Zero from the patches. The helper script, only if you run it, downloads a roughly 5-6 GB file from Microsoft one time."
+  },
+  "kill_switch_explained": {
+    "what_it_is": "The whole optimisation is one setting, gfx.bundled_fonts.skip_system_scan, and it is off (false) by default in every place the code reads it. There is nothing you can trip by accident; you would have to add the setting yourself and turn it on.",
+    "without_it": "Without the switch, every browser start does the full system font inventory, exactly like ordinary Firefox. On a slow disk that inventory takes some time on each launch, though how much on this hardware was not measured.",
+    "real_life_analogy": "A 'skip the inventory' button that ships taped over. The tape (the default-off setting) is there because skipping the inventory is only safe once you have confirmed your packed supplies cover everything you will need."
+  },
+  "open_source_angle": "You do not have to take any of this on faith. You can search the code for the switch's name and see for yourself that it reads 'false' everywhere, in the actual shipped source, not just in a promise. You can list the browser's fonts folder to see exactly which eight files are bundled, and you can read the .gitignore to confirm the Microsoft font files are deliberately kept out of the shared code. If you could not read this, you would be trusting a stranger's word that the risky switch is off and that no proprietary fonts were quietly redistributed. Here, you can check both in about a minute.",
+  "verification_task": {
+    "task_title": "Check the safety switch is off and the fonts are what they claim, before you trust this",
+    "context": "This folder contains a switch that could break text rendering if misused, and fonts with licensing strings attached. Both are checkable in minutes without reading any C++.",
+    "steps": [
+      {"step": 1, "action": "In the firefox source tree, run: grep -rn 'bundled_fonts.skip_system_scan' gfx/thebes/", "what_to_look_for": "Every line ends with ', false)'. That 'false' is the default-off answer. If any read hard-codes 'true', the switch would be on; it should not be."},
+      {"step": 2, "action": "Run: grep -rln 'bundled_fonts.skip_system_scan' --include='*.js' --include='*.yaml' --include='*.mjs' .", "what_to_look_for": "No results. That confirms nothing turns the switch on anywhere in the settings files."},
+      {"step": 3, "action": "Run: ls browser/fonts/", "what_to_look_for": "Eight font files: consola.ttf, segoeui.ttf, segoeuib.ttf, seguisb.ttf, SegUIVar.ttf, TwemojiMozilla.ttf, YuGothB.ttc, YuGothR.ttc. These are the exact eight the build packs."},
+      {"step": 4, "action": "Open .gitignore in the patches repo and look for the font rules.", "what_to_look_for": "Lines '*.ttf', '*.ttc', and '!TwemojiMozilla.ttf'. This is the deliberate rule that keeps the Microsoft font files out of the shared code while allowing the freely-shareable Twemoji font in."}
+    ]
+  },
+  "usage_task": {
+    "task_title": "Get the Microsoft fonts the honest way (optional)",
+    "prerequisites": ["The tools 7z (or 7za) and curl installed. On Debian or Ubuntu: sudo apt install p7zip-full curl", "About 6 GB of free disk space for the download", "The right to use these Microsoft fonts, and an understanding that you may not redistribute them"],
+    "steps": [
+      {"step": 1, "action": "Open a terminal in this folder and run: bash get-microsoft-fonts.sh", "expected_result": "The script checks for its tools and then tells you it needs the Windows 11 Enterprise evaluation ISO."},
+      {"step": 2, "action": "Follow the printed instructions to download the ISO from Microsoft's evaluation page, or re-run with a direct link as ISO_URL.", "expected_result": "The script extracts the fonts, prints an [OK] line with a checksum for each, and copies them into browser/fonts."},
+      {"step": 3, "action": "Leave the skip switch alone. Do not turn on gfx.bundled_fonts.skip_system_scan.", "expected_result": "The browser keeps using both its bundled fonts and your system fonts, which is the safe, tested state."}
+    ]
+  },
+  "troubleshooting": [
+    {"symptom": "Some text on web pages shows as empty boxes after you turned the switch on.", "plain_cause": "You enabled gfx.bundled_fonts.skip_system_scan, and the bundled fonts do not cover that language. The system fonts that would have covered it are now being skipped.", "remedy": "Set the switch back to false (or delete it). Do not enable it until the bundled fonts are confirmed to cover every script you read."},
+    {"symptom": "You cannot find gfx.bundled_fonts.skip_system_scan in about:config.", "plain_cause": "The setting is not registered, so it does not appear until you create it.", "remedy": "This is expected. If you must set it, create it by hand as a Boolean. Leaving it absent keeps the safe default."},
+    {"symptom": "The font script stops and says a tool is missing.", "plain_cause": "7z (or 7za) or curl is not installed.", "remedy": "Install them, for example: sudo apt install p7zip-full curl, then run the script again."},
+    {"symptom": "The script reports [MISS] for YuGothR.ttc or YuGothB.ttc.", "plain_cause": "Yu Gothic lives in the Japanese language pack and may be absent from the English evaluation image.", "remedy": "Fetch it from a Japanese font set or a Japanese evaluation image, as the script's own message explains."}
+  ],
+  "should_you_run_this": "Ship the patches as they are: the risky part is off by default, so the browser behaves like normal Firefox for font scanning and simply carries eight extra fonts. Run get-microsoft-fonts.sh only if you personally have the right to use these Microsoft fonts and you understand you must not redistribute the resulting binary. Do not turn on gfx.bundled_fonts.skip_system_scan until someone has tested that the bundled fonts cover every language you care about; until then, leave it off.",
+  "why_it_matters": "A developer building for cheap, older machines wants two things: consistent text in many languages without depending on whatever fonts happen to be installed, and a faster start on slow disks. Bundling fonts buys the first. The skip switch is the tool for the second, but it can hide characters if the bundle is incomplete, so a careful developer builds the machinery, leaves it off, and refuses to flip it until coverage is proven. Shipping the font-fetch method instead of the font files keeps the project on the right side of Microsoft's licence.",
+  "glossary": [
+    {"term": "Bundled font", "definition": "A font file packed inside the browser so it is always available."},
+    {"term": "fontconfig", "definition": "The Linux service that lists and manages installed fonts; the piece this build's scan talks to."},
+    {"term": "System font scan", "definition": "The startup step where the browser inventories every font on your operating system."},
+    {"term": "Tofu", "definition": "The empty boxes shown when no available font can draw a character."},
+    {"term": "Pref (preference)", "definition": "A single on/off or value setting inside the browser."},
+    {"term": "about:config", "definition": "The page in Firefox where preferences can be viewed and changed."},
+    {"term": "omni.ja", "definition": "The archive file inside Firefox that holds most of its assets, and, when bundled, the fonts."},
+    {"term": "EULA", "definition": "The licence agreement that says what you may and may not do with software or, here, fonts."},
+    {"term": "CC-BY", "definition": "A permissive licence; Twemoji uses it, which is why that one font may be shared freely."},
+    {"term": "SIL OFL", "definition": "The Open Font License, used by open fonts such as Noto, which may be redistributed in binary form."}
+  ],
+  "claim_sources": [
+    {"claim": "Eight font files are bundled via FINAL_TARGET_FILES.fonts", "basis": "stated_in_input", "evidence": "FINAL_TARGET_FILES.fonts += ["},
+    {"claim": "The bundled set is consola, segoeui, segoeuib, seguisb, SegUIVar, TwemojiMozilla, YuGothB, YuGothR", "basis": "stated_in_input", "evidence": "\"consola.ttf\","},
+    {"claim": "The pref defaults to false at every read site", "basis": "stated_in_input", "evidence": "Preferences::GetBool(\"gfx.bundled_fonts.skip_system_scan\", false)"},
+    {"claim": "When enabled, the Linux path skips the fontconfig system scan", "basis": "stated_in_input", "evidence": "Skipped system fontconfig scan (bundled-only mode)"},
+    {"claim": "When enabled, the font list to content processes is filtered to bundled-only", "basis": "stated_in_input", "evidence": "Filtered font list to bundled-only for content process"},
+    {"claim": "The DWrite (Windows) and FT2 (Android) files carry the same switch as spares", "basis": "stated_in_input", "evidence": "Skipped DirectWrite system font collection (bundled-only mode)"},
+    {"claim": "The reference build is Linux and uses fontconfig, so DWrite/FT2 patches never run here", "basis": "model_inference", "evidence": null},
+    {"claim": "The pref is not registered anywhere, so it is absent from about:config until created", "basis": "model_inference", "evidence": null},
+    {"claim": "MOZ_BUNDLED_FONTS defaults on for Linux, so the bundle is packaged and loaded (toolkit/moz.configure:2191-2211)", "basis": "model_inference", "evidence": null},
+    {"claim": "The script's NEEDED_FONTS list contains seven fonts, though its comment says eight", "basis": "stated_in_input", "evidence": "out only the 8 font files this browser needs"},
+    {"claim": "Twemoji is CC-BY and already ships with Firefox, so the script does not fetch it", "basis": "stated_in_input", "evidence": "TwemojiMozilla.ttf is CC-BY, shipped by Mozilla"},
+    {"claim": "The startup 40s to 2-4s claim is not measured", "basis": "model_inference", "evidence": null},
+    {"claim": "The Microsoft EULA permits use but not redistribution of the font files", "basis": "stated_in_input", "evidence": "Microsoft's EULA permits USE of these fonts. It does NOT grant you the right to REDISTRIBUTE"},
+    {"claim": "A compiled binary with the fonts baked in also counts as redistribution", "basis": "stated_in_input", "evidence": "A browser BINARY you compile with these fonts baked in also contains them. Handing that binary to others is redistribution too"},
+    {"claim": "The script needs 7z/7za and curl", "basis": "stated_in_input", "evidence": "sudo apt install p7zip-full curl"},
+    {"claim": "The two Yu Gothic collections are about 14 MB each on disk", "basis": "model_inference", "evidence": null}
+  ]
+}

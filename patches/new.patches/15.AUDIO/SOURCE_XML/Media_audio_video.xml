@@ -1,0 +1,133 @@
+<concept>
+    <title>Media.audio.video</title>
+    <category>IT / Media Engineering / Browser Architecture</category>
+    <human_rationale>We have successfully completed a comprehensive engineering campaign to optimize the audio and video subsystems of Firefox 154 specifically tuned for a Sony VAIO SVE14A3AJ laptop. 
+
+### 1. The Core Problem (Silicon Reclamation)
+Modern browsers have general-purpose decoding pipelines optimized for bandwidth savings. Because modern compression standards (like VP8, VP9, AV1, and WebM containers) save streaming platforms money, browsers choose to decode them using software libraries on the CPU. On older hardware like the Intel Ivy Bridge CPU (released in 2012), software decoding pegs all cores to 100%, causing thermal throttling, massive battery drain, and stuttering video.
+However, the laptop contains an Intel HD 4000 graphics chip that houses a fixed-function hardware decoder ASIC. This ASIC is highly efficient at decoding H.264/AVC video. By forcing the browser to reject all other codecs, we compel sites (like YouTube, Netflix, Google Meet, and Jitsi) to serve H.264 video, which goes straight to the graphics chip. The CPU remains cool, the battery lasts longer, and the video plays at a smooth 1080p 60fps with only ~1.5% GPU video engine utilisation.
+
+### 2. We sealed all side doors (Phase 0 - 4 Optimization):
+- **WebRTC Video Calls:** Strip all VP8/VP9/AV1 wrapper codecs from the SDP negotiation. The peer has no choice but to stream H.264.
+- **WebCodecs Javascript API:** Hook configuration validation checks to reject VP8/VP9/AV1 codec strings inside Javascript immediately.
+- **Media Capabilities API:** Block queries for non-H.264 video profiles by reporting them as Unsupported, preventing pages from even trying to send VP9/AV1.
+- **HTML5 Player &amp; Media Source Extensions (MSE):** Gate check paths to reject Matroska, WebM, and Ogg containers. VP9 queries are strictly blocked.
+- **Web Audio Compressor:** Bypass DynamicsCompressorNode when hardware-only mode is active. This prevents the Web Audio graph from re-compressing the output of our custom mixing enhancer, preserving the limiter knee.
+- **Wayland Zero-Copy Compositor:** Force HW_DECODED_VIDEO_ZERO_COPY, allowing decoded VA-API GPU surfaces to reach the Wayland display server without memory read-backs.
+
+### 3. Psychoacoustic Laptop Speaker Enhancement
+The SVE14A3AJ built-in laptop speakers are quiet and tinny. We wrote a custom digital signal processing class (AudioPsychoacousticEnhancer) directly into Firefox's mixing layer. It applies:
+- +5.1 dB Bass boost (1.8x gain) and +2.9 dB Treble boost (1.4x gain)
+- xLOUD-inspired 2nd-harmonic bass synthesis (0.4f drive)
+- Padé-approximated FastTanh soft-limiter with a 0.9f knee threshold. If the signal exceeds 0.9f, it asymptotically compresses it to 1.0f rather than hard-clipping. This boosts perceived volume without causing case vibration or digital distortion.
+
+PROBLEM: Planned obsolescence of legacy silicon (Intel HD 4000 / Ivy Bridge) via software-heavy media codecs (VP8/VP9/AV1) pushing CPU cores to 100% load, combined with silent telemetry leaks and low-quality laptop speaker output.</human_rationale>
+    <execution_logic>SOLUTION: Implement an unconditional hardware-only H.264 policy across all media APIs (DOM, WebRTC, WebCodecs, Media Capabilities) coupled with a psychoacoustic DSP mixer (bass synthesis + FastTanh limiter) in AudioStream, zero-copy Wayland compositor bindings, and telemetry excision.
+
+## 🔵 COMPREHENSIVE ARCHITECTURAL BLUEPRINT (01_MEDIA)
+
+### 1. Unified Pipeline Topography
+Firefox's media stack interacts across the sandbox boundary between the Content Process and the Network/GPU Process. The optimizations are integrated at critical check gates:
+
+```
+[ JS / Page Context ]
+      │
+      ├─► WebCodecs (VideoDecoder/VideoEncoder) ──► Validation Check (WebCodecsUtils.cpp) [BLOCKED]
+      ├─► Media Capabilities Query ─────────────► Mime check (MediaCapabilities.cpp) [BLOCKED]
+      └─► HTMLMediaElement (canPlayType) ───────► Mime check (DecoderTraits.cpp) [BLOCKED]
+              │
+              ▼ (Valid H.264 / AAC)
+[ Content Process ]
+      │ IPC (IPDL)
+      ▼
+[ Network / GPU Process ]
+      ├─► FFmpegVideoDecoder.cpp ──► VA-API hardware decode (VideoFramePool size=16)
+      │                                    │
+      │                                    ▼ (Zero-copy surface descriptor)
+      └─► RemoteVideoDecoder.cpp ──► Compositor Bridge (zero-copy Wayland validation)
+```
+
+---
+
+### 2. Surgical File Changes &amp; Modifications
+
+#### A. C++ Media Pipeline (01_MEDIA)
+1. **DecoderTraits.cpp (MIME Gatekeeper):**
+   - Filters out `av01`, `vp09`, and `vp8` codec parameters from media container strings in `CanHandleMediaType`.
+   - Returns `CANPLAY_NO` inside `CanHandleContainerType` for Ogg, WebM, and Matroska containers to force sites to offer MP4 (H.264).
+2. **PDMFactory.cpp (Decoder Module Dispatcher):**
+   - Comments out `#include "AgnosticDecoderModule.h"` to prevent compile-time loading of unused software fallback modules.
+3. **FFmpegVideoDecoder.cpp (VA-API Decoder):**
+   - Hard-locks `mVideoFramePool` to `16` frames in VA-API, Vulkan, and V4L2 decoder paths to protect UMA memory pools on Ivy Bridge.
+   - Fixed memory leak in VA-API device context allocation by releasing the scope guard (`releaseVAAPIdecoder.release()`) only after all error paths complete successfully.
+4. **RemoteVideoDecoder.cpp (Compositor Bridge):**
+   - Drops decoded frames immediately using `mKnowsCompositor` check if the surface descriptor is invalid, preventing silent fallbacks to CPU shared-memory copies.
+5. **DefaultCodecPreferences.cpp (WebRTC SDP Preferences):**
+   - Strips VP8, VP9, and AV1 defaults from `EnumerateDefaultVideoCodecs` arrays, forcing SDP negotiations to fall back to H.264.
+6. **WebrtcVideoCodecFactory.cpp (WebRTC Codec Factory):**
+   - Gated decoder/encoder creation loops to return `nullptr` for VP8, VP9, and AV1 (both in primary creation and simulcast fallback wrapper loops).
+7. **VideoConduit.cpp (WebRTC Video Conduit):**
+   - Patched `HasAv1()` to return `!StaticPrefs::media_gorilla_hardware_only_mode()`.
+8. **WebCodecsUtils.cpp (WebCodecs Helper):**
+   - Gated `IsSupportedVideoCodec()` to return `IsH264CodecString()` when hardware-only mode is active.
+9. **VideoDecoder.cpp &amp; VideoEncoder.cpp (WebCodecs JS Interface):**
+   - Intercepts `Configure()` validation to return false and throw `NotSupportedError` if VP8/VP9/AV1 codec strings are supplied under hardware-only mode.
+10. **MediaCapabilities.cpp (Media Capabilities API):**
+    - Intercepts both decoding and encoding capabilities queries to return `CodecSupport::Unsupported` for non-H.264 video extendable mime types.
+11. **MediaSource.cpp (MSE Interface):**
+    - Gated `IsVP9Forced()` helper to return false when `media.gorilla.hardware_only_mode` is enabled, blocking software VP9 playback fallbacks.
+12. **DynamicsCompressorNode.cpp (Web Audio Node):**
+    - Bypasses compressor in `ProcessBlock()` when `media.gorilla.hardware_only_mode` is active, passing audio through unmodified to prevent double-compressing the AudioStream DSP output.
+13. **gfxPlatformGtk.cpp (GTK Compositor Platform):**
+    - Overrides and enables `HW_DECODED_VIDEO_ZERO_COPY` when `media.gorilla.hardware_only_mode` is active to lock in zero-copy compositor buffers.
+
+#### B. Audio Mixer DSP Details (`AudioStream.cpp`)
+Custom `AudioPsychoacousticEnhancer` processing block:
+- **Bass Synthesis:** Multi-band filter state. Synthesizes second-harmonic bass with `mXLoudBoost = 0.4f`.
+- **Crossover/Harmonics:** High-pass crossover filter (`ComputeAlpha`). State is encapsulated inside a per-stream `UniquePtr` to guarantee thread safety.
+- **FastTanh Implementation:**
+  ```cpp
+  float FastTanh(float w) {
+    if (w &gt;= 3.0f) return 1.0f;
+    if (w &lt;= -3.0f) return -1.0f;
+    float w2 = w * w;
+    return w * (27.0f + w2) / (27.0f + 9.0f * w2);
+  }
+  ```
+- **Soft-Knee Limiter (0.9 Threshold):**
+  ```cpp
+  float out = y;
+  if (out &gt; 0.9f) {
+    out = 0.9f + 0.1f * FastTanh((out - 0.9f) * 10.0f);
+  } else if (out &lt; -0.9f) {
+    out = -0.9f + 0.1f * FastTanh((out + 0.9f) * 10.0f);
+  }
+  ```
+
+---
+
+### 3. Forensic Session &amp; Upstream Drift Analysis
+During the audit, the following findings regarding unpatched files were established:
+- **Unpatched Files in `_archive_unpatched/`:** `AudioContext.cpp`, `AudioDestinationNode.cpp`, `HTMLMediaElement.cpp`, `HTMLVideoElement.cpp`, `SourceBuffer.cpp`, `nsWindow.cpp`, and `WaylandVsyncSource.cpp` contain no modifications. 
+- **Transitive Optimizations:** These files are transitively optimized:
+  - Web Audio engines initialize using `PreferredSampleRate()` (forced to 48 kHz in `CubebUtils.cpp`).
+  - Media elements and source buffers validate formats using `DecoderTraits.cpp`.
+  - Window systems receive zero-copy compositor buffers forced by `gfxPlatformGtk.cpp`.
+- **Reference Files:** `RemoteMediaDataDecoder_upstream.cpp` is a pristine reference file and is explicitly excluded from deployment.
+
+---
+
+### 4. Verification Checklists &amp; Diagnostic Commands
+- **VA-API Verification:**
+  `vainfo | grep H264` (Verify VA-API handles H.264 profile decoding)
+- **Bandwidth Zero-Copy Monitoring:**
+  `intel_gpu_top` (Monitor Video Engine: expected ~1-1.5% busy during 1080p60 playback. Render/3D: ~4%. Zero-copy verified if CPU stays below 3%).
+- **Web Audio Limiter Validation:**
+  Check `DynamicsCompressorNodeEngine::ProcessBlock` passes through unmodified when `media.gorilla.hardware_only_mode` is enabled.
+
+PATHS: /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/moz.build, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/AudioStream.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/CubebUtils.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/DecoderTraits.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/DefaultCodecPreferences.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/DynamicsCompressorNode.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/FFmpegVideoDecoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/gfxPlatformGtk.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/MediaCapabilities.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/MediaSource.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/PDMFactory.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/RemoteVideoDecoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoConduit.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoDecoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/VideoEncoder.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/WebCodecsUtils.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01_MEDIA/WebrtcVideoCodecFactory.cpp
+
+KEYWORDS: media-optimization, audiostream, psychoacoustic-dsp, fast-tanh, hardware-only, h264-gating, ffmpeg-decoder, va-api, zero-copy, composition, webcodecs, mediacapabilities, webrtc-codec-factory, compressor-bypass, intel-hd-4000, planned-obsolescence, unpatched-baseline, transitive-optimization</execution_logic>
+    <keywords>media-optimization, audiostream, psychoacoustic-dsp, fast-tanh, hardware-only, h264-gating, ffmpeg-decoder, va-api, zero-copy, composition, webcodecs, mediacapabilities, webrtc-codec-factory, compressor-bypass, intel-hd-4000, planned-obsolescence, unpatched-baseline, transitive-optimization</keywords>
+    <recorded>2026-07-08T16:51:18Z</recorded>
+</concept>

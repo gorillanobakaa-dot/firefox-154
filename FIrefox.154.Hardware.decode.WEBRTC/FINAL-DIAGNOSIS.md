@@ -1,7 +1,41 @@
 # Final Diagnosis — WebRTC Hardware Decode Investigation
 
+> ## ⛔ SUPERSEDED 2026-08-11 — THE MECHANISM IN THIS DOCUMENT IS WRONG
+>
+> Read **`WEBCODECS-CALL-PATH.DEVELOPER.md`** (and `.LAYMAN.md`) first.
+>
+> **What this document got wrong:**
+> 1. **"WhatsApp Web doesn't handle H.264 negotiation gracefully"** — false.
+>    There is **no negotiation at all**. WhatsApp creates no `m=audio` and no
+>    `m=video` section; it encodes video **in-page via WebCodecs** and ships it
+>    over an `m=application` DataChannel. Verified 2026-08-11 from a
+>    `chrome://webrtc-internals` dump of a **working Chromium call**
+>    (`offer m-lines: ['application']`, no `iceServers`). The SDP codec policy
+>    analysed below is therefore **never consulted for WhatsApp**.
+> 2. **The real cause** was the GORILLA WebCodecs patch throwing
+>    `TypeError("config is invalid")` from `VideoDecoderTraits::Validate()`
+>    instead of resolving `{supported:false}`. Fixed 2026-08-11 — with **no**
+>    software codec enabled and **no** relaxation of the hardware-only policy.
+> 3. **"Use Zoom" (§ Verification / Testing Recommendations) — WRONG, and
+>    actively harmful advice.** Zoom's web client avoids WebRTC media entirely
+>    and performs **WASM software decode**; it can never reach the H.264 ASIC and
+>    is among the *worst* options on this hardware. Services that genuinely reach
+>    the ASIC: **Microsoft Teams** (H.264 primary) and **Jitsi**
+>    (`preferredCodec: H264`).
+>
+> **What this document got right, and still stands:** the source patches are
+> working as designed; VA-API H.264 hardware decode is present and functional;
+> and VP8/VP9 must **not** be enabled to "fix" WhatsApp — HD 4000 has no VP8/VP9
+> ASIC. Measured 2026-08-11: a WhatsApp call is **100% software in any browser**
+> on this machine (`intel_gpu_top` Video engine **0.0%**, package **16–18 W**,
+> ~130% of one core in Chromium).
+>
+> The correct conclusion is narrower than the one below: the policy was not
+> denying a hardware-accelerated call — it was refusing one that could never have
+> been accelerated, and it was refusing it *incorrectly* (by throwing).
+
 **Date:** 2026-07-24  
-**Status:** ✅ SOURCE PATCHES WORKING CORRECTLY — WhatsApp Compatibility Issue
+**Status:** ⛔ SUPERSEDED 2026-08-11 (mechanism wrong; see banner above)
 
 ---
 

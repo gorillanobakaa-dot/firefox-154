@@ -1,0 +1,128 @@
+<concept>
+    <title>Firefox 154 Gorilla Unleashed - GPU Process Wayland Unblock + Audio/Network Patches Deployed</title>
+    <category>Firefox Build Engineering</category>
+    <human_rationale>
+  [AUDIT VERDICT 2026-08-02 — MOSTLY-TRUE + naming nits] 'media.hardware-video-encoding.failed' is a misnomer — the real dynamic pref is media.hardware-video-decoding.failed (gfxPlatform.cpp:953). kGorillaUploadChunkSize is REAL (lives outside dom/media grep scope).
+
+Today we fixed three critical bottlenecks in the custom Firefox build for the Sony VAIO laptop. First, we discovered the GPU process was being blocked on Wayland, which prevented hardware video decoding from working even though the codec patches were correct. Second, we deployed audio quality patches that lock the sample rate to 48kHz (matching the laptop's Realtek ALC269 hardware) and add a soft limiter to prevent harsh digital clipping. Third, we verified and deployed networking optimizations including a 4MB UDP send buffer, 3-second DNS negative cache, and upload pacing. All 396 patch files were deployed to the Firefox source tree and are ready for rebuild.
+
+PROBLEM: Three interrelated issues prevented the custom Firefox build from achieving its performance targets on the Sony VAIO SVE14A3AJ (Ivy Bridge i7-3632QM, Intel HD 4000, Realtek ALC269, Debian 13 Wayland): (1) GPU process hard-blocked on Wayland via FEATURE_FAILURE_WAYLAND in gfxPlatformGtk.cpp, breaking zero-copy DMABUF frame import and forcing CPU readback copies per frame. (2) Audio patches for 48kHz native rate lock and Fast-Tanh soft limiting existed in the patch folder but were commented out in deploy.sh, so they never reached the source tree. (3) Networking patches for UDP send buffer sizing (4MB), DNS negative TTL reduction (60s-&gt;3s), and upload pacing (256KB chunks) needed verification they were actually deployed.</human_rationale>
+    <execution_logic>SOLUTION: Applied surgical patches to three files and ran the deployer: (1) Patched gfxPlatformGtk.cpp::InitPlatformGPUProcessPrefs() to comment out the Wayland GPU process ForceDisable block, restoring GPU process startup on Wayland. This enables VA-API decode in RDD process + zero-copy DMABUF import via GPU process to compositor. (2) Uncommented AudioContext.cpp and AudioDestinationNode.cpp deploy lines in deploy.sh, deploying 48kHz native sample rate enforcement and Fast-Tanh soft clipper in DestinationNodeEngine::ProcessBlock. (3) Ran ./deploy.sh which successfully copied all 396 patch files to /home/gorilla/firefox-source/. Verified deployed source contains: GPU process unblock, VA-API decode sanity-test dead-code (false &amp;&amp;), codec blocklist (VP8/VP9/AV1/HEVC blocked, H.264 forced), vendor override (0x8086/0x1002/0x10de), UDP send buffer 4194304, NEGATIVE_RECORD_LIFETIME=3, upload pacing constant wired in nsHttpTransaction.cpp.
+
+Key technical details:
+
+**GPU Process Unblock (gfxPlatformGtk.cpp lines 326-335):**
+- Original code unconditionally called gpuProc.ForceDisable(Blocked, "Wayland does not work in the GPU process", FEATURE_FAILURE_WAYLAND) when IsWaylandDisplay() returned true.
+- Patch comments out the entire block with GORILLA prefix comment. This allows GPU process to start on Wayland.
+- Downstream effect: HW_DECODED_VIDEO_ZERO_COPY (blocklisted in about:support line 295) becomes available because GPU process exists to receive DMABUF frames from RDD.
+- RDD process VA-API decode was already working (H264_HW_DECODE shows "available" in decision log), but frames had to copy through CPU memory without GPU process.
+
+**Audio Patches Deployed:**
+- AudioContext.cpp: GetSampleRateForAudioContext() now returns 48000.0f when media.gorilla.hardware_only_mode pref is true, bypassing CubebUtils::PreferredSampleRate(). OutputLatency() Linux fallback reduced from 25ms to 10ms for PipeWire alignment.
+- AudioDestinationNode.cpp: DestinationNodeEngine::ProcessBlock() now allocates writable channels via AllocateChannels(), copies input scaled by volume, applies Fast-Tanh soft clipper (x * (27 + x^2) / (27 + 9x^2)) per sample, sets mVolume=1.0f since gain is baked into samples. Guarded by StaticPrefs::media_gorilla_hardware_only_mode().
+
+**Networking Patches Verified Deployed:**
+- HttpConnectionUDP.cpp:333 mSocket-&gt;SetSendBufferSize(4194304) // 4MB
+- nsHostResolver.cpp:74 NEGATIVE_RECORD_LIFETIME = 3 (was 60)
+- nsHttpTransaction.cpp:867-869 kGorillaUploadChunkSize (256KB) pacing in ReadSegments() for large uploads
+- All telemetry gated by #ifndef GLEAN_DISABLED (GLEAN_DISABLED=1 defined in patched files)
+
+**Codec Blocklist (GfxInfo.cpp lines 1481-1495):**
+- FEATURE_H264_HW_DECODE/ENCODE -&gt; FEATURE_STATUS_OK
+- VP8/VP9/AV1/HEVC -&gt; FEATURE_BLOCKED_PLATFORM_TEST with FEATURE_FAILURE_GORILLA_NO_HW_CODEC
+
+**Vendor Override (GfxInfoBase.cpp 1127-1132, GfxInfo.cpp 1477-1495):**
+- Checks for "0x8086" (Intel), "0x1002" (AMD), "0x10de" (NVIDIA) -&gt; FEATURE_STATUS_OK bypassing blocklist
+
+**Sanity Test Dead-Code (gfxPlatform.cpp 3065, 3117):**
+- media.hardware-video-decoding.failed and media.hardware-video-encoding.failed prefs wrapped in `false &amp;&amp;` so one bad boot never permanently disables VA-API/QuickSync.
+
+CODE:
+// gfxPlatformGtk.cpp - GPU Process Wayland Unblock
+void gfxPlatformGtk::InitPlatformGPUProcessPrefs() {
+#ifdef MOZ_WAYLAND
+  // GORILLA: Allow GPU process on Wayland — VA-API decode needs it
+  // if (IsWaylandDisplay()) {
+  //   FeatureState&amp; gpuProc = gfxConfig::GetFeature(Feature::GPU_PROCESS);
+  //   gpuProc.ForceDisable(FeatureStatus::Blocked,
+  //                        "Wayland does not work in the GPU process",
+  //                        "FEATURE_FAILURE_WAYLAND"_ns);
+  // }
+#endif
+}
+
+// AudioContext.cpp - 48kHz Native Rate Lock
+static float GetSampleRateForAudioContext(bool aIsOffline, float aSampleRate,
+                                          bool aShouldResistFingerprinting) {
+  if (aIsOffline) {
+    return aSampleRate;
+  }
+  // GORILLA TWEAK: Force 48000Hz native playback to match ALC269 clock rate
+  if (StaticPrefs::media_gorilla_hardware_only_mode()) {
+    return 48000.0f;
+  }
+  if (aSampleRate != 0.0) {
+    return aSampleRate;
+  }
+  return static_cast&lt;float&gt;(
+      CubebUtils::PreferredSampleRate(aShouldResistFingerprinting));
+}
+
+// AudioDestinationNode.cpp - Fast-Tanh Soft Clipper
+void DestinationNodeEngine::ProcessBlock(AudioNodeTrack* aTrack, GraphTime aFrom,
+                                         const AudioBlock&amp; aInput, AudioBlock* aOutput,
+                                         bool* aFinished) override {
+  TRACE("DestinationNodeEngine::ProcessBlock");
+  *aOutput = aInput;
+  aOutput-&gt;mVolume *= mVolume;
+
+  // Apply Soft-Limiter to prevent digital hard clipping
+  if (!aOutput-&gt;IsNull() &amp;&amp; StaticPrefs::media_gorilla_hardware_only_mode()) {
+    uint32_t channelCount = aOutput-&gt;ChannelCount();
+    AutoTArray&lt;const float*, 8&gt; channels;
+    for (uint32_t c = 0; c &lt; channelCount; ++c) {
+      channels.AppendElement(static_cast&lt;const float*&gt;(aOutput-&gt;mChannelData[c]));
+    }
+    float volume = aOutput-&gt;mVolume;
+    aOutput-&gt;AllocateChannels(channelCount);
+    for (uint32_t c = 0; c &lt; channelCount; ++c) {
+      float* dest = aOutput-&gt;ChannelFloatsForWrite(c);
+      const float* src = channels[c];
+      for (uint32_t i = 0; i &lt; WEBAUDIO_BLOCK_SIZE; ++i) {
+        float x = src[i] * volume;
+        // Fast approximation of tanh soft-clipper
+        if (x &gt; 1.0f) {
+          dest[i] = 1.0f;
+        } else if (x &lt; -1.0f) {
+          dest[i] = -1.0f;
+        } else {
+          dest[i] = x * (27.0f + x * x) / (27.0f + 9.0f * x * x);
+        }
+      }
+    }
+    aOutput-&gt;mVolume = 1.0f; // Volume already integrated into samples
+  }
+}
+
+// deploy.sh lines 79-80 - Audio patch deployment enabled
+deploy_file "$SRC/01.MEDIA/AudioContext.cpp" "dom/media/webaudio/AudioContext.cpp"
+deploy_file "$SRC/01.MEDIA/AudioDestinationNode.cpp" "dom/media/webaudio/AudioDestinationNode.cpp"
+
+// HttpConnectionUDP.cpp - 4MB UDP Send Buffer
+rv = mSocket-&gt;SetSendBufferSize(4194304); // 4 MB upload window
+
+// nsHostResolver.cpp - 3s Negative DNS Cache
+static const unsigned int NEGATIVE_RECORD_LIFETIME = 3; // seconds
+
+// nsHttpTransaction.cpp - Upload Pacing
+const uint32_t kGorillaUploadChunkSize = 256 * 1024; // 256 KB
+if (mRequestSize &gt; 10 * 1024 * 1024 &amp;&amp; readCount &gt; kGorillaUploadChunkSize) {
+  readCount = kGorillaUploadChunkSize;
+}
+
+PATHS: /home/gorilla/Documents/FIrefox.154.Work/patches/01.MEDIA/gfxPlatformGtk.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01.MEDIA/AudioContext.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/01.MEDIA/AudioDestinationNode.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/deploy.sh, /home/gorilla/Documents/FIrefox.154.Work/patches/02.GPU/gfxPlatform.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/02.GPU/GfxInfo.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/02.GPU/GfxInfoBase.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/02.GPU/GfxDriverInfo.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/03.NETWORKING/HttpConnectionUDP.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/03.NETWORKING/nsHostResolver.cpp, /home/gorilla/Documents/FIrefox.154.Work/patches/03.NETWORKING/nsHttpTransaction.cpp, /home/gorilla/firefox-source/gfx/thebes/gfxPlatformGtk.cpp, /home/gorilla/firefox-source/dom/media/webaudio/AudioContext.cpp, /home/gorilla/firefox-source/dom/media/webaudio/AudioDestinationNode.cpp
+
+KEYWORDS: Firefox 154, Gorilla Unleashed, GPU process, Wayland, VA-API, zero-copy, DMABUF, RDD process, AudioContext, AudioDestinationNode, Fast-Tanh, soft clipper, 48kHz, ALC269, UDP send buffer, DNS negative cache, upload pacing, codec blocklist, H.264 only, VP8 VP9 AV1 HEVC blocked, Intel HD 4000, Ivy Bridge, deploy.sh, gfxPlatformGtk.cpp, FEATURE_FAILURE_WAYLAND, HW_DECODED_VIDEO_ZERO_COPY, media.gorilla.hardware_only_mode</execution_logic>
+    <keywords>Firefox 154, Gorilla Unleashed, GPU process, Wayland, VA-API, zero-copy, DMABUF, RDD process, AudioContext, AudioDestinationNode, Fast-Tanh, soft clipper, 48kHz, ALC269, UDP send buffer, DNS negative cache, upload pacing, codec blocklist, H.264 only, VP8 VP9 AV1 HEVC blocked, Intel HD 4000, Ivy Bridge, deploy.sh, gfxPlatformGtk.cpp, FEATURE_FAILURE_WAYLAND, HW_DECODED_VIDEO_ZERO_COPY, media.gorilla.hardware_only_mode</keywords>
+    <recorded>2026-07-10T20:43:53Z</recorded>
+</concept>

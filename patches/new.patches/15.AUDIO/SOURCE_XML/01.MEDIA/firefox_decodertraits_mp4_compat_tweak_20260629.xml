@@ -1,0 +1,32 @@
+<concept name="firefox_decodertraits_mp4_compat_tweak_20260629">
+  <human_rationale>
+    Restored missing generic MP4 container query support in DecoderTraits.cpp.
+    This prevents JavaScript HTML5 players (like Video.js, Hls.js, Shaka Player) from assuming the browser has zero MP4 support when they perform generic canPlayType('video/mp4') queries.
+  </human_rationale>
+  <execution_logic>
+    In DecoderTraits.cpp inside CanHandleMediaType (lines 179-183):
+    
+    ```cpp
+      if (WaveDecoder::IsSupportedType(mimeType)) {
+        return CANPLAY_MAYBE;
+      }
+    + // Verify the container type is natively supported by the internal MP4 decoding pipeline.
+    + // If the query lacks explicit codec parameters, return CANPLAY_MAYBE per spec requirements.
+    + if (MP4Decoder::IsSupportedType(mimeType, aDiagnostics)) {
+    +   return CANPLAY_MAYBE;
+    + }
+      if (MP3Decoder::IsSupportedType(mimeType)) {
+        return CANPLAY_MAYBE;
+      }
+    ```
+    
+    This ensures that when a query has codecs, the granular codec-level checks in CanHandleCodecsType continue to gate and reject non-H.264 profiles. If a query does not specify codecs, it returns CANPLAY_MAYBE to confirm container-level support.
+    
+    Modified files:
+    - patches/dom/media/DecoderTraits.cpp
+    - patches/01_Media_Audio_Video/DecoderTraits.cpp
+    - dom/media/DecoderTraits.cpp (in source tree)
+    
+    Validated with structural_brace_checker.py and firefox_build_validator.py.
+  </execution_logic>
+</concept>

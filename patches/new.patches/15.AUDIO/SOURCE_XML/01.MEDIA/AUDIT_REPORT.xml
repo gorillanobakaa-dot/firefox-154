@@ -1,0 +1,418 @@
+<concept name="AUDIT_REPORT">
+  <human_rationale>
+================================================================================
+  Unleashed 153 - FULL PATCH AUDIT REPORT
+  Files: AudioStream.cpp, CubebUtils.cpp, FFmpegVideoDecoder.cpp,
+         PDMFactory.cpp, DecoderTraits.cpp, RemoteVideoDecoder.cpp
+  Cross-referenced against: MEDIA_PATCHES.md, Audio_video.txt
+================================================================================
+
+CONFIRMED CORRECT
+-----------------
+  - CubebUtils.cpp: GetVolumeScale() correctly clamps to minimum 4.0x
+  - CubebUtils.cpp: InitPreferredSampleRate() hard-locks to 48000 Hz
+  - PDMFactory.cpp: kHardwareVideoDecodeOnly = true propagates through
+    SupportsMimeType, Supports, and CreateDecoder correctly
+  - DecoderTraits.cpp: Blacklist fires for av01, vp8, vp9, vp09, hev1, hvc1
+  - FFmpegVideoDecoder.cpp: PATCH in CreateImageVAAPI does return
+    MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR) for failed surface exports
+  - RemoteVideoDecoder.cpp: IsSurfaceDescriptorValid check and NS_WARNING
+    are present as described
+
+================================================================================
+BUG 1 — CRITICAL (AudioStream.cpp)
+THE SOFT-KNEE LIMITER IS IN THE WRONG PLACE AND DOES NOTHING USEFUL
+================================================================================
+
+CLAIM (MEDIA_PATCHES.md + Audio_video.txt):
+  The soft-knee limiter protects against distortion caused by the 4.0x
+  volume boost from CubebUtils.
+
+REALITY:
+  The limiter runs inside DataCallback() on the raw normalized samples
+  produced by GetUnprocessed() or GetTimeStretched(). These samples are
+  in the [-1.0, 1.0] range at this point in the pipeline.
+
+  The 4.0x gain is applied LATER, by cubeb itself, via:
+
+    AudioStream::SetVolume(double aVolume) {
+      cubeb_stream_set_volume(aVolume * CubebUtils::GetVolumeScale())
+    }
+
+  cubeb_stream_set_volume multiplies the samples it receives FROM
+  DataCallback by the volume factor before sending them to the OS/hardware.
+
+  Signal flow:
+    DataCallback fills buffer (samples in -1.0 to +1.0)
+      --&gt; LIMITER clamps at 0.95 / hard-caps at 0.99   &lt;-- runs HERE
+      --&gt; cubeb_stream_set_volume multiplies by 4.0x    &lt;-- gain applied HERE
+      --&gt; OS/DAC receives values up to ±3.96            &lt;-- clips HERE
+
+  Result: A sample that the limiter "protected" at 0.99 becomes 3.96
+  after the 4.0x multiplication. A sample at the original 0.25 level
+  becomes 1.0 (just clipping). Any pre-gain sample above 0.25 will clip
+  hard at the OS/hardware level.
+
+  To actually protect against 4.0x clipping, the limiter threshold would
+  need to be 1.0 / 4.0 = 0.25, not 0.95. As written, the limiter is
+  architecturally meaningless — it operates on pre-gain signal and the
+  gain is applied downstream by a component it cannot see.
+
+  Additionally, the behaviour of cubeb_stream_set_volume with a value &gt; 1.0
+  is undefined by the cubeb API. Some backends (PulseAudio) support
+  pre-amplification; others (CoreAudio, WASAPI) may cap at 1.0 silently,
+  meaning the 4.0x boost does not function at all on those platforms.
+
+IMPACT: The entire audio protection mechanism is non-functional. On
+platforms where the 4.0x boost does apply, audio will clip hard at the
+OS/hardware level on any signal louder than 25% of full scale.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 2 — MINOR (AudioStream.cpp)
+WRONG GAIN VALUE IN PATCH COMMENT
+================================================================================
+
+CLAIM: Limiter is "tuned for maximum power" handling a "4.0x gain boost".
+
+REALITY:
+  The PATCH comment in AudioStream.cpp reads:
+
+    "Replaces hard clipping with a smooth polynomial curve to handle the
+     2.0x volume boost without harsh harmonic distortion."
+
+  The comment says 2.0x. CubebUtils delivers 4.0x. This is either a stale
+  copy from an earlier version of the patch or indicates the two files were
+  written independently without being reconciled. Either way, someone
+  reading the code cannot trust the comment.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 3 — MODERATE (FFmpegVideoDecoder.cpp)
+FRAME POOL IS NOT UNIFORMLY 16 ACROSS ALL PATHS
+================================================================================
+
+CLAIM (both .md and .txt):
+  "Standardized the frame pool size to 16 across all paths
+   (VA-API, Vulkan, V4L2, SW-Upload)."
+
+REALITY:
+  Path           Code                                       Actual behaviour
+  -----------    -----------------------------------------  ----------------
+  V4L2           MakeUnique&lt;VideoFramePool&lt;&gt;&gt;(16)           Exactly 16   OK
+  SW-Upload      MakeUnique&lt;VideoFramePool&lt;&gt;&gt;(16)           Exactly 16   OK
+  VA-API         MakeUnique&lt;VideoFramePool&lt;&gt;&gt;(             "At least 16"
+                   std::max(context-&gt;initial_pool_size,16))
+  Vulkan         MakeUnique&lt;VideoFramePool&lt;&gt;&gt;(             "At least 16"
+                   std::max(context-&gt;initial_pool_size,16))
+
+  On the two paths that matter most for H.264 ASIC decode (VA-API and
+  Vulkan), the pool size is the LARGER of 16 and whatever
+  AVHWFramesContext::initial_pool_size reports. If the Intel driver
+  reports a preferred pool of 24 or 32 frames, the pool will be 24 or 32.
+
+  The documentation's claim of "UMA-Aware Saturation" and "preventing RAM
+  starvation" only holds if the pool stays at 16. With std::max, the pool
+  can silently grow beyond that ceiling under any driver that prefers a
+  larger pool, which is exactly the RAM starvation scenario being protected
+  against on shared-memory Ivy Bridge hardware.
+
+IMPACT: RAM starvation protection is unreliable on the two primary
+hardware decode paths. The two paths that are capped correctly (V4L2,
+SW-Upload) are the secondary or fallback paths.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 4 — MINOR-TO-MODERATE (FFmpegVideoDecoder.cpp)
+std::abort() WAS NOT REMOVED — ONE COPY REMAINS
+================================================================================
+
+CLAIM (MEDIA_PATCHES.md):
+  "Replaced std::abort() with MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR)
+   to strictly forbid software fallback without causing tab crashes."
+
+REALITY:
+  A std::abort() call remains in the file in the VA-API hardware
+  capability enumeration path:
+
+    VAStatus status = vaQueryConfigProfiles(mDisplay, profiles, &amp;numProfiles);
+    if (status != VA_STATUS_SUCCESS) {
+      FFMPEG_LOG("  vaQueryConfigProfiles() failed %s", vaErrorStr(status));
+      std::abort();    // &lt;-- still here
+    }
+
+  This is a different call site from the surface-creation path that was
+  patched, but the blanket claim that abort() was eliminated is false.
+  A vaQueryConfigProfiles failure — which can occur if the VA-API driver
+  is in a degraded state — will still call abort() and kill the GPU process,
+  exactly the behaviour the patch set claimed to have eliminated.
+
+IMPACT: Process crash on VA-API driver failure during capability query.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 5 — MODERATE (FFmpegVideoDecoder.cpp)
+SOFTWARE FALLBACK LOOPHOLE VIA IsDecodingSlow()
+================================================================================
+
+CLAIM: "Hardware-Only Video Decode Fortress" — 0% CPU work for video.
+
+REALITY:
+  The following code exists untouched in the patched file:
+
+    if (mDecodeStats.IsDecodingSlow() &amp;&amp;
+        !StaticPrefs::media_ffmpeg_disable_software_fallback()) {
+      FFMPEG_LOG("HW decoding is slow, switching back to SW decode");
+      return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR, ...);
+    }
+
+  When hardware decoding is measured as too slow (frame drops), the decoder
+  returns NS_ERROR_DOM_MEDIA_DECODE_ERR. The media pipeline interprets this
+  as a signal to restart the decoder without hardware acceleration.
+
+  The StaticPref media.ffmpeg.disable_software_fallback controls this
+  behaviour. It is NOT set anywhere in the patch set. Its default value
+  is false, meaning the software fallback path is active.
+
+  Under sustained load on Ivy Bridge — which is exactly the scenario this
+  patch set is trying to manage — hardware decoding can be declared "slow",
+  and the decoder will escape the hardware-only policy through this exit.
+  The fortress has a door and it is unlocked.
+
+IMPACT: Under load, video can escape to software decoding despite all the
+PDMFactory and DecoderTraits gates. The pref
+media.ffmpeg.disable_software_fallback = true was never set.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 6 — MODERATE (PDMFactory.cpp)
+STATIC SupportsMimeType PATCH BLOCKS AUDIO CODEC QUERIES
+================================================================================
+
+CLAIM: Hardware-only gate applies to video only; audio is unaffected.
+
+REALITY:
+  The static overload of PDMFactory::SupportsMimeType has this structure:
+
+    const TrackSupportSet supports = GetTrackSupport(aLocation);
+
+    if (supports.contains(TrackSupport::DecodeVideo)) {
+      // PATCH
+      if (MP4Decoder::IsH264(aMimeType)) {
+        return MCSInfo::GetDecodeSupportSet(MediaCodec::H264, aSupported);
+      }
+      return DecodeSupportSet{};  // &lt;-- returns here for ALL non-H264
+    }
+
+    if (supports.contains(TrackSupport::DecodeAudio)) {
+      // AAC, MP3, Opus, Vorbis, FLAC handling...
+    }
+
+  The PATCH returns an EMPTY DecodeSupportSet for any MIME type
+  that is not H264, including audio MIME types like "audio/mp4" or
+  "audio/mpeg", whenever the queried process supports DecodeVideo.
+
+  In the RDD process, TrackSupportSet commonly contains both DecodeVideo
+  and DecodeAudio. When this function is called to check audio codec
+  support for that process, it enters the DecodeVideo branch, finds the
+  audio MIME type is not H264, and returns empty. The DecodeAudio branch
+  is never reached.
+
+IMPACT: Audio codec support is reported as zero for any remote decoder
+process that also handles video. This can cause audio tracks in video
+files to be treated as unsupported, breaking audio/video synchronised
+playback.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 7 — CRITICAL (RemoteVideoDecoder.cpp)
+PATCH DROPS ALL FRAMES WHEN NO COMPOSITOR BRIDGE EXISTS
+================================================================================
+
+CLAIM: "Drops frames with invalid GPU descriptors."
+
+REALITY:
+  The SurfaceDescriptor sd variable is declared uninitialized (default
+  state) before the compositor block:
+
+    SurfaceDescriptor sd;     // default — type is T__None (invalid)
+
+    if (mKnowsCompositor) {
+      // ...
+      if (texture) {
+        sd = remoteSD;        // only set here
+      }
+    }
+
+    // PATCH
+    if (!IsSurfaceDescriptorValid(sd)) {
+      NS_WARNING("...");
+      continue;               // drops frame
+    }
+
+  When mKnowsCompositor is null — which happens whenever no direct
+  VideoBridge connection to the compositor was established — sd is never
+  assigned. IsSurfaceDescriptorValid() on a default SurfaceDescriptor
+  returns false. Every single decoded frame is silently dropped.
+
+  mKnowsCompositor is null in several real scenarios:
+    - RDD process without a direct GPU compositor bridge (fallback init)
+    - Post-crash GPU process recovery during reinitialization window
+    - Any decode location other than GPU process (MF CDM process, etc.)
+
+  The same drop also fires when mKnowsCompositor IS set but texture
+  acquisition fails (texture = nullptr), blocking the original fallback
+  behaviour that would have serialised the frame via shmem IPC.
+
+  The original code had downstream handling for both cases. The
+  PATCH inserts before that code and short-circuits it entirely.
+
+IMPACT: In any non-GPU-compositor path, video produces no frames and no
+error is surfaced to the player. Manifests as a frozen or black frame
+with audio continuing — extremely hard to diagnose because no fatal error
+is returned, only an NS_WARNING.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 8 — MODERATE (RemoteVideoDecoder.cpp)
+COLOR SPACE METADATA IS HARDCODED AND NEVER READ FROM THE DECODED FRAME
+================================================================================
+
+CLAIM: No explicit claim about colour space; implied correctness.
+
+REALITY:
+  Four colour space variables are declared with defaults and passed
+  directly to RemoteImageHolder without ever being populated:
+
+    YUVColorSpace YUVColorSpace = gfx::YUVColorSpace::Default;
+    ColorSpace2 colorPrimaries = gfx::ColorSpace2::UNKNOWN;
+    TransferFunction transferFunction = gfx::TransferFunction::BT709;
+    ColorRange colorRange = gfx::ColorRange::LIMITED;
+
+    // ... (no code that reads these from video-&gt;mImage) ...
+
+    RemoteImageHolder(... sd, YUVColorSpace, colorPrimaries,
+                      transferFunction, colorRange)
+
+  The original code before these patches presumably queried
+  video-&gt;mImage for its actual colour space metadata before building
+  RemoteImageHolder. That query was either removed or never included
+  in the PATCH.
+
+  As a result, every frame is rendered as BT.709 / LIMITED range
+  regardless of its actual metadata. Affected content:
+    - Standard-definition content encoded in BT.601 (wrong green/skin tones)
+    - Any full-range content (FULL range clipped to LIMITED — washed out)
+    - HDR content mastered in BT.2020 (completely wrong colour gamut)
+
+  For modern H.264 web video at 1080p, BT.709/LIMITED is the most common
+  combination, so this may not be obvious. But any SD stream, full-range
+  encode, or HDR-tagged stream will render with visually wrong colours.
+
+IMPACT: Incorrect colour rendering for a wide category of H.264 content.
+Will appear as slightly wrong skin tones, washed-out colours, or
+completely off-gamut colours depending on source material.
+
+--------------------------------------------------------------------------------
+
+================================================================================
+BUG 9 — MINOR (DecoderTraits.cpp)
+CANPLAY_MAYBE / CANPLAY_NO INCONSISTENCY FOR BLOCKED CONTAINERS
+================================================================================
+
+CLAIM: Browsers are forced to serve H.264 because non-H.264 is rejected.
+
+REALITY:
+  The PATCH in CanHandleCodecsType only fires when
+  aType.ExtendedType().HaveCodecs() is true — i.e., when an explicit
+  codec string is present in the MIME type.
+
+  For container-only queries (no codec string), the code falls through to
+  the container-level checks, which still return CANPLAY_MAYBE for WebM:
+
+    video.canPlayType('video/webm')           --&gt; "maybe"   (unblocked)
+    video.canPlayType('video/webm; codecs="vp9"') --&gt; ""    (blocked)
+
+  HTML5 video players frequently probe both forms. A player that sees
+  "maybe" for video/webm will attempt to load a VP9 stream, make a
+  network request, begin buffering, and only then receive a rejection at
+  the codec level. This is worse than returning "" immediately — it
+  wastes bandwidth and causes a visible loading failure instead of a clean
+  silent fallback to H.264.
+
+  The correct fix would be to also block the container-only query for
+  video/webm (and other blocked containers) at the CanHandleMediaType
+  level, or remove WebMDecoder from the supported type list entirely.
+
+IMPACT: Some HTML5 players will attempt VP9 streams, fail mid-load, and
+produce a buffering failure or visible error before retrying H.264.
+
+================================================================================
+
+SUMMARY TABLE
+================================================================================
+
+  #   File                     Severity    Description
+  --  -----------------------  ----------  ------------------------------------
+  1   AudioStream.cpp          CRITICAL    Limiter is pre-gain; provides zero
+                                           protection against 4.0x clipping
+  2   AudioStream.cpp          Minor       Comment says 2.0x, system uses 4.0x
+  3   FFmpegVideoDecoder.cpp   Moderate    VA-API/Vulkan pool is std::max(n,16)
+                                           not exactly 16 as documented
+  4   FFmpegVideoDecoder.cpp   Minor-Mod   std::abort() not removed from
+                                           vaQueryConfigProfiles path
+  5   FFmpegVideoDecoder.cpp   Moderate    IsDecodingSlow() SW fallback gate
+                                           is active; pref never disabled
+  6   PDMFactory.cpp           Moderate    Static SupportsMimeType returns empty
+                                           for audio MIME types in video-capable
+                                           processes
+  7   RemoteVideoDecoder.cpp   CRITICAL    All frames dropped silently when
+                                           mKnowsCompositor is null
+  8   RemoteVideoDecoder.cpp   Moderate    Colour space metadata hardcoded;
+                                           never read from decoded frame
+  9   DecoderTraits.cpp        Minor       CANPLAY_MAYBE / CANPLAY_NO mismatch
+                                           for WebM without explicit codec string
+
+================================================================================
+
+NOTES FOR DISCUSSION
+================================================================================
+
+The two CRITICAL bugs are structurally related:
+
+  Bug 1 (limiter) exists because the gain stage and the protection stage
+  are in different components (AudioStream vs CubebUtils/cubeb) with no
+  shared awareness of each other. The fix requires either moving the gain
+  into DataCallback where it can be limited together, or lowering the
+  limiter threshold to 1.0/scale (0.25 at 4.0x) and accepting the loss
+  of dynamic range that implies.
+
+  Bug 7 (frame drop) exists because the zero-copy enforcement was inserted
+  as a single gate that does not distinguish between "frame has no GPU
+  surface" and "frame was never going to have a GPU surface because there
+  is no compositor bridge." The fix requires checking mKnowsCompositor
+  before applying the gate, or restructuring the enforcement to only apply
+  when the architecture expects GPU-backed surfaces.
+
+Bugs 5 and 6 are policy gaps: the hardware-only intent is documented and
+partially implemented, but two code paths were not accounted for.
+
+Bug 8 is a regression that was likely introduced by omission — the colour
+space query code was probably not in scope for the PATCH but was
+adjacent to code that was changed, and the variable population was lost.
+
+================================================================================
+END OF REPORT
+================================================================================
+
+  </human_rationale>
+  <execution_logic>
+  </execution_logic>
+</concept>

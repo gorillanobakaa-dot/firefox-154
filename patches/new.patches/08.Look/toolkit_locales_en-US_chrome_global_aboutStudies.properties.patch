@@ -1,5 +1,5 @@
---- /home/gorilla/Documents/FIREFOX.WORK/Firefox.Scripts.Vault.Docs/SafetyVault.Firefox/firefox-main/toolkit/locales/en-US/chrome/global/aboutStudies.properties	2026-07-10 17:32:00.000000000 +0100
-+++ /home/gorilla/firefox-main/toolkit/locales/en-US/chrome/global/aboutStudies.properties	2026-07-31 21:03:30.267538019 +0100
+--- a/toolkit/locales/en-US/chrome/global/aboutStudies.properties
++++ b/toolkit/locales/en-US/chrome/global/aboutStudies.properties
 @@ -2,29 +2,28 @@
  # License, v. 2.0. If a copy of the MPL was not distributed with this
  # file, You can obtain one at http://mozilla.org/MPL/2.0/.

@@ -1,0 +1,102 @@
+{
+  "title": "Mozambique Drill — 60-year timer dilation for Normandy RecipeRunner and Nimbus RemoteSettingsExperimentLoader",
+  "concept": {
+    "purpose": "This topic neutralises the two poll timers that drive Firefox's remote-experiment and remote-config channels: Normandy's RecipeRunner and Nimbus's RemoteSettingsExperimentLoader. Each timer reads app.normandy.run_interval_seconds to decide how often to fetch and apply remote recipes/experiments. Both patches change the in-code fallback default for that pref from 21600 seconds (6 hours) to 1893456000 seconds (60 years). The timers still register with Firefox's nsIUpdateTimerManager, so all dependent objects keep their shape; they simply never fire within the machine's lifetime. This is a doctrine kill (soft-gate/neutralise), not a removal.",
+    "design_rationale": "Structural excision was attempted first (hollowing ExperimentAPI, deleting Normandy) and abandoned because roughly 145 components across the tree depend on these modules and their data shapes; returning null cascaded into TypeError/ModuleNotFoundError at boot. Dilating the fallback interval is a two-line, reversible edit that preserves every module, import, and object while guaranteeing the network callout never happens. The value 1893456000 is chosen to stay under the signed 32-bit ceiling (2147483647 ≈ 68 years) so no runtime rejects it.",
+    "architecture": {
+      "pattern": "Shape-preserving neutralisation via timer-interval dilation. Both modules use Firefox's nsIUpdateTimerManager registration pattern; the patch only alters the numeric default fed into that registration.",
+      "dependencies": ["toolkit/components/normandy/lib/RecipeRunner.sys.mjs", "toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs", "app.normandy.run_interval_seconds (RUN_INTERVAL_PREF, shared by both files)", "Services.prefs / XPCOMUtils.defineLazyPreferenceGetter", "lazy.timerManager (nsIUpdateTimerManager)", "Cross-topic: 05.PREFS firefox.js locked prefs; NEW_FILES/distribution/policies.json runtime lock"],
+      "trust_boundary": "Closes the inbound targeting boundary: Mozilla-controlled Normandy/Nimbus endpoints can no longer schedule work inside this browser, because the scheduler that would invoke the fetch is set 60 years out. It does not by itself alter the outbound reporting boundary (that is topic 13's telemetry work).",
+      "attack_surface": "Removes a supply-chain-style vector: a compromised or coerced RemoteSettings/Normandy endpoint pushing a malicious 'experiment' or 'recipe'. With the fetch timer dilated (and, from topic 05, the master switch off and endpoint emptied), that push has no scheduled retrieval path."
+    }
+  },
+  "reference": {
+    "flags": [
+      {"name": "app.normandy.run_interval_seconds", "type": "int", "default": "1893456000 (in-code fallback; was 21600)", "effect": "Wall-clock seconds between Normandy/Nimbus poll firings. Both modules read this single pref.", "notes": "Shared by RecipeRunner.sys.mjs:41 and RemoteSettingsExperimentLoader.sys.mjs:52 as RUN_INTERVAL_PREF. Topic 05 sets the pref itself to 1893456000 and locks it, so the in-code fallback is the backstop for a stripped/reset pref."}
+    ],
+    "kill_switches": [
+      {"location": "RecipeRunner.sys.mjs:289 (updateRunInterval / registerTimer path)", "condition": "Every scheduler (re)registration when the pref is absent", "effect": "runInterval fallback = 1893456000 s; registerTimer(TIMER_NAME, () => this.run(), runInterval) schedules the next Normandy run 60 years out.", "reversible": true, "notes": "Reverse by restoring 21600 and rebuilding. Comment '// 60y (Mozambique Drill)' is factually correct and intentional; do not treat as debt to strip."},
+      {"location": "RemoteSettingsExperimentLoader.sys.mjs:256 (defineLazyPreferenceGetter for intervalInSeconds)", "condition": "Lazy getter resolution when the pref is absent", "effect": "intervalInSeconds fallback = 1893456000 s; setTimer() (line ~868) feeds it to registerTimer(TIMER_NAME, () => this.updateRecipes('timer'), this.intervalInSeconds).", "reversible": true, "notes": "setTimer() has an intervalInSeconds===0 branch that unregisters the timer (test hook); 1893456000 does not hit that branch, so the timer registers but never fires within any human timescale."}
+    ],
+    "api_surface": [
+      {"symbol": "RecipeRunner.updateRunInterval()", "signature": "updateRunInterval() -> void (reads RUN_INTERVAL_PREF, registers TIMER_NAME)", "description": "Registers the Normandy poll timer using the (now 60-year) fallback interval.", "side_effects": "Calls lazy.timerManager.registerTimer; no network at registration time."},
+      {"symbol": "RemoteSettingsExperimentLoader.intervalInSeconds", "signature": "lazy pref getter (RUN_INTERVAL_PREF, default 1893456000) -> number", "description": "Supplies the Nimbus poll interval; change callback re-runs setTimer().", "side_effects": "Getter resolution triggers setTimer() via the defineLazyPreferenceGetter callback."},
+      {"symbol": "RemoteSettingsExperimentLoader.setTimer()", "signature": "setTimer() -> void", "description": "Registers or unregisters the Nimbus update timer based on _enabled and intervalInSeconds.", "side_effects": "registerTimer with updateRecipes('timer') callback; unregisters if intervalInSeconds===0."}
+    ],
+    "error_conditions": [
+      {"code_or_message": "TypeError: ExperimentAPI is undefined (and similar ModuleNotFoundError) at boot", "cause": "Observed by the project when Normandy/Nimbus were structurally deleted rather than neutralised; ~145 dependents lose their expected objects/shapes.", "remedy": "Do not delete the modules. This topic's approach (interval dilation with objects preserved) avoids the cascade by design."}
+    ],
+    "dead_code": [
+      {"location": "N/A — none introduced by these two patches", "reason": "The timers are not dead code: they still register and hold their objects; only the firing interval is dilated. The abandoned structural-excision path is not present in these files.", "risk": "N/A"}
+    ],
+    "performance": {
+      "cpu": "Not measured. One recurring background poll (nominally every 6 hours) no longer fires; the per-fire cost avoided was not benchmarked.",
+      "memory": "Not measured. Negligible by inspection: the timer objects and their stacks still exist, so no allocation is freed by the change.",
+      "io": "Not measured by number. One fewer recurring outbound fetch to Mozilla Normandy/RemoteSettings endpoints on the poll cadence.",
+      "notes": "No before/after profiling artifact was supplied with this topic. Do not state a figure; the effect is directional, not quantified."
+    },
+    "security": {
+      "remote_execution": "Reduces exposure to remotely delivered 'recipes'/experiments: the retrieval timer that would fetch them is dilated to 60 years, and topic 05 additionally sets app.normandy.enabled=false with an emptied api_url.",
+      "data_handling": "These two patches read one pref and touch no user data; they transmit nothing. The net effect is fewer outbound connections.",
+      "attack_surface": "Closes a scheduled inbound path a compromised RemoteSettings/Normandy endpoint could use.",
+      "notes": "This is defence in depth: fallback default (these files) + locked pref (topic 05 firefox.js) + runtime lock (policies.json). Any single layer being bypassed still leaves the other two."
+    }
+  },
+  "tasks": [
+    {
+      "task_title": "Verify both timer dilations are present in the tree",
+      "context": "Confirm the patches applied and the values match before shipping. Each site changes exactly one line, from the 6-hour default to the 60-year default:\n\n```diff\n-    const runInterval = Services.prefs.getIntPref(RUN_INTERVAL_PREF, 21600); // 6h\n+    const runInterval = Services.prefs.getIntPref(RUN_INTERVAL_PREF, 1893456000); // 60y (Mozambique Drill)\n```\n",
+      "prerequisites": ["FF_SRC pointed at the patched tree (/home/gorilla/firefox-main)"],
+      "steps": [
+        {"step": 1, "action": "grep -n 1893456000 $FF_SRC/toolkit/components/normandy/lib/RecipeRunner.sys.mjs $FF_SRC/toolkit/components/nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs", "expected_result": "One match per file: RecipeRunner.sys.mjs:289 and RemoteSettingsExperimentLoader.sys.mjs:256, each with '// 60y (Mozambique Drill)'."},
+        {"step": 2, "action": "grep -n 'RUN_INTERVAL_PREF =' on both files", "expected_result": "Both define RUN_INTERVAL_PREF = \"app.normandy.run_interval_seconds\" (RecipeRunner:41, RSEL:52), confirming the shared pref."}
+      ],
+      "post_conditions": "Both fallback intervals are 1893456000; the shared pref name is confirmed."
+    },
+    {
+      "task_title": "Confirm the pref-lock and policy layers back the fallback",
+      "context": "The in-code fallback is a backstop; the primary control is the locked pref plus policies.json. Verify both.",
+      "prerequisites": ["Access to 05.PREFS/browser_app_profile_firefox.js.patch and NEW_FILES/distribution/policies.json"],
+      "steps": [
+        {"step": 1, "action": "grep -n 'app.normandy' $FF_SRC/browser/app/profile/firefox.js", "expected_result": "enabled=false locked (line ~2923), api_url=\"\" locked (~2921), run_interval_seconds=1893456000 locked (~2926)."},
+        {"step": 2, "action": "jq '.policies.Preferences' NEW_FILES/distribution/policies.json", "expected_result": "app.normandy.enabled, api_url, and run_interval_seconds each present with Status: locked."}
+      ],
+      "post_conditions": "All three layers (fallback, locked pref, runtime policy lock) are confirmed consistent at 1893456000 / false / empty."
+    },
+    {
+      "task_title": "Runtime smoke test",
+      "context": "Confirm neutralisation is live and the browser still boots.",
+      "prerequisites": ["A build from the patched tree"],
+      "steps": [
+        {"step": 1, "action": "Launch the build; open about:studies.", "expected_result": "Empty studies list; browser boots without ExperimentAPI-related errors."},
+        {"step": 2, "action": "In about:config, attempt to set app.normandy.run_interval_seconds; check about:policies.", "expected_result": "Edit rejected (locked); about:policies shows the Normandy prefs hard-locked."}
+      ],
+      "post_conditions": "No experiments run; the pref cannot be flipped at runtime; startup is clean."
+    }
+  ],
+  "troubleshooting": [
+    {"symptom": "Nimbus timer appears to unregister entirely rather than sleep.", "probable_cause": "setTimer() unregisters when intervalInSeconds===0 (a test hook). That is not this value.", "remedy": "Confirm intervalInSeconds resolves to 1893456000, not 0. A dilated timer registers and holds; it does not unregister.", "verification": "grep the getter default (RSEL:256) and inspect setTimer() at ~868."},
+    {"symptom": "Someone flags 1893456000 as a magic number to remove.", "probable_cause": "The value has an inline comment but is not a named constant.", "remedy": "Keep the value and comment; the 60y comment is correct and intentional. Optionally extract to a named constant, but do not 'clean up' the comment.", "verification": "Confirm the comment reads '// 60y (Mozambique Drill)' at both sites."},
+    {"symptom": "Boot cascade of TypeError: ExperimentAPI is undefined.", "probable_cause": "That failure belongs to the abandoned structural-excision approach, not to this topic.", "remedy": "Ensure the modules are present and only the interval is dilated; do not delete Normandy/Nimbus code.", "verification": "ExperimentAPI.sys.mjs exists in toolkit/components/nimbus/ and boots normally."}
+  ],
+  "technical_debt": [
+    {"item": "1893456000 carries an inline '// 60y (Mozambique Drill)' comment at both sites but is not extracted to a named constant.", "severity": "low", "recommendation": "Optionally define a shared named constant (e.g. SIXTY_YEARS_IN_SECONDS = 1893456000) for readability. The correct inline comment already prevents misreading it as a bug; do not remove the comment."},
+    {"item": "The policy-lock layer relies on the enterprise policy engine (policies.json) being present and MOZ_HAS_ENTERPRISE_POLICIES defined.", "severity": "low", "recommendation": "Add a build-time or startup assertion that the enterprise policy engine is active, so a silent degradation of the runtime lock is detected. The in-code fallback still holds if it degrades."}
+  ],
+  "impact_if_removed": "Reverting either fallback to 21600 restores a 6-hour poll cadence for that channel. On its own this would not re-open the channel while topic 05 keeps app.normandy.enabled=false and api_url empty and locked; both layers would have to be reverted for Mozilla to regain scheduled Normandy/Nimbus remote-control of this browser. Removing the modules entirely (rather than reverting the interval) reintroduces the ~145-dependent boot cascade the project already documented.",
+  "claim_sources": [
+    {"claim": "Fallback default changed 21600 -> 1893456000 in both files", "basis": "stated_in_input", "evidence": "-      21600, +      1893456000, // 60y (Mozambique Drill)"},
+    {"claim": "Both files read RUN_INTERVAL_PREF via getIntPref/defineLazyPreferenceGetter", "basis": "stated_in_input", "evidence": "getIntPref(RUN_INTERVAL_PREF, 1893456000)"},
+    {"claim": "Stock Normandy fallback was 21600 s (6h)", "basis": "stated_in_input", "evidence": "getIntPref(RUN_INTERVAL_PREF, 21600); // 6h"},
+    {"claim": "Nimbus getter 'intervalInSeconds' default set to 1893456000", "basis": "stated_in_input", "evidence": "\"intervalInSeconds\", RUN_INTERVAL_PREF, ... 1893456000, // 60y (Mozambique Drill)"},
+    {"claim": "RecipeRunner registers the timer via lazy.timerManager.registerTimer", "basis": "stated_in_input", "evidence": "lazy.timerManager.registerTimer(TIMER_NAME, () => this.run(), runInterval);"},
+    {"claim": "Change sits at RecipeRunner.sys.mjs:289 and RSEL:256 in the live tree", "basis": "model_inference", "evidence": "grep on firefox-main: RecipeRunner.sys.mjs:289, RemoteSettingsExperimentLoader.sys.mjs:256"},
+    {"claim": "RUN_INTERVAL_PREF = app.normandy.run_interval_seconds in both files", "basis": "model_inference", "evidence": "RecipeRunner.sys.mjs:41 and RemoteSettingsExperimentLoader.sys.mjs:52"},
+    {"claim": "RSEL setTimer() unregisters when intervalInSeconds===0, else registers with updateRecipes('timer')", "basis": "model_inference", "evidence": "RemoteSettingsExperimentLoader.sys.mjs:868-885"},
+    {"claim": "1893456000 s = 60 years and fits under signed 32-bit max (~68y)", "basis": "model_inference", "evidence": "60*365.25*24*3600=1893456000 < 2147483647"},
+    {"claim": "Topic 05 sets enabled=false, api_url empty, run_interval_seconds=1893456000, all locked", "basis": "model_inference", "evidence": "firefox.js:2921/2923/2926 pref(...,locked); 05.PREFS patch lines 773/776/780"},
+    {"claim": "policies.json locks the three prefs at runtime", "basis": "model_inference", "evidence": "NEW_FILES/distribution/policies.json Preferences block, Status: locked"},
+    {"claim": "Structural excision was attempted and abandoned due to ~145 dependents", "basis": "model_inference", "evidence": "README.md 'These systems have 145+ dependencies'; ExperimentAPI.sys.mjs still present with no override marker"},
+    {"claim": "No performance figures were captured", "basis": "model_inference", "evidence": "no benchmark artifact accompanies the topic"}
+  ]
+}
