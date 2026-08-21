@@ -1,5 +1,16 @@
 # 🦍 Gorilla Unleashed — Firefox 154
 
+<!-- WHO-THIS-IS-FOR: managed block, do not edit by hand -->
+
+**Firefox 154 with the telemetry stripped out and hardware video decoding forced on, for laptops the web has given up on.**
+
+Built for the people every other tool prices out: kids with no credit
+card, 15-year-old laptops, data sold by the megabyte. Free forever, by
+design, not as a trial.
+Why, with the numbers: [PHILOSOPHY.md](https://github.com/gorillanobakaa-dot/Gorilla.Opencode/blob/main/PHILOSOPHY.md)
+
+<!-- /WHO-THIS-IS-FOR -->
+
 **A faster, quieter Firefox for old and cheap Linux laptops.**
 No telemetry. No AI chatbots. No "experiments". No sponsored tiles. It wakes up
 the hardware your old machine already has, and it runs fine on 2 GB of RAM.
